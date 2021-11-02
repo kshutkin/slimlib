@@ -1,4 +1,4 @@
-import { Action, Appender, LogLevel, LogMessage } from "./types";
+import { Action, LogLevel, LogMessage } from "./types";
 import { green, red } from "kleur";
 
 export function consoleAppender(logMessage: LogMessage) {
@@ -13,13 +13,5 @@ export function consoleAppender(logMessage: LogMessage) {
                 break;
         }
         console.log(`${prefix} ${logMessage.message}`);
-    }
-}
-
-export function filterMessages(predicate: (logMessage: LogMessage) => boolean, appender: Appender ): Appender {
-    return function(logMessage: LogMessage) {
-        if (predicate(logMessage)) {
-            appender(logMessage);
-        }
     }
 }

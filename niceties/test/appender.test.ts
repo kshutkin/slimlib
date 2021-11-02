@@ -1,6 +1,5 @@
 import { green, red } from 'kleur';
-import { consoleAppender } from '../src';
-import { Action, LogLevel } from '../src/types';
+import { consoleAppender, Action, LogLevel } from '../src';
 
 describe('console appender', () => {
 

@@ -1,5 +1,4 @@
-import { niceties, setAppender } from '../src';
-import { Action, LogLevel } from '../src/types';
+import { niceties, setAppender, Action, LogLevel } from '../src';
 
 describe('api tests', () => {
     it('without a tag', () => {
