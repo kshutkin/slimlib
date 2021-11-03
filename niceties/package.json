@@ -18,7 +18,7 @@
     "prepare": "tsdx build --target node",
     "size": "size-limit",
     "analyze": "size-limit --why",
-    "publish": "yarn publish --access=public"
+    "publish": "yarn publish --access=public --tolerate-republish"
   },
   "peerDependencies": {},
   "husky": {
