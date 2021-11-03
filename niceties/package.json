@@ -1,8 +1,18 @@
 {
-  "version": "0.1.0",
+  "version": "0.1.1",
   "license": "MIT",
-  "main": "dist/index.js",
-  "typings": "dist/index.d.ts",
+  "name": "@slimlib/niceties",
+  "author": "Konstantin Shutkin",
+  "type": "module",
+  "source": "./src/index.ts",
+  "exports": {
+    "require": "./dist/index.cjs",
+    "default": "./dist/index.modern.js"
+  },
+  "main": "./dist/index.js",
+  "module": "./dist/index.esm.js",
+  "typings": "./dist/index.d.ts",
+  "unpkg": "./dist/index.umd.js",
   "files": [
     "dist",
     "src"
@@ -11,55 +21,25 @@
     "node": ">=10"
   },
   "scripts": {
-    "start": "tsdx watch --target node",
-    "build": "tsdx build --target node",
-    "test": "tsdx test",
-    "lint": "tsdx lint",
-    "prepare": "tsdx build --target node",
-    "size": "size-limit",
-    "analyze": "size-limit --why",
-    "publish": "yarn publish --access=public --tolerate-republish"
+    "build": "rimraf ./dist && microbundle --no-compress",
+    "dev": "rimraf ./dist && microbundle watch",
+    "publish": "yarn publish --access=public",
+    "test": "jest --collectCoverage",
+    "lint": "eslint ./src"
   },
-  "peerDependencies": {},
-  "husky": {
-    "hooks": {
-      "pre-commit": "tsdx lint"
-    }
-  },
-  "prettier": {
-    "printWidth": 80,
-    "semi": true,
-    "singleQuote": true,
-    "trailingComma": "es5"
-  },
-  "name": "@slimlib/niceties",
-  "author": "Konstantin Shutkin",
-  "module": "dist/niceties.esm.js",
-  "size-limit": [
-    {
-      "path": "dist/niceties.cjs.production.min.js",
-      "limit": "10 KB"
-    },
-    {
-      "path": "dist/niceties.esm.js",
-      "limit": "10 KB"
-    }
-  ],
   "devDependencies": {
-    "@size-limit/preset-small-lib": "^6.0.4",
     "@types/jest": "^27.0.2",
-    "husky": "^7.0.4",
-    "size-limit": "^6.0.4",
-    "tsdx": "^0.14.1",
+    "@typescript-eslint/eslint-plugin": "^5.3.0",
+    "@typescript-eslint/parser": "^5.3.0",
+    "eslint": "^8.1.0",
+    "jest": "^27.3.1",
+    "microbundle": "^0.14.1",
+    "rimraf": "^3.0.2",
+    "ts-jest": "^27.0.7",
     "tslib": "^2.3.1",
     "typescript": "^4.4.4"
   },
   "dependencies": {
     "kleur": "^4.1.4"
-  },
-  "eslintConfig": {
-    "rules": {
-      "prettier/prettier": "off"
-    }
   }
 }

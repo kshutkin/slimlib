@@ -1,5 +1,5 @@
-import { consoleAppender } from "./consoleAppender";
-import { Action, Appender, LogLevel } from "./types";
+import { consoleAppender } from './consoleAppender';
+import { Action, Appender, LogLevel } from './types';
 
 let globalInputId = 0;
 
@@ -12,10 +12,10 @@ export function setAppender(appender: Appender) {
 export function niceties(tag?: string) {
     let initialLogLevel: LogLevel = LogLevel.info;
     const inputId = globalInputId++;
-	return {
-		start(message: string, loglevel?: LogLevel) {
+    return {
+        start(message: string, loglevel?: LogLevel) {
             if (loglevel !== undefined) {
-			    initialLogLevel = loglevel;
+                initialLogLevel = loglevel;
             }
             currentAppender({
                 action: Action.start,
@@ -24,7 +24,7 @@ export function niceties(tag?: string) {
                 loglevel: initialLogLevel,
                 tag
             });
-		},
+        },
         update(message: string, loglevel?: LogLevel) {
             currentAppender({
                 action: Action.update,
@@ -52,5 +52,5 @@ export function niceties(tag?: string) {
                 tag
             });
         }
-	}
+    };
 }
