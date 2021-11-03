@@ -42,6 +42,13 @@
         }
       ],
       [
+        "@semantic-release/changelog",
+        {
+          "changelogFile": "CHANGELOG.md",
+          "changelogTitle": "Changelog"
+        }
+      ],
+      [
         "@semantic-release/release-notes-generator",
         {
           "preset": "angular",
@@ -71,6 +78,7 @@
     "lint": "eslint ./src"
   },
   "devDependencies": {
+    "@semantic-release/changelog": "^6.0.1",
     "@semantic-release/commit-analyzer": "^9.0.1",
     "@semantic-release/git": "^10.0.1",
     "@semantic-release/npm": "^8.0.2",
