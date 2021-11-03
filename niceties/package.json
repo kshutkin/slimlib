@@ -24,6 +24,7 @@
     "build": "rimraf ./dist && microbundle --no-compress",
     "dev": "rimraf ./dist && microbundle watch",
     "test": "jest --collectCoverage",
+    "publish": "npm publish --access=public",
     "lint": "eslint ./src"
   },
   "devDependencies": {
