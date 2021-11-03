@@ -20,6 +20,9 @@
   "engines": {
     "node": ">=12"
   },
+  "release": {
+    "branches": ["main"]
+  },
   "scripts": {
     "build": "rimraf ./dist && microbundle --no-compress",
     "dev": "rimraf ./dist && microbundle watch",
