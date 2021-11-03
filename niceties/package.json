@@ -1,5 +1,5 @@
 {
-  "version": "0.1.2",
+  "version": "0.1.3",
   "license": "MIT",
   "name": "@slimlib/niceties",
   "author": "Konstantin Shutkin",
@@ -23,7 +23,6 @@
   "scripts": {
     "build": "rimraf ./dist && microbundle --no-compress",
     "dev": "rimraf ./dist && microbundle watch",
-    "publish": "yarn publish --access=public",
     "test": "jest --collectCoverage",
     "lint": "eslint ./src"
   },
