@@ -1,5 +1,5 @@
 {
-  "version": "0.1.3",
+  "version": "0.1.4",
   "license": "MIT",
   "name": "@slimlib/niceties",
   "author": "Konstantin Shutkin",
@@ -24,7 +24,6 @@
     "build": "rimraf ./dist && microbundle --no-compress",
     "dev": "rimraf ./dist && microbundle watch",
     "test": "jest --collectCoverage",
-    "publish": "npm publish --access=public",
     "lint": "eslint ./src"
   },
   "devDependencies": {
@@ -35,6 +34,8 @@
     "jest": "^27.3.1",
     "microbundle": "^0.14.1",
     "rimraf": "^3.0.2",
+    "semantic-release": "^18.0.0",
+    "semantic-release-monorepo": "^7.0.5",
     "ts-jest": "^27.0.7",
     "tslib": "^2.3.1",
     "typescript": "^4.4.4"
