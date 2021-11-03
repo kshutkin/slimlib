@@ -42,7 +42,7 @@ jobs:
           scope: '@slimlib'
       - run: yarn
       - run: yarn workspaces run build
-      - run: yarn workspaces run semantic-release -e semantic-release-monorepo
+      - run: yarn workspaces run semantic-release
         env:
             NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
             GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
