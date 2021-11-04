@@ -1,5 +1,5 @@
 {
-  "version": "1.0.7",
+  "version": "1.0.6",
   "license": "MIT",
   "name": "@slimlib/niceties",
   "author": "Konstantin Shutkin",
@@ -18,7 +18,7 @@
     "src"
   ],
   "engines": {
-    "node": ">=12"
+    "node": ">=14"
   },
   "scripts": {
     "build": "rimraf ./dist && microbundle --no-compress",
