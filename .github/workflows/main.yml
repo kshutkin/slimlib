@@ -55,7 +55,7 @@ jobs:
         with:
           node-version: '16.x'
           registry-url: 'https://registry.npmjs.org'
-          scope: '@@slimlib'
+          scope: '@slimlib'
       - run: npm install
       - run: npm run build --workspaces --if-present
       - run: npm run semantic-release --workspaces --if-present
