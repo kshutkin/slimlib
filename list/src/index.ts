@@ -11,27 +11,59 @@ export class List<T extends AllowedNodeObject> implements ListNode {
     constructor() {
         this.n = this.p = this;
     }
-    *[Symbol.iterator]() {
-        for (let current = this.n; current != this; current = current.n) {
-            yield current as T & ListNode;
-        }
+    [Symbol.iterator]() {
+        // eslint-disable-next-line @typescript-eslint/no-this-alias
+        let current: ListNode = this;
+        return {
+            next: () => {
+                current = current.n;
+                return {
+                    done: current === this,
+                    value: current as T & ListNode
+                };
+            }
+        };
     }
+    // shorter but slower version commented
+    // *[Symbol.iterator]() {
+    //     for (let current = this.n; current != this; current = current.n) {
+    //         yield current as T & ListNode;
+    //     }
+    // }
 }
 
-export function append<T extends AllowedNodeObject>(list: List<T>, data: T) {
+export function append<T extends AllowedNodeObject>(element: ListNode, data: T) {
     // link data (list node)
-    data.n = list;
-    data.p = list.p;
+    data.n = element;
+    data.p = element.p;
     // link list
-    list.p = list.p.n = data as ListNode;
+    element.p = element.p.n = data as ListNode;
 }
 
-export function prepend<T extends AllowedNodeObject>(list: List<T>, data: T) {
+export function appendRange(element: ListNode, begin: ListNode, end: ListNode) {
+    // link end
+    end.n = element.n;
+    element.n.p = end;
+    // link begin
+    element.n = begin;
+    begin.p = element;
+}
+
+export function prepend<T extends AllowedNodeObject>(element: ListNode, data: T) {
     // link data (list node)
-    data.p = list;
-    data.n = list.n;
+    data.p = element;
+    data.n = element.n;
     // link list
-    list.n = list.n.p = data as ListNode;
+    element.n = element.n.p = data as ListNode;
+}
+
+export function prependRange(element: ListNode, begin: ListNode, end: ListNode) {
+    // link begin
+    begin.p = element.p;
+    element.p.n = begin;
+    // link end
+    element.p = end;
+    end.n = element;
 }
 
 export function remove(element: ListNode) {
@@ -43,5 +75,3 @@ export function removeRange(begin: ListNode, end: ListNode) {
     begin.p.n = end.n;
     end.n.p = begin.p;
 }
-
-// TODO insertAfter insertRangeAfter insertBefore insertRangeBefore
