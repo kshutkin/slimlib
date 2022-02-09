@@ -1,7 +1,7 @@
 {
   "version": "1.0.0",
   "license": "MIT",
-  "name": "@scope/list",
+  "name": "@slimlib/list",
   "author": {
     "name": "Konstantin Shutkin"
   },
@@ -52,17 +52,12 @@
     "conventional-changelog-angular": "5.0.13",
     "eslint": "8.1.0",
     "jest": "27.3.1",
-    "lodash": "4.17.21",
-    "rimraf": "3.0.2",
-    "is-builtin-module": "3.1.0",
     "semantic-release": "18.0.0",
     "semantic-release-monorepo": "7.0.5",
     "ts-jest": "27.0.7",
     "typescript": "4.5.x",
     "update-monorepo-package-json": "0.1.6",
-    "pkgbld": "1.1.1",
-    "benchmark": "2.1.4",
-    "kleur": "4.1.4"
+    "pkgbld": "1.1.9"
   },
   "dependencies": {}
 }
