@@ -20,7 +20,7 @@ const list = new List;
 ```
 
 ```typescript
-const list = new List<NodeType>;
+const list = new List<NodeType>();
 ```
 
 ### `[Symbol.iterator]()`
