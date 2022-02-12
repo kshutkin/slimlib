@@ -25,12 +25,12 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/kshutkin/monorepo-package.git"
+    "url": "git+https://github.com/kshutkin/slimlib.git"
   },
   "bugs": {
-    "url": "https://github.com/kshutkin/monorepo-package/issues"
+    "url": "https://github.com/kshutkin/slimlib/issues"
   },
-  "homepage": "https://github.com/kshutkin/monorepo-package/README.md",
+  "homepage": "https://github.com/kshutkin/slimlib/list/README.md",
   "readme": "README.md",
   "description": "Doubly linked list",
   "scripts": {
