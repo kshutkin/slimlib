@@ -1,7 +1,7 @@
 {
   "version": "1.0.0",
   "license": "MIT",
-  "name": "store",
+  "name": "@slimlib/store",
   "author": "Konstantin Shutkin",
   "type": "module",
   "exports": {
