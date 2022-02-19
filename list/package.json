@@ -34,7 +34,7 @@
   "readme": "README.md",
   "description": "Doubly linked list",
   "scripts": {
-    "build": "pkgbld",
+    "build": "pkgbld --umd=index",
     "test": "jest --collectCoverage",
     "lint": "eslint ./src",
     "semantic-release": "npx semantic-release",
