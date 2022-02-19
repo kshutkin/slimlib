@@ -1,5 +1,12 @@
 Changelog
 
+# [@slimlib/list-v1.0.1](https://github.com/kshutkin/slimlib/compare/@slimlib/list-v1.0.0...@slimlib/list-v1.0.1) (2022-02-19)
+
+
+### Bug Fixes
+
+* publish umd version ([a9e964f](https://github.com/kshutkin/slimlib/commit/a9e964f25c700a5084d885d38c7af6382f54bfde))
+
 # @slimlib/list-v1.0.0 (2022-02-12)
 
 
