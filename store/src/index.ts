@@ -9,6 +9,7 @@ export interface Store<T> {
 export const createStoreFactory = (notifyAfterCreation: boolean) => {
     return <T extends object>(object: T = {} as T): [T, Store<T>] => {
         let willNotifyNextTick = false;
+        const proxiesCache = new WeakMap<T, T>();
         const storeListeners = new Set<StoreCallback<T>>();
         const enqueueNotification = () => {
             if (!willNotifyNextTick) {
@@ -21,33 +22,31 @@ export const createStoreFactory = (notifyAfterCreation: boolean) => {
                 });
             }
         };
-        const createProxy = <O extends object>(object: O): O => {
-            return new Proxy<O>(object, {
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                set(target: O, p: string | symbol, value: any, receiver: any) {
-                    if (Reflect.get(target, p, receiver) !== value) {
-                        Reflect.set(target, p, value, receiver);
-                        enqueueNotification();
-                    }
-                    return true;
-                },
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                get(target: O, p: string | symbol, receiver: any) {
-                    const value = Reflect.get(target, p, receiver);
-                    return value !== null && typeof value === 'object' && !(value instanceof RegExp) ? createProxy(value) : value;
-                },
-                defineProperty(...args: [O, string | symbol, PropertyDescriptor]) {
+        const handler = {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            set(target: T, p: string | symbol, value: any, receiver: any) {
+                if (Reflect.get(target, p, receiver) !== value) {
+                    Reflect.set(target, p, value, receiver);
                     enqueueNotification();
-                    return Reflect.defineProperty(...args);
-                },
-                deleteProperty(target: O, p: string | symbol) {
-                    const result = Reflect.deleteProperty(target, p);
-                    if (result) {
-                        enqueueNotification();
-                    }
-                    return result;
                 }
-            });
+                return true;
+            },
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            get(target: T, p: string | symbol, receiver: any) {
+                const value = Reflect.get(target, p, receiver);
+                return value !== null && typeof value === 'object' && !(value instanceof RegExp) ? createProxy(value) : value;
+            },
+            defineProperty(...args: [T, string | symbol, PropertyDescriptor]) {
+                enqueueNotification();
+                return Reflect.defineProperty(...args);
+            },
+            deleteProperty(target: T, p: string | symbol) {
+                const result = Reflect.deleteProperty(target, p);
+                if (result) {
+                    enqueueNotification();
+                }
+                return result;
+            }
         };
         const proxy = createProxy(object);
         return [
@@ -63,5 +62,14 @@ export const createStoreFactory = (notifyAfterCreation: boolean) => {
                 return () => storeListeners.delete(cb);
             }) as Store<T>
         ];
+        function createProxy(object: T): T {
+            if (proxiesCache.has(object)) {
+                return proxiesCache.get(object) as T;
+            } else {
+                const proxy = new Proxy(object, handler);
+                proxiesCache.set(object, proxy);
+                return proxy;
+            }
+        }
     };
 };

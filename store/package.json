@@ -29,7 +29,7 @@
   },
   "homepage": "https://github.com/kshutkin/slimlib/store/README.md",
   "scripts": {
-    "build": "pkgbld",
+    "build": "pkgbld --umd=index",
     "test": "jest --collectCoverage",
     "lint": "eslint ./src",
     "semantic-release": "npx semantic-release"
