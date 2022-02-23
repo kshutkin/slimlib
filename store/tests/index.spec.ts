@@ -1,4 +1,5 @@
 import { createStoreFactory } from '../src';
+import util from 'util';
 
 const createStore = createStoreFactory(false);
 
@@ -218,6 +219,43 @@ describe('store', () => {
             expect(subscriber).toBeCalledWith([{prop: 42},{prop: 42}]);
             expect(store()).toEqual([{prop: 42},{prop: 42}]);
             expect(state).toEqual([{prop: 42},{prop: 42}]);
+            expect(store().every(item => !util.types.isProxy(item))).toBeTruthy();
+        });
+
+        it('change object in array', async () => {
+            const subscriber = jest.fn();
+            const [state, store] = createStore({data:[{prop: ''}]});
+            store(subscriber);
+            state.data[0].prop += 'test';
+            await flushPromises();
+            expect(subscriber).toBeCalledWith({data:[{prop: 'test'}]});
+            expect(store()).toEqual({data:[{prop: 'test'}]});
+            expect(state).toEqual({data:[{prop: 'test'}]});
+        });
+
+        it('find index in array (only wrappers)', () => {
+            const [state] = createStore({data:[{prop: ''}]});
+            const index = state.data.indexOf(state.data[0]);
+            expect(index).toBe(0);
+        });
+
+        // it('find index in array (mixed objects)', () => {
+        //     const [state, store] = createStore({data:[{prop: ''}]});
+        //     const index = state.data.indexOf(store().data[0]);
+        //     expect(index).toBe(0);
+        // });
+
+        it('swap in array', async () => {
+            const subscriber = jest.fn();
+            const [state, store] = createStore({data:[{prop: '1'},{prop: '2'}]});
+            store(subscriber);
+            const temp = state.data[0];
+            state.data[0] = state.data[1];
+            state.data[1] = temp;
+            await flushPromises();
+            expect(subscriber).toBeCalledWith({data:[{prop: '2'},{prop: '1'}]});
+            expect(store()).toEqual({data:[{prop: '2'},{prop: '1'}]});
+            expect(state).toEqual({data:[{prop: '2'},{prop: '1'}]});
         });
     });
 

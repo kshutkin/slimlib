@@ -40,6 +40,9 @@ Publish/subscribe/read pattern implementation. Ment to be used in components / s
 
 `Map`, `Set`, `WeakMap`, `WeakSet` cannot be used as values in current implementation.
 
+Mixing proxied values and values from underlying object can fail for cases where code needs checking for equality.
+
+For example searching array element from underlying object in proxified array will fail.
 # License
 
 [MIT](./LICENSE)

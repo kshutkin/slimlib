@@ -3,8 +3,16 @@ export type UnsubscribeCallback = () => void;
 
 export interface Store<T> {
     (cb: StoreCallback<T>): UnsubscribeCallback;
-    (): T; // return bare object without Proxy, put into documentation not to change state through it
+    (): Readonly<T>;
 }
+
+const unwrap = Symbol();
+
+type Unwrappable<T> = {
+    [unwrap]: T;
+} & T;
+
+const unwrapValue = <T>(value: T) => (value != null && (value as Unwrappable<T>)[unwrap]) || value;
 
 export const createStoreFactory = (notifyAfterCreation: boolean) => {
     return <T extends object>(object: T = {} as T): [T, Store<T>] => {
@@ -22,17 +30,19 @@ export const createStoreFactory = (notifyAfterCreation: boolean) => {
                 });
             }
         };
-        const handler = {
+        const handler: ProxyHandler<T> = {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             set(target: T, p: string | symbol, value: any, receiver: any) {
-                if (Reflect.get(target, p, receiver) !== value) {
-                    Reflect.set(target, p, value, receiver);
+                const realValue = unwrapValue(value);
+                if (Reflect.get(target, p, receiver) !== realValue) {
+                    Reflect.set(target, p, realValue, receiver);
                     enqueueNotification();
                 }
                 return true;
             },
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             get(target: T, p: string | symbol, receiver: any) {
+                if (p === unwrap) return target;
                 const value = Reflect.get(target, p, receiver);
                 return value !== null && typeof value === 'object' && !(value instanceof RegExp) ? createProxy(value) : value;
             },
