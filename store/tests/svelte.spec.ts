@@ -1,4 +1,4 @@
-import Test from './test.svelte';
+import Test from './Test.svelte';
 import { render, waitFor } from '@testing-library/svelte';
 import { addElement } from './store';
 
