@@ -32,46 +32,46 @@ export class List<T extends AllowedNodeObject> implements ListNode {
     // }
 }
 
-export function append<T extends AllowedNodeObject>(element: ListNode, data: T) {
+export const append = <T extends AllowedNodeObject>(element: ListNode, data: T) => {
     // link data (list node)
     data.n = element;
     data.p = element.p;
     // link list
     element.p = element.p.n = data as ListNode;
-}
+};
 
-export function appendRange(element: ListNode, begin: ListNode, end: ListNode) {
+export const appendRange = (element: ListNode, begin: ListNode, end: ListNode) => {
     // link end
     end.n = element.n;
     element.n.p = end;
     // link begin
     element.n = begin;
     begin.p = element;
-}
+};
 
-export function prepend<T extends AllowedNodeObject>(element: ListNode, data: T) {
+export const prepend = <T extends AllowedNodeObject>(element: ListNode, data: T) => {
     // link data (list node)
     data.p = element;
     data.n = element.n;
     // link list
     element.n = element.n.p = data as ListNode;
-}
+};
 
-export function prependRange(element: ListNode, begin: ListNode, end: ListNode) {
+export const prependRange = (element: ListNode, begin: ListNode, end: ListNode) => {
     // link begin
     begin.p = element.p;
     element.p.n = begin;
     // link end
     element.p = end;
     end.n = element;
-}
+};
 
-export function remove(element: ListNode) {
+export const remove = (element: ListNode) => {
     element.p.n = element.n;
     element.n.p = element.p;
-}
+};
 
-export function removeRange(begin: ListNode, end: ListNode) {
+export const removeRange = (begin: ListNode, end: ListNode) => {
     begin.p.n = end.n;
     end.n.p = begin.p;
-}
+};
