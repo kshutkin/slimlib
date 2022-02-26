@@ -2,6 +2,7 @@ import { createStoreFactory } from '../src';
 import util from 'util';
 
 const createStore = createStoreFactory(false);
+const createStoreWithNofificationAboutInitialState = createStoreFactory(true);
 
 function flushPromises() {
     return new Promise(resolve => setTimeout(resolve));
@@ -81,6 +82,7 @@ describe('store', () => {
 
         it('object', async () => {
             const subscriber = jest.fn();
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const [state, store] = createStore<any>({prop: { a: 1 }});
             store(subscriber);
             state.prop = { b: 2 };
@@ -188,6 +190,7 @@ describe('store', () => {
 
         it('nested object', async () => {
             const subscriber = jest.fn();
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const [state, store] = createStore<any>({prop: { a: 1 }});
             store(subscriber);
             state.prop.a = 2;
@@ -314,5 +317,25 @@ describe('store', () => {
             expect(subscriber).toBeCalledTimes(0);
             expect(subscriber2).toBeCalledTimes(0);
         });
+    });
+});
+
+describe('store with initial notification', () => {
+    it('notifies after creation', async () => {
+        const subscriber = jest.fn();
+        const [, store] = createStoreWithNofificationAboutInitialState({prop: 'test'});
+        store(subscriber);
+        await flushPromises();
+        expect(subscriber).toBeCalledTimes(1);
+        expect(subscriber).toBeCalledWith({prop: 'test'});
+    });
+
+    it('deafult state', async () => {
+        const subscriber = jest.fn();
+        const [, store] = createStoreWithNofificationAboutInitialState();
+        store(subscriber);
+        await flushPromises();
+        expect(subscriber).toBeCalledTimes(1);
+        expect(subscriber).toBeCalledWith({});
     });
 });

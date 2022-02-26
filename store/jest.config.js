@@ -13,13 +13,16 @@ if (scopeTest && scopeTest[0]) {
 /** @type {import('ts-jest/dist/types').InitialOptionsTsJest} */
 export default {
     preset: 'ts-jest',
-    testEnvironment: 'node',
-    extensionsToTreatAsEsm: ['.ts'],
-    testMatch: ['<rootDir>/**/tests/**/*.spec.ts'],
+    testEnvironment: 'jsdom',
+    extensionsToTreatAsEsm: ['.ts', '.svelte'],
+    testMatch: ['<rootDir>/**/tests/**/*.spec.ts*'],
     globals: {
         'ts-jest': {
             useESM: true,
         },
+    },
+    transform: {
+        '^.+\\.svelte$': 'svelte-jester'
     },
     testPathIgnorePatterns: ['/node_modules/'],
     coverageDirectory: './coverage',
