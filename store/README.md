@@ -2,6 +2,11 @@
 
 Proxy-based store for SPAs.
 
+1. Simple
+2. Relatively fast
+3. Small size (less than 1Kb minified not gzipped)
+4. Typescript support
+
 # Installation
 
 Using npm:
