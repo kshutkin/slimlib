@@ -1,5 +1,12 @@
 Changelog
 
+# [@slimlib/store-v1.1.0](https://github.com/kshutkin/slimlib/compare/@slimlib/store-v1.0.1...@slimlib/store-v1.1.0) (2022-02-26)
+
+
+### Features
+
+* implement subpackages to support some SPA libraries ([#4](https://github.com/kshutkin/slimlib/issues/4)) ([d460d7f](https://github.com/kshutkin/slimlib/commit/d460d7fc4bc7343de699f61e322b87a0aa32cf99))
+
 # [@slimlib/store-v1.0.1](https://github.com/kshutkin/slimlib/compare/@slimlib/store-v1.0.0...@slimlib/store-v1.0.1) (2022-02-23)
 
 
