@@ -1,5 +1,12 @@
 Changelog
 
+# [@slimlib/list-v1.0.2](https://github.com/kshutkin/slimlib/compare/@slimlib/list-v1.0.1...@slimlib/list-v1.0.2) (2022-02-26)
+
+
+### Bug Fixes
+
+* use arrow functions ([919cbd4](https://github.com/kshutkin/slimlib/commit/919cbd481f206f09b5ca58f6da26e854c1756b60))
+
 # [@slimlib/list-v1.0.1](https://github.com/kshutkin/slimlib/compare/@slimlib/list-v1.0.0...@slimlib/list-v1.0.1) (2022-02-19)
 
 
