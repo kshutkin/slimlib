@@ -11,9 +11,80 @@ npm install --save-dev @slimlib/store
 
 # Usage
 
-TBD
+React:
 
-## API
+```javascript
+import { createStore, useStore } from '@slimlib/store/react';
+
+// create store
+const [state, store] = createStore();
+
+// action
+function doSomething() {
+    state.field = value;
+}
+
+//component
+function Component() {
+    const state = useStore(store);
+    
+    // use state
+}
+```
+
+Preact:
+
+```javascript
+import { createStore, useStore } from '@slimlib/store/preact';
+
+// create store
+const [state, store] = createStore();
+
+// action
+function doSomething() {
+    state.field = value;
+}
+
+//component
+function Component() {
+    const state = useStore(store);
+    
+    // use state
+}
+```
+
+Svelte:
+
+In store
+
+```javascript
+import { createStore, useStore } from '@slimlib/store/svelte';
+
+// create store
+const [state, store] = createStore();
+
+// action
+function doSomething() {
+    state.field = value;
+}
+
+export const storeName = {
+    subscribe: store
+};
+```
+
+In component
+
+```svelte
+<script>
+import { storeName } from './stores/storeName';
+</script>
+
+// use it in reactive way for reading data
+$storeName
+```
+
+## API (main export)
 
 ###  `createStoreFactory(notifyAfterCreation: boolean)`
 
