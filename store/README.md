@@ -89,17 +89,19 @@ import { storeName } from './stores/storeName';
 $storeName
 ```
 
-## API (main export)
+## API
 
-###  `createStoreFactory(notifyAfterCreation: boolean)`
+### `main` and `core` exports
 
-The only exported function. It returns createStore factory (see next).
+####  `createStoreFactory(notifyAfterCreation: boolean)`
 
-### `createStore<T>(initialState: T): [T, Store<T>]`
+The only exported function. It returns createStore factory (see next) which notifies innidiately after creating store if `notifyAfterCreation` is truethy.
+
+#### `createStore<T>(initialState: T): [T, Store<T>]`
 
 Store factory function that takes initial state and returns proxy object and store tuple. Proxy object ment to be left for actions implementations and store is for subscription for changes.
 
-### `Store<T>`
+#### `Store<T>`
 
 ```typescript
 type StoreCallback<T> = (value: T) => void;
@@ -111,6 +113,22 @@ interface Store<T> {
 ```
 
 Publish/subscribe/read pattern implementation. Ment to be used in components / services that want to subscribe for store changes.
+
+### `react` and `preact` exports
+
+#### `createStore<T>(initialState: T): [T, Store<T>]`
+
+Store factory created with `notifyAfterCreation` === `false`.
+
+### `useStore<T>(store: Store<T>): Readonly<T>`
+
+Function to subscribe to store inside component. Returns current state.
+
+### `svelte` export
+
+#### `createStore<T>(initialState: T): [T, Store<T>]`
+
+Store factory created with `notifyAfterCreation` === `true`.
 
 ## Limitations
 
