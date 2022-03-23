@@ -1,5 +1,12 @@
 Changelog
 
+# [@slimlib/store-v1.1.1](https://github.com/kshutkin/slimlib/compare/@slimlib/store-v1.1.0...@slimlib/store-v1.1.1) (2022-03-23)
+
+
+### Bug Fixes
+
+* export ./package.json ([1d04da5](https://github.com/kshutkin/slimlib/commit/1d04da5bf8d8b5b9d5de6099b6ee70d3bc448e40))
+
 # [@slimlib/store-v1.1.0](https://github.com/kshutkin/slimlib/compare/@slimlib/store-v1.0.1...@slimlib/store-v1.1.0) (2022-02-26)
 
 

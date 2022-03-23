@@ -1,5 +1,5 @@
 {
-  "version": "1.1.0",
+  "version": "1.1.1",
   "license": "MIT",
   "name": "@slimlib/store",
   "author": "Konstantin Shutkin",
@@ -24,7 +24,8 @@
     "./svelte": {
       "require": "./dist/svelte.cjs",
       "default": "./dist/svelte.mjs"
-    }
+    },
+    "./package.json": "./package.json"
   },
   "main": "./dist/index.cjs",
   "module": "./dist/index.mjs",
