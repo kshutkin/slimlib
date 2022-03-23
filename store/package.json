@@ -48,7 +48,7 @@
   "bugs": {
     "url": "https://github.com/kshutkin/slimlib/issues"
   },
-  "homepage": "https://github.com/kshutkin/slimlib/store/README.md",
+  "homepage": "https://github.com/kshutkin/slimlib/blob/main/store/README.md",
   "scripts": {
     "build": "pkgbld --umd=index,preact,react,svelte",
     "test": "jest --collectCoverage",
