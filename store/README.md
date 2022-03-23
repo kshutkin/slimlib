@@ -73,7 +73,7 @@ export function doSomething() {
     state.field = value;
 }
 
-export const storeName = { subscribe };
+export default { subscribe };
 ```
 
 In component
