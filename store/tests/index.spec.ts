@@ -260,6 +260,35 @@ describe('store', () => {
             expect(store()).toEqual({data:[{prop: '2'},{prop: '1'}]});
             expect(state).toEqual({data:[{prop: '2'},{prop: '1'}]});
         });
+
+        it('Object.assign (proxy as a target, no new properties)', async () => {
+            const subscriber = jest.fn();
+            const [state, store] = createStore({test: false});
+            store(subscriber);
+            Object.assign(state, {test: true});
+            await flushPromises();
+            expect(subscriber).toBeCalledWith({test: true});
+            expect(store()).toEqual({test: true});
+            expect(state).toEqual({test: true});
+        });
+
+        it('Object.assign (proxy as a target)', async () => {
+            const subscriber = jest.fn();
+            const [state, store] = createStore({data: false});
+            store(subscriber);
+            Object.assign(state, {test: true});
+            await flushPromises();
+            expect(subscriber).toBeCalledWith({data: false, test: true});
+            expect(store()).toEqual({data: false, test: true});
+            expect(state).toEqual({data: false, test: true});
+        });
+
+        it('Object.assign (proxy as a source)', () => {
+            const [state] = createStore({data: false});
+            const target = {};
+            Object.assign(target, state);
+            expect(target).toEqual({data: false});
+        });
     });
 
     describe('publish/subscribe pattern', () => {
