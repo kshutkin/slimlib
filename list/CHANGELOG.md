@@ -1,5 +1,12 @@
 Changelog
 
+# [@slimlib/list-v1.0.4](https://github.com/kshutkin/slimlib/compare/@slimlib/list-v1.0.3...@slimlib/list-v1.0.4) (2022-03-23)
+
+
+### Bug Fixes
+
+* readme links ([fbeb35d](https://github.com/kshutkin/slimlib/commit/fbeb35dc30ed5e0e59bfcabed314ffaeb2eaac2b))
+
 # [@slimlib/list-v1.0.3](https://github.com/kshutkin/slimlib/compare/@slimlib/list-v1.0.2...@slimlib/list-v1.0.3) (2022-03-23)
 
 
