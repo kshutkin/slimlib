@@ -66,16 +66,14 @@ In store
 import { createStore, useStore } from '@slimlib/store/svelte';
 
 // create store
-const [state, store] = createStore();
+const [state, subscribe] = createStore();
 
 // action
-function doSomething() {
+export function doSomething() {
     state.field = value;
 }
 
-export const storeName = {
-    subscribe: store
-};
+export const storeName = { subscribe };
 ```
 
 In component
