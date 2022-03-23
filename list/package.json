@@ -1,5 +1,5 @@
 {
-  "version": "1.0.2",
+  "version": "1.0.3",
   "license": "MIT",
   "name": "@slimlib/list",
   "author": {
@@ -10,7 +10,8 @@
     ".": {
       "require": "./dist/index.cjs",
       "default": "./dist/index.mjs"
-    }
+    },
+    "./package.json": "./package.json"
   },
   "main": "./dist/index.cjs",
   "module": "./dist/index.mjs",

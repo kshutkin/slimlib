@@ -1,5 +1,12 @@
 Changelog
 
+# [@slimlib/list-v1.0.3](https://github.com/kshutkin/slimlib/compare/@slimlib/list-v1.0.2...@slimlib/list-v1.0.3) (2022-03-23)
+
+
+### Bug Fixes
+
+* export ./package.json ([1d04da5](https://github.com/kshutkin/slimlib/commit/1d04da5bf8d8b5b9d5de6099b6ee70d3bc448e40))
+
 # [@slimlib/list-v1.0.2](https://github.com/kshutkin/slimlib/compare/@slimlib/list-v1.0.1...@slimlib/list-v1.0.2) (2022-02-26)
 
 
