@@ -135,6 +135,11 @@ Store factory created with `notifyAfterCreation` === `true`.
 Mixing proxied values and values from underlying object can fail for cases where code needs checking for equality.
 
 For example searching array element from underlying object in proxified array will fail.
+
+## Similar projects
+
+[Valtio](https://github.com/pmndrs/valtio) - more sofisticated but similar approach, less limitations
+
 # License
 
 [MIT](./LICENSE)
