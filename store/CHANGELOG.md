@@ -1,5 +1,12 @@
 Changelog
 
+# [@slimlib/store-v1.1.3](https://github.com/kshutkin/slimlib/compare/@slimlib/store-v1.1.2...@slimlib/store-v1.1.3) (2022-07-03)
+
+
+### Bug Fixes
+
+* add stores to dependencies lists (fixes [#6](https://github.com/kshutkin/slimlib/issues/6)) ([4b80625](https://github.com/kshutkin/slimlib/commit/4b80625ccc4b62df8ad7ced1c75803d158beb377))
+
 # [@slimlib/store-v1.1.2](https://github.com/kshutkin/slimlib/compare/@slimlib/store-v1.1.1...@slimlib/store-v1.1.2) (2022-03-23)
 
 
