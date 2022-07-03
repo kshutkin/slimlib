@@ -1,5 +1,12 @@
 Changelog
 
+# [@slimlib/store-v1.3.0](https://github.com/kshutkin/slimlib/compare/@slimlib/store-v1.2.0...@slimlib/store-v1.3.0) (2022-07-03)
+
+
+### Features
+
+* trigger notifications function (resolves [#8](https://github.com/kshutkin/slimlib/issues/8)) ([a5587b8](https://github.com/kshutkin/slimlib/commit/a5587b86861c5beac2a6e6b4081b3ef7f1b584ae))
+
 # [@slimlib/store-v1.2.0](https://github.com/kshutkin/slimlib/compare/@slimlib/store-v1.1.3...@slimlib/store-v1.2.0) (2022-07-03)
 
 
