@@ -95,9 +95,9 @@ $storeName
 
 The only exported function. It returns createStore factory (see next) which notifies innidiately after creating store if `notifyAfterCreation` is truethy.
 
-#### `createStore<T>(initialState: T): [T, Store<T>]`
+#### `createStore<T>(initialState: T): [T, Store<T>, () => void]`
 
-Store factory function that takes initial state and returns proxy object and store tuple. Proxy object ment to be left for actions implementations and store is for subscription for changes.
+Store factory function that takes initial state and returns proxy object, store and function to notify subscribers. Proxy object ment to be left for actions implementations, store is for subscription for changes and notification only for some edge cases when original object have been changed and listeners have to be notified.
 
 #### `unwrapValue(value: T): T`
 
@@ -118,7 +118,7 @@ Publish/subscribe/read pattern implementation. Ment to be used in components / s
 
 ### `react` and `preact` exports
 
-#### `createStore<T>(initialState: T): [T, Store<T>]`
+#### `createStore<T>(initialState: T): [T, Store<T>, () => void]`
 
 Store factory created with `notifyAfterCreation` === `false`.
 
@@ -128,7 +128,7 @@ Function to subscribe to store inside component. Returns current state.
 
 ### `svelte` export
 
-#### `createStore<T>(initialState: T): [T, Store<T>]`
+#### `createStore<T>(initialState: T): [T, Store<T>, () => void]`
 
 Store factory created with `notifyAfterCreation` === `true`.
 

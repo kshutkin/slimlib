@@ -15,7 +15,7 @@ type Unwrappable<T> = {
 export const unwrapValue = <T>(value: T) => (value != null && (value as Unwrappable<T>)[unwrap]) || value;
 
 export const createStoreFactory = (notifyAfterCreation: boolean) => {
-    return <T extends object>(object: T = {} as T): [T, Store<T>] => {
+    return <T extends object>(object: T = {} as T): [T, Store<T>, () => void] => {
         let willNotifyNextTick = false;
         const proxiesCache = new WeakMap<T, T>();
         const storeListeners = new Set<StoreCallback<T>>();
@@ -70,7 +70,8 @@ export const createStoreFactory = (notifyAfterCreation: boolean) => {
                     cb(object);
                 }
                 return () => storeListeners.delete(cb);
-            }) as Store<T>
+            }) as Store<T>,
+            enqueueNotification
         ];
         function createProxy(object: T): T {
             if (proxiesCache.has(object)) {

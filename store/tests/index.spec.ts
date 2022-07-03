@@ -378,3 +378,23 @@ describe('unwrapValue', () => {
         expect(unwrapValue(state.prop)).toBe(emptyObject);
     });
 });
+
+describe('notification', () => {
+    it('able to notify subscribers', async () => {
+        const [, store, notify] = createStore({});
+        const listener = jest.fn();
+        store(listener);
+        notify();
+        await flushPromises();
+        expect(listener).toBeCalledTimes(1);
+    });
+    it('notify twice', async () => {
+        const [, store, notify] = createStore({});
+        const listener = jest.fn();
+        store(listener);
+        notify();
+        notify();
+        await flushPromises();
+        expect(listener).toBeCalledTimes(1);
+    });
+});
