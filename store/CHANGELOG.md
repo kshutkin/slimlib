@@ -1,5 +1,12 @@
 Changelog
 
+# [@slimlib/store-v1.2.0](https://github.com/kshutkin/slimlib/compare/@slimlib/store-v1.1.3...@slimlib/store-v1.2.0) (2022-07-03)
+
+
+### Features
+
+* unwrapValue (resolves [#7](https://github.com/kshutkin/slimlib/issues/7)) ([b86fc07](https://github.com/kshutkin/slimlib/commit/b86fc076b390d64edc717c4d54c3e5de1e601df7))
+
 # [@slimlib/store-v1.1.3](https://github.com/kshutkin/slimlib/compare/@slimlib/store-v1.1.2...@slimlib/store-v1.1.3) (2022-07-03)
 
 
