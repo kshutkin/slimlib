@@ -8,7 +8,7 @@ export const useStore = <T>(store: Store<T>) => {
     
     useEffect(() => {
         return store(() => setState({}));
-    }, []);
+    }, [store]);
     
     return store();
 };
