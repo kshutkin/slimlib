@@ -12,7 +12,7 @@ type Unwrappable<T> = {
     [unwrap]: T;
 } & T;
 
-const unwrapValue = <T>(value: T) => (value != null && (value as Unwrappable<T>)[unwrap]) || value;
+export const unwrapValue = <T>(value: T) => (value != null && (value as Unwrappable<T>)[unwrap]) || value;
 
 export const createStoreFactory = (notifyAfterCreation: boolean) => {
     return <T extends object>(object: T = {} as T): [T, Store<T>] => {

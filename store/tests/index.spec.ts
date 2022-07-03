@@ -1,4 +1,4 @@
-import { createStoreFactory } from '../src';
+import { createStoreFactory, unwrapValue } from '../src';
 import util from 'util';
 
 const createStore = createStoreFactory(false);
@@ -366,5 +366,15 @@ describe('store with initial notification', () => {
         await flushPromises();
         expect(subscriber).toBeCalledTimes(1);
         expect(subscriber).toBeCalledWith({});
+    });
+});
+
+describe('unwrapValue', () => {
+    it('able to unwrap value', async () => {
+        const [state] = createStore({} as {prop?: object});
+        const emptyObject = {};
+        state.prop = emptyObject;
+        expect(state.prop).not.toBe(emptyObject);
+        expect(unwrapValue(state.prop)).toBe(emptyObject);
     });
 });

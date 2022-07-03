@@ -99,6 +99,10 @@ The only exported function. It returns createStore factory (see next) which noti
 
 Store factory function that takes initial state and returns proxy object and store tuple. Proxy object ment to be left for actions implementations and store is for subscription for changes.
 
+#### `unwrapValue(value: T): T`
+
+Unwraps potential proxy object and returns plain object if possible or value itself.
+
 #### `Store<T>`
 
 ```typescript
