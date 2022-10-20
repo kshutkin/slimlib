@@ -38,9 +38,6 @@
     "core",
     "svelte"
   ],
-  "engines": {
-    "node": ">=15"
-  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/kshutkin/slimlib.git"
