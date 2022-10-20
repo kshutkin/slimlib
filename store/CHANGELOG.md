@@ -1,5 +1,13 @@
 Changelog
 
+# [@slimlib/store-v1.3.1](https://github.com/kshutkin/slimlib/compare/@slimlib/store-v1.3.0...@slimlib/store-v1.3.1) (2022-10-20)
+
+
+### Bug Fixes
+
+* build on node => 16 but not specify this as requirement in packages ([00a42ff](https://github.com/kshutkin/slimlib/commit/00a42ffb747ae4a58f2b9e96d7cc93b3d71edb99))
+* use new pkgbld, fixes exports in subpackages ([d84b5f3](https://github.com/kshutkin/slimlib/commit/d84b5f3c6266f7f6f011110954f52fbf40df32db))
+
 # [@slimlib/store-v1.3.0](https://github.com/kshutkin/slimlib/compare/@slimlib/store-v1.2.0...@slimlib/store-v1.3.0) (2022-07-03)
 
 
