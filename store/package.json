@@ -92,5 +92,10 @@
     "svelte": "3.46.4",
     "svelte-jester": "2.3.2"
   },
-  "description": "Simple Proxy-based store for SPA"
+  "description": "Simple Proxy-based store for SPA",
+  "keywords": [
+    "@slimlib",
+    "store",
+    "proxy"
+  ]
 }

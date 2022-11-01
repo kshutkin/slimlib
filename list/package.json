@@ -18,8 +18,7 @@
   "typings": "./dist/index.d.ts",
   "unpkg": "./dist/index.umd.js",
   "files": [
-    "dist",
-    "core"
+    "dist"
   ],
   "repository": {
     "type": "git",
@@ -31,6 +30,12 @@
   "homepage": "https://github.com/kshutkin/slimlib/blob/main/list/README.md",
   "readme": "README.md",
   "description": "Doubly linked list",
+  "keywords": [
+    "@slimlib",
+    "list",
+    "linked list",
+    "doubly linked list"
+  ],
   "scripts": {
     "build": "pkgbld --umd=index",
     "test": "jest --collectCoverage",
