@@ -1,5 +1,12 @@
 Changelog
 
+# [@slimlib/store-v1.3.2](https://github.com/kshutkin/slimlib/compare/@slimlib/store-v1.3.1...@slimlib/store-v1.3.2) (2022-11-01)
+
+
+### Bug Fixes
+
+* added keywords ([4477f88](https://github.com/kshutkin/slimlib/commit/4477f8864e45deba1d9275ddc9dd462b3bdd9860))
+
 # [@slimlib/store-v1.3.1](https://github.com/kshutkin/slimlib/compare/@slimlib/store-v1.3.0...@slimlib/store-v1.3.1) (2022-10-20)
 
 
