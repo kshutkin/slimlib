@@ -2,6 +2,7 @@
   "private": true,
   "workspaces": [
     "list",
-    "store"
+    "store",
+    "injector"
   ]
 }
