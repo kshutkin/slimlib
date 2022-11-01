@@ -1,5 +1,12 @@
 Changelog
 
+# [@slimlib/list-v1.0.6](https://github.com/kshutkin/slimlib/compare/@slimlib/list-v1.0.5...@slimlib/list-v1.0.6) (2022-11-01)
+
+
+### Bug Fixes
+
+* added keywords ([4477f88](https://github.com/kshutkin/slimlib/commit/4477f8864e45deba1d9275ddc9dd462b3bdd9860))
+
 # [@slimlib/list-v1.0.5](https://github.com/kshutkin/slimlib/compare/@slimlib/list-v1.0.4...@slimlib/list-v1.0.5) (2022-10-20)
 
 
