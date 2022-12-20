@@ -36,7 +36,8 @@
     "react",
     "preact",
     "core",
-    "svelte"
+    "svelte",
+    "LICENSE"
   ],
   "repository": {
     "type": "git",
@@ -47,7 +48,7 @@
   },
   "homepage": "https://github.com/kshutkin/slimlib/blob/main/store/README.md",
   "scripts": {
-    "build": "pkgbld --umd=index,preact,react,svelte",
+    "build": "pkgbld-internal --umd=index,preact,react,svelte",
     "test": "jest --collectCoverage",
     "lint": "eslint ./src",
     "semantic-release": "npx semantic-release"
@@ -77,7 +78,7 @@
     "conventional-changelog-angular": "5.0.13",
     "eslint": "8.8.0",
     "jest": "27.5.1",
-    "pkgbld": "1.7.1",
+    "pkgbld-internal": "1.0.7",
     "preact": ">=10.0.0",
     "react": ">=17.0.0",
     "react-dom": ">=17.0.0",
