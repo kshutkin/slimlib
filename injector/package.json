@@ -31,6 +31,12 @@
   "homepage": "https://github.com/kshutkin/slimlib/blob/main/injector/README.md",
   "readme": "README.md",
   "description": "Parameter names based dependency injector for nodejs",
+  "keywords": [
+    "@slimlib",
+    "injector",
+    "dependency injection",
+    "nodejs"
+  ],
   "scripts": {
     "build": "pkgbld-internal",
     "test": "jest --collectCoverage",
