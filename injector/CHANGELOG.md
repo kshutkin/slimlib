@@ -1,5 +1,12 @@
 Changelog
 
+# [@slimlib/injector-v1.0.2](https://github.com/kshutkin/slimlib/compare/@slimlib/injector-v1.0.1...@slimlib/injector-v1.0.2) (2023-01-23)
+
+
+### Bug Fixes
+
+* added keywords ([fbaadc4](https://github.com/kshutkin/slimlib/commit/fbaadc490f7955d2478ba430236d7c5cb42f4c0b))
+
 # [@slimlib/injector-v1.0.1](https://github.com/kshutkin/slimlib/compare/@slimlib/injector-v1.0.0...@slimlib/injector-v1.0.1) (2022-12-20)
 
 
