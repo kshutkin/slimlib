@@ -1,5 +1,13 @@
 Changelog
 
+# [@slimlib/store-v1.3.3](https://github.com/kshutkin/slimlib/compare/@slimlib/store-v1.3.2...@slimlib/store-v1.3.3) (2022-12-20)
+
+
+### Bug Fixes
+
+* added LICENSE to files, fixed README path ([4880527](https://github.com/kshutkin/slimlib/commit/4880527d54cf874317b18926856bdb01c16fa6cf))
+* update pkgbld-internal one more time ([63efced](https://github.com/kshutkin/slimlib/commit/63efced8ec63a8331b4ddf8618d46a8a89419482))
+
 # [@slimlib/store-v1.3.2](https://github.com/kshutkin/slimlib/compare/@slimlib/store-v1.3.1...@slimlib/store-v1.3.2) (2022-11-01)
 
 
