@@ -1,7 +1,7 @@
 {
   "version": "1.0.0",
   "license": "MIT",
-  "name": "refine-partition",
+  "name": "@slimlib/refine-partition",
   "author": "Konstantin Shutkin",
   "type": "module",
   "exports": {
