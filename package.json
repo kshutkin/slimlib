@@ -6,6 +6,7 @@
   "workspaces": [
     "list",
     "store",
-    "injector"
+    "injector",
+    "refine-partition"
   ]
 }

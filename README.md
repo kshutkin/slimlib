@@ -5,3 +5,4 @@ Collection of slim general purpose typescript/javascript libraries
 - [list](./list/README.md)
 - [store](./store/README.md)
 - [injector](./injector/README.md)
+- [refine-partition](./refine-partition/README.md)
