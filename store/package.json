@@ -78,7 +78,7 @@
     "conventional-changelog-angular": "5.0.13",
     "eslint": "8.8.0",
     "jest": "27.5.1",
-    "pkgbld-internal": "1.0.8",
+    "pkgbld-internal": "1.0.9",
     "preact": ">=10.0.0",
     "react": ">=17.0.0",
     "react-dom": ">=17.0.0",
