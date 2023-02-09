@@ -41,7 +41,7 @@ importers:
       '@testing-library/react': 12.1.5
       '@testing-library/svelte': 3.0.3
       '@types/jest': 29.4.0
-      '@types/react': ^17.0.39
+      '@types/react': ^18.0.0
       '@types/react-dom': '>=17.0.0'
       jest-environment-jsdom: 29.4.2
       preact: '>=10.0.0'
@@ -54,7 +54,7 @@ importers:
       '@testing-library/react': 12.1.5_biqbaboplfbrettd7655fr4n2y
       '@testing-library/svelte': 3.0.3_svelte@3.46.4
       '@types/jest': 29.4.0
-      '@types/react': 17.0.53
+      '@types/react': 18.0.27
       '@types/react-dom': 18.0.10
       jest-environment-jsdom: 29.4.2
       preact: 10.12.1
@@ -1236,11 +1236,19 @@ packages:
   /@types/react-dom/18.0.10:
     resolution: {integrity: sha512-E42GW/JA4Qv15wQdqJq8DL4JhNpB3prJgjgapN3qJT9K2zO5IIAQh4VXvCEDupoqAwnz0cY4RlXeC/ajX5SFHg==}
     dependencies:
-      '@types/react': 17.0.53
+      '@types/react': 18.0.27
     dev: true
 
   /@types/react/17.0.53:
     resolution: {integrity: sha512-1yIpQR2zdYu1Z/dc1OxC+MA6GR240u3gcnP4l6mvj/PJiVaqHsQPmWttsvHsfnhfPbU2FuGmo0wSITPygjBmsw==}
+    dependencies:
+      '@types/prop-types': 15.7.5
+      '@types/scheduler': 0.16.2
+      csstype: 3.1.1
+    dev: true
+
+  /@types/react/18.0.27:
+    resolution: {integrity: sha512-3vtRKHgVxu3Jp9t718R9BuzoD4NcQ8YJ5XRzsSKxNDiDonD2MXIT1TmSkenxuCycZJoQT5d2vE8LwWJxBC1gmA==}
     dependencies:
       '@types/prop-types': 15.7.5
       '@types/scheduler': 0.16.2
