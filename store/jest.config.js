@@ -8,21 +8,19 @@ if (scopeTest && scopeTest[0]) {
     scope = scopeTest[1];
     moduleNameMapper[`${scope}/(.*)/(.*)`] = '<rootDir>/../$1/src/$2.ts';
     moduleNameMapper[`${scope}/(.*)$`] = '<rootDir>/../$1/src';
+    moduleNameMapper['^preact(/(.*)|$)'] = 'preact$1';
 }
 
 /** @type {import('ts-jest/dist/types').InitialOptionsTsJest} */
 export default {
     preset: 'ts-jest',
     testEnvironment: 'jsdom',
-    extensionsToTreatAsEsm: ['.ts', '.svelte'],
+    extensionsToTreatAsEsm: ['.ts', '.tsx', '.svelte'],
     testMatch: ['<rootDir>/**/tests/**/*.spec.ts*'],
-    globals: {
-        'ts-jest': {
-            useESM: true,
-        },
-    },
     transform: {
-        '^.+\\.svelte$': 'svelte-jester'
+        '^.+\\.svelte$': 'svelte-jester',
+        '^.+\\.ts$': ['ts-jest', { useESM: true }],
+        '^.+\\.tsx$': ['ts-jest', { useESM: true }]
     },
     testPathIgnorePatterns: ['/node_modules/'],
     coverageDirectory: './coverage',

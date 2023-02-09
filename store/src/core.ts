@@ -44,7 +44,7 @@ export const createStoreFactory = (notifyAfterCreation: boolean) => {
             get(target: T, p: string | symbol, receiver: any) {
                 if (p === unwrap) return target;
                 const value = Reflect.get(target, p, receiver);
-                return value !== null && typeof value === 'object' && !(value instanceof RegExp) ? createProxy(value) : value;
+                return value !== null && typeof value === 'object' && !(value instanceof RegExp) ? createProxy(value as T) : value;
             },
             defineProperty(...args: [T, string | symbol, PropertyDescriptor]) {
                 enqueueNotification();
