@@ -43,7 +43,7 @@ importers:
       '@types/jest': 29.4.0
       '@types/react': ^17.0.39
       '@types/react-dom': '>=17.0.0'
-      jest-environment-jsdom: 29.4.0
+      jest-environment-jsdom: 29.4.2
       preact: '>=10.0.0'
       react: '>=17.0.0'
       react-dom: '>=17.0.0'
@@ -56,7 +56,7 @@ importers:
       '@types/jest': 29.4.0
       '@types/react': 17.0.53
       '@types/react-dom': 18.0.10
-      jest-environment-jsdom: 29.4.0
+      jest-environment-jsdom: 29.4.2
       preact: 10.12.1
       react: 18.2.0
       react-dom: 18.2.0_react@18.2.0
@@ -3280,8 +3280,8 @@ packages:
       pretty-format: 29.4.2
     dev: true
 
-  /jest-environment-jsdom/29.4.0:
-    resolution: {integrity: sha512-z1tB/qtReousDnU695K38ZzoR6B3dRXazwgyhTHzMviSC2T3KmVy0T722fZxR2q3x/Jvv85JxU/2xs8kwX394w==}
+  /jest-environment-jsdom/29.4.2:
+    resolution: {integrity: sha512-v1sH4Q0JGM+LPEGqHNM+m+uTMf3vpXpKiuDYqWUAh+0c9+nc7scGE+qTR5JuE+OOTDnwfzPgcv9sMq6zWAOaVg==}
     engines: {node: ^14.15.0 || ^16.10.0 || >=18.0.0}
     peerDependencies:
       canvas: ^2.5.0
