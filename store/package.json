@@ -73,7 +73,7 @@
     "@testing-library/react": "12.1.5",
     "@types/react-dom": ">=17.0.0",
     "jest-environment-jsdom": "29.4.2",
-    "@testing-library/svelte": "3.0.3",
+    "@testing-library/svelte": "3.2.2",
     "svelte": "3.46.4",
     "svelte-jester": "2.3.2",
     "tslib": "^2.5.0"
