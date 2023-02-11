@@ -75,4 +75,4 @@ inject(async (config: Json) => {
 
 # License
 
-[MIT](./LICENSE)
+[MIT](https://github.com/kshutkin/slimlib/blob/main/LICENSE)

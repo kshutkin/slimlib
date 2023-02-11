@@ -29,4 +29,4 @@ console.log(refineNext()); // Iterable of Iterables: ((a), (b, c), (e))
 
 # License
 
-[MIT](./LICENSE)
+[MIT](https://github.com/kshutkin/slimlib/blob/main/LICENSE)

@@ -72,4 +72,4 @@ end - last `ListNode` of a range
 
 # License
 
-[MIT](./LICENSE)
+[MIT](https://github.com/kshutkin/slimlib/blob/main/LICENSE)

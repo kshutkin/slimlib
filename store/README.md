@@ -146,4 +146,4 @@ For example searching array element from underlying object in proxified array wi
 
 # License
 
-[MIT](./LICENSE)
+[MIT](https://github.com/kshutkin/slimlib/blob/main/LICENSE)
