@@ -8,6 +8,7 @@ Collection of slim general purpose typescript/javascript libraries
 - [store](./store/README.md)
 - [injector](./injector/README.md)
 - [refine-partition](./refine-partition/README.md)
+- [smart-mock](./smart-mock/README.md)
 
 # License
 [MIT](./LICENSE)

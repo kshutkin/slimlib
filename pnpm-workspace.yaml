@@ -3,3 +3,4 @@ packages:
   - "store"
   - "injector"
   - "refine-partition"
+  - "smart-mock"
