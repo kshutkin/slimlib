@@ -1,0 +1,44 @@
+{
+  "version": "0.0.0",
+  "license": "MIT",
+  "name": "@slimlib/smart-mock",
+  "author": "Konstantin Shutkin",
+  "type": "module",
+  "exports": {
+    ".": {
+      "require": "./dist/index.cjs",
+      "default": "./dist/index.mjs"
+    },
+    "./package.json": "./package.json"
+  },
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.mjs",
+  "typings": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=15"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kshutkin/slimlib.git"
+  },
+  "bugs": {
+    "url": "https://github.com/kshutkin/slimlib/issues"
+  },
+  "homepage": "https://github.com/kshutkin/slimlib/blob/main/smart-mock/README.md",
+  "readme": "README.md",
+  "description": "One more proxy based mock",
+  "keywords": [
+    "@slimlib",
+    "mock",
+    "smart-mock"
+  ],
+  "scripts": {
+    "build": "pkgbld-internal",
+    "test": "jest --collectCoverage",
+    "lint": "eslint ./src"
+  }
+}
