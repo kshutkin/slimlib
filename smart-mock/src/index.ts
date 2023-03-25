@@ -35,7 +35,7 @@ type Unwrappable<T> = {
     [mock]: MockData;
 } & T;
 
-export const unwrapValue = <T>(value: T) => (value != null && (value as Unwrappable<T>)[unwrap]) || value;
+const unwrapValue = <T>(value: T) => (value != null && (value as Unwrappable<T>)[unwrap]) || value;
 const getMockData = <T>(value: T) => (value != null && (value as Unwrappable<T>)[mock]) || undefined;
 
 export default function createRecordingMockFactory() {
