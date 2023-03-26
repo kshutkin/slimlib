@@ -1,5 +1,11 @@
 Changelog
 
+## 0.1.2
+
+### Patch Changes
+
+- 9c951c1: fixed d.ts files
+
 ## 0.1.1
 
 ### Patch Changes
