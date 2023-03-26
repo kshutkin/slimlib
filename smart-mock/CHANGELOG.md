@@ -1,5 +1,12 @@
 Changelog
 
+## 0.1.1
+
+### Patch Changes
+
+- 2e1f43b: fixed some edgecases like: emitting root sideeffects, recording call that returns null / undefined / string etc
+- 2e1f43b: added documentation
+
 ## 0.1.0
 
 ### Minor Changes
