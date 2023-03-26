@@ -1,11 +1,12 @@
 {
+  "include": ["src", "types"],
   "compilerOptions": {
     "lib": ["dom", "esnext"],
     "target": "esnext",
     "module": "esnext",
     "esModuleInterop": true,
     "strict": true,
-    "moduleResolution": "node",
-    "jsx": "react"
+    "declaration": true,
+    "moduleResolution": "node"
   }
 }
