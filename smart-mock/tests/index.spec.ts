@@ -208,6 +208,38 @@ describe('smart-mock', () => {
             // expect(unwrapValue(mock.prop)).toBe(emptyObject);
         });
     });
+
+    describe('combinations', () => {
+        it('call + assigment on root', () => {
+            const mock = createMock({
+                name: '',
+                test() { /**/ }
+            }, 'mock');
+
+            mock.test();
+            mock.name = 'some name';
+
+            const result = generate(mock);
+            const globals = generateGlobals();
+            expect(result).toEqual('mock');
+            expect(globals).toEqual('mock.name = "some name"\nconst tmp_0 = mock.test\ntmp_0()');
+        });
+
+        it('call with result as exit + assigment on root', () => {
+            const mock = createMock({
+                name: '',
+                test() { return {}; }
+            }, 'mock');
+
+            const testMethodResult = mock.test();
+            mock.name = 'some name';
+
+            const result = generate(testMethodResult);
+            const globals = generateGlobals();
+            expect(result).toEqual('mock.test()');
+            expect(globals).toEqual('mock.name = "some name"');
+        });
+    });
     
 });
 

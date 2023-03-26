@@ -54,7 +54,7 @@ export default function createRecordingMockFactory() {
             name,
             source: MockDataSource.root,
             useCount: 0,
-            generated: true
+            generated: false
         });
     }
 
@@ -62,26 +62,32 @@ export default function createRecordingMockFactory() {
         const strings = [];
         for (const mockData of mockDatas) {
             if (mockData.generated) continue;
-            if (!mockData.instanceName) {
+            if (!mockData.instanceName && mockData.source !== MockDataSource.root) {
                 mockData.instanceName = getNextInstanceName();
             }
-            strings.push('const ' + mockData.instanceName + ' = ' + getAccessor(mockData, mockData.parent as MockData));
+            const identifier = (mockData?.instanceName ?? mockData?.name as string);
+            if (mockData.source !== MockDataSource.root) {
+                strings.push('const ' + identifier + ' = ' + getAccessor(mockData, mockData.parent as MockData));
+            }
             for (const effect of (mockData.sideEffects || [])) {
-                switch(effect.source as MockDataSource.set | /*MockDataSource.defineProperty |*/ MockDataSource.deleteProperty | MockDataSource.setPrototypeOf | MockDataSource.preventExtensions) {
+                switch(effect.source as MockDataSource.set | /*MockDataSource.defineProperty |*/ MockDataSource.deleteProperty | MockDataSource.setPrototypeOf | MockDataSource.preventExtensions | MockDataSource.call) {
                 case MockDataSource.set:
-                    strings.push(mockData.instanceName + '.' + (effect.name as string) + ' = ' + stringify(effect.options, replacer as ReplacerFunction));
+                    strings.push(identifier + '.' + (effect.name as string) + ' = ' + stringify(effect.options, replacer as ReplacerFunction));
                     break;
                 // case MockDataSource.defineProperty:
-                //     strings.push('Object.defineProperty(' + mockData.instanceName + ', "' + (effect.name as string) + '", ' + stringify(effect.options, replacer as ReplacerFunction) + ')');
+                //     strings.push('Object.defineProperty(' + identifier + ', "' + (effect.name as string) + '", ' + stringify(effect.options, replacer as ReplacerFunction) + ')');
                 //     break;
                 case MockDataSource.deleteProperty:
-                    strings.push('delete ' + mockData.instanceName + '["' + (effect.name as string) + '"]');
+                    strings.push('delete ' + identifier + '["' + (effect.name as string) + '"]');
                     break;
                 case MockDataSource.setPrototypeOf:
-                    strings.push('Object.setPrototypeOf(' + mockData.instanceName + ', ' + stringify(effect.options, replacer as ReplacerFunction) + ')');
+                    strings.push('Object.setPrototypeOf(' + identifier + ', ' + stringify(effect.options, replacer as ReplacerFunction) + ')');
                     break;
                 case MockDataSource.preventExtensions:
-                    strings.push('Object.preventExtensions(' + mockData.instanceName + ')');
+                    strings.push('Object.preventExtensions(' + identifier + ')');
+                    break;
+                case MockDataSource.call:
+                    strings.push(identifier + getParameters(effect.options as unknown[], replacer as ReplacerFunction));
                     break;
                 }
             }
@@ -89,7 +95,7 @@ export default function createRecordingMockFactory() {
         return strings.join('\n');
     
         function getAccessor(mockData: MockData, parent: MockData) {
-            const parentName = (parent.instanceName ?? parent.name as string);
+            const parentName = (parent?.instanceName ?? parent?.name as string);
             switch(mockData.source as MockDataSource.call | MockDataSource.get | MockDataSource.construct) {
             case MockDataSource.call:
                 return parentName + getParameters(mockData.options as unknown[], replacer as ReplacerFunction);
@@ -106,7 +112,7 @@ export default function createRecordingMockFactory() {
         }
     }
 
-    function generate<T extends object>(object: T) {
+    function generate(object: unknown) {
         stringify(object, bumpReplacer as ReplacerFunction);
         return stringify(object, replacer as ReplacerFunction);
     }
@@ -295,7 +301,23 @@ export default function createRecordingMockFactory() {
                 const realThis = unwrapValue(thisArg);
                 const realArguments = unwrapValue(argumentsList);
                 ++mockData.useCount;
-                return createInternalMock(Reflect.apply(target, realThis, realArguments), {
+                const result = Reflect.apply(target, realThis, realArguments);
+                if (result === null || (typeof result !== 'object' && typeof result !== 'function')) {
+                    if (!mockData.sideEffects) {
+                        mockData.sideEffects = [];
+                    }
+                    mockData.sideEffects.push({
+                        useCount: 0,
+                        name: '',
+                        parent: mockData,
+                        source: MockDataSource.call,
+                        options: realArguments,
+                        generated: false
+                    });
+                    ++mockData.useCount;
+                    return result;
+                }
+                return createInternalMock(result, {
                     useCount: 0,
                     name: '',
                     parent: mockData,
@@ -316,6 +338,7 @@ function getParameters(options: unknown[], replacer: ReplacerFunction) {
     return `(${options.length ? options.map(value => stringify(value, replacer)).join(',') : ''})`;
 }
 
+// stringify like functionality, recursively walks through objects and converts them to strings but leaved some basic values intact
 function stringify(value: unknown, replacer: ReplacerFunction): string | null | undefined | RegExp | boolean {
     const original = value;
     value = replacer(value);
