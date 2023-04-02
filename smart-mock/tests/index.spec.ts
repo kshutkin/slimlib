@@ -107,6 +107,12 @@ describe('smart-mock', () => {
             expect(globals).toEqual('const tmp_0 = Reflect.construct(Test,["Tesst"],Test2)\ntmp_0.name = "test2"');
             expect(result).toEqual('tmp_0');
         });
+
+        it('curry', () => {
+            const curry = createMock((fn: (...args: any[]) => any) => { return (arg: any) => () => undefined; }, 'curry');
+            const result = generate(curry(() => undefined)('arg'));
+            expect(result).toEqual('curry(() => undefined)("arg")');
+        });
     });
 
     describe('imperative', () => {

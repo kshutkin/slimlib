@@ -163,9 +163,8 @@ export default function createRecordingMockFactory() {
         }
 
         function getCallCode(parent: MockData, value: MockData): string {
-            parent.generated = true;
-            const prevCode = getPrevCode(parent);
-            return prevCode + (prevCode ? '.' : '') + (parent.name as string) + getParameters(value.options as unknown[], replacer);
+            const prevCode = getPrevCode(value);
+            return prevCode + getParameters(value.options as unknown[], replacer);
         }
 
         function getPrevCode(mockData: MockData) {
