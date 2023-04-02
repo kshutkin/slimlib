@@ -1,5 +1,11 @@
 Changelog
 
+## 0.1.3
+
+### Patch Changes
+
+- bcede0a: fixed double call use case code generation like: `something()()`
+
 ## 0.1.2
 
 ### Patch Changes
