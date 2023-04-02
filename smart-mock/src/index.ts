@@ -147,7 +147,7 @@ export default function createRecordingMockFactory() {
         value.generated = true;
         switch(value.source as MockDataSource.call | MockDataSource.get | MockDataSource.root | MockDataSource.construct) {
         case MockDataSource.call:
-            return getCallCode(value.parent as MockData, value);
+            return getPrevCode(value) + getParameters(value.options as unknown[], replacer);
         case MockDataSource.get:
             return getPrevCode(value) + '.' + (value.name as string);
         case MockDataSource.root:
@@ -160,11 +160,6 @@ export default function createRecordingMockFactory() {
                 ? 'Reflect.construct(' + prevCode + ',' + stringify(value.options, replacer as ReplacerFunction) + ',' + newTarget + ')'
                 : 'new ' + prevCode + getParameters(value.options as unknown[], replacer as ReplacerFunction);
         }
-        }
-
-        function getCallCode(parent: MockData, value: MockData): string {
-            const prevCode = getPrevCode(value);
-            return prevCode + getParameters(value.options as unknown[], replacer);
         }
 
         function getPrevCode(mockData: MockData) {
