@@ -23,7 +23,7 @@ function Component1() {
 
 function Component2() {
     const [storeIndex, setIndex] = useState(0);
-    const state = useStore([store, store2][storeIndex]);
+    const state = useStore([store, store2][storeIndex] as Store<number[]>);
     useEffect(() => {
         setIndex(1);
     }, []);

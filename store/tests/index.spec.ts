@@ -217,7 +217,7 @@ describe('store', () => {
             const subscriber = jest.fn();
             const [state, store] = createStore([{prop: 42}]);
             store(subscriber);
-            state.push(state[0]);
+            state.push(state[0] as {prop: number});
             await flushPromises();
             expect(subscriber).toBeCalledWith([{prop: 42},{prop: 42}]);
             expect(store()).toEqual([{prop: 42},{prop: 42}]);
@@ -229,7 +229,7 @@ describe('store', () => {
             const subscriber = jest.fn();
             const [state, store] = createStore({data:[{prop: ''}]});
             store(subscriber);
-            state.data[0].prop += 'test';
+            (state.data[0] as {prop: string}).prop += 'test';
             await flushPromises();
             expect(subscriber).toBeCalledWith({data:[{prop: 'test'}]});
             expect(store()).toEqual({data:[{prop: 'test'}]});
@@ -238,7 +238,7 @@ describe('store', () => {
 
         it('find index in array (only wrappers)', () => {
             const [state] = createStore({data:[{prop: ''}]});
-            const index = state.data.indexOf(state.data[0]);
+            const index = state.data.indexOf(state.data[0] as {prop: string});
             expect(index).toBe(0);
         });
 
@@ -252,9 +252,9 @@ describe('store', () => {
             const subscriber = jest.fn();
             const [state, store] = createStore({data:[{prop: '1'},{prop: '2'}]});
             store(subscriber);
-            const temp = state.data[0];
-            state.data[0] = state.data[1];
-            state.data[1] = temp;
+            const temp = state.data[0] as {prop: string};
+            (state.data[0] as {prop: string}) = state.data[1] as {prop: string};
+            (state.data[1] as {prop: string}) = temp;
             await flushPromises();
             expect(subscriber).toBeCalledWith({data:[{prop: '2'},{prop: '1'}]});
             expect(store()).toEqual({data:[{prop: '2'},{prop: '1'}]});
