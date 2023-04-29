@@ -1,5 +1,11 @@
 Changelog
 
+## 0.1.4
+
+### Patch Changes
+
+- 334ff44: fixed spelling in readmes, added links to changelogs
+
 ## 0.1.3
 
 ### Patch Changes
