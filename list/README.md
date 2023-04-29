@@ -2,6 +2,8 @@
 
 Doubly linked list implementation in typescript.
 
+[Changelog](./CHANGELOG.md)
+
 ## Installation
 
 Using npm:
@@ -25,7 +27,7 @@ const list = new List<NodeType>();
 
 ### `[Symbol.iterator]()`
 
-List provides iterator using `[Symbol.iterator]()` method. Most commonly used in cases where another statement/method consumes iterable object.
+List provides an iterator using the `[Symbol.iterator]()` method. Most commonly used in cases where another statement/method consumes an iterable object.
 
 ```javascript
 Array.from(list);

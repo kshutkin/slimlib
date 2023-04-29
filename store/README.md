@@ -7,6 +7,8 @@ Proxy-based store for SPAs.
 3. Small size (less than 1Kb minified not gzipped)
 4. Typescript support
 
+[Changelog](./CHANGELOG.md)
+
 # Installation
 
 Using npm:
@@ -93,15 +95,15 @@ $storeName
 
 ####  `createStoreFactory(notifyAfterCreation: boolean)`
 
-The only exported function. It returns createStore factory (see next) which notifies innidiately after creating store if `notifyAfterCreation` is truethy.
+The only exported function. It returns createStore factory (see next) which notifies immediately after creating store if `notifyAfterCreation` is truthy.
 
 #### `createStore<T>(initialState: T): [T, Store<T>, () => void]`
 
-Store factory function that takes initial state and returns proxy object, store and function to notify subscribers. Proxy object ment to be left for actions implementations, store is for subscription for changes and notification only for some edge cases when original object have been changed and listeners have to be notified.
+Store factory function that takes initial state and returns proxy object, store and function to notify subscribers. Proxy object meant to be left for actions implementations, store is for subscription for changes and notification only for some edge cases when an original object has been changed and listeners have to be notified.
 
 #### `unwrapValue(value: T): T`
 
-Unwraps potential proxy object and returns plain object if possible or value itself.
+Unwraps a potential proxy object and returns a plain object if possible or value itself.
 
 #### `Store<T>`
 
@@ -114,7 +116,7 @@ interface Store<T> {
 }
 ```
 
-Publish/subscribe/read pattern implementation. Ment to be used in components / services that want to subscribe for store changes.
+Publish/subscribe/read pattern implementation. Meant to be used in components / services that want to subscribe for store changes.
 
 ### `react` and `preact` exports
 
@@ -136,13 +138,13 @@ Store factory created with `notifyAfterCreation` === `true`.
 
 `Map`, `Set`, `WeakMap`, `WeakSet` cannot be used as values in current implementation.
 
-Mixing proxied values and values from underlying object can fail for cases where code needs checking for equality.
+Mixing proxied values and values from an underlying object can fail for cases where code needs checking for equality.
 
-For example searching array element from underlying object in proxified array will fail.
+For example searching for an array element from the underlying object in a proxified array will fail.
 
 ## Similar projects
 
-[Valtio](https://github.com/pmndrs/valtio) - more sofisticated but similar approach, less limitations
+[Valtio](https://github.com/pmndrs/valtio) - more sophisticated but similar approach, less limitations
 
 # License
 

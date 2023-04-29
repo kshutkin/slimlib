@@ -2,7 +2,9 @@
 
 Yet another proxy mock (YAPM?). Still in a very early state (EXPECT BUGS!).
 
-Mock that records operations for code generation later. Idea is somewhat similar to `prepack` but instead of interpreting code by other JS code we run it in JS VM and later use mock to repeat same operations. Ideally combined with terser like optimizer. Please check example in `pkgbld` how it is used to eject config.
+Mock that records operations for code generation later. Idea is somewhat similar to `prepack` but instead of interpreting code by other JS code we run it in JS VM and later use mock to repeat the same operations. Ideally combined with a terser like optimizer. Please check the example in `pkgbld` how it is used to eject config.
+
+[Changelog](./CHANGELOG.md)
 
 ## API
 
@@ -12,7 +14,7 @@ Default export function is a factory that creates 3 other functions with shared 
 
 ### `createMock<T extends object>(object: T, name: string): T`
 
-Function to create mock wrapper around object and defining global name for later usage. `object` can be real original object or a pure mock object with same behavior for the specific situation. All operations on this object will be recorded by mock.
+Function to create mock wrapper around object and defining global name for later usage. `object` can be a real original object or a pure mock object with the same behavior for the specific situation. All operations on this object will be recorded by mock.
 
 ### `generate(object: unknown): string`
 

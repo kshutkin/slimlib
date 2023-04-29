@@ -10,6 +10,8 @@ Parameter names based dependency injector for nodejs.
 - classes not supported
 - slower than normal function call
 
+[Changelog](./CHANGELOG.md)
+
 ## API
 
 ### createInject()
@@ -65,13 +67,13 @@ inject(async (config: Json) => {
 
 - no, please use [jest](https://jestjs.io/), [vitest](https://vitest.dev/), [proxyquire](https://www.npmjs.com/package/proxyquire), [proxyrequire](https://www.npmjs.com/package/proxyrequire) and other similar approaches to mock modules.
 
-2. Is it good solution to use in frontend code?
+2. Is it a good solution to use in frontend code?
 
 - no, it will not work after minification
 
 3. Is it good for nodejs applications?
 
-- only in some edge cases, please use singletones / factories / something else if possible
+- only in some edge cases, please use singletons / factories / something else if possible
 
 # License
 
