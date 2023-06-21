@@ -1,5 +1,11 @@
 Changelog
 
+## 1.0.4
+
+### Patch Changes
+
+- 2914a39: Updated readme files
+
 ## 1.0.3
 
 ### Patch Changes
