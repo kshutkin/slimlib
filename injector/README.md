@@ -8,7 +8,7 @@ Parameter names based dependency injector for nodejs.
 - minification of code is not supported
 - not typesafe
 - classes not supported
-- slower than normal function call
+- slower than a normal function call
 
 [Changelog](./CHANGELOG.md)
 
@@ -16,11 +16,11 @@ Parameter names based dependency injector for nodejs.
 
 ### createInject()
 
-returns new instance of an injector function to work with.
+returns a new instance of an injector function to work with.
 
 ### injector(function, scope)
 
-injects arguments into function and invoke it
+injects arguments into function and invokes it
 
 `function` - *required*, function to inject parameters and call
 `scope` - *optional*, *default* = `{}`, this argument for the function
@@ -32,7 +32,7 @@ predefined injectable function
 `key` - string, required
 `value` - unknown
 
-to get it, inject it in the function
+to get it, inject it into the function
 
 ```typescript
 inject(($provide: Provider) => {
@@ -63,7 +63,7 @@ inject(async (config: Json) => {
 
 # FAQ
 
-1. Is it good solution to mock something in unit tests?
+1. Is it a good solution to mock something in unit tests?
 
 - no, please use [jest](https://jestjs.io/), [vitest](https://vitest.dev/), [proxyquire](https://www.npmjs.com/package/proxyquire), [proxyrequire](https://www.npmjs.com/package/proxyrequire) and other similar approaches to mock modules.
 
@@ -73,7 +73,7 @@ inject(async (config: Json) => {
 
 3. Is it good for nodejs applications?
 
-- only in some edge cases, please use singletons / factories / something else if possible
+- only in some edge cases, please use singletons/factories/something else if possible
 
 # License
 
