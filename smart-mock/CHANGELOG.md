@@ -1,5 +1,11 @@
 Changelog
 
+## 0.1.5
+
+### Patch Changes
+
+- 552eed5: update to a newer project structure
+
 ## 0.1.4
 
 ### Patch Changes
