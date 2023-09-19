@@ -1,11 +1,13 @@
 {
-  "version": "1.0.8",
-  "license": "MIT",
-  "name": "@slimlib/list",
-  "author": {
-    "name": "Konstantin Shutkin"
-  },
   "type": "module",
+  "version": "1.0.8",
+  "name": "@slimlib/list",
+  "description": "Doubly linked list",
+  "license": "MIT",
+  "author": "Konstantin Shutkin",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.mjs",
+  "unpkg": "./dist/index.umd.js",
   "exports": {
     ".": {
       "require": "./dist/index.cjs",
@@ -13,24 +15,18 @@
     },
     "./package.json": "./package.json"
   },
-  "main": "./dist/index.cjs",
-  "module": "./dist/index.mjs",
-  "typings": "./dist/index.d.ts",
-  "unpkg": "./dist/index.umd.js",
+  "types": "./dist/index.d.ts",
   "files": [
-    "dist",
-    "LICENSE"
+    "dist"
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/kshutkin/slimlib.git"
+    "url": "git+https://github.com/kshutkin/slimlib.git",
+    "directory": "list"
   },
-  "bugs": {
-    "url": "https://github.com/kshutkin/slimlib/issues"
-  },
+  "bugs": "https://github.com/kshutkin/slimlib/issues",
   "homepage": "https://github.com/kshutkin/slimlib/blob/main/list/README.md",
   "readme": "README.md",
-  "description": "Doubly linked list",
   "keywords": [
     "@slimlib",
     "list",

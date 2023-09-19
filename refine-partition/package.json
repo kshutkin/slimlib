@@ -1,9 +1,12 @@
 {
-  "version": "1.0.1",
-  "license": "MIT",
-  "name": "@slimlib/refine-partition",
-  "author": "Konstantin Shutkin",
   "type": "module",
+  "version": "1.0.1",
+  "name": "@slimlib/refine-partition",
+  "description": "Simple refine partition implementation",
+  "license": "MIT",
+  "author": "Konstantin Shutkin",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.mjs",
   "exports": {
     ".": {
       "require": "./dist/index.cjs",
@@ -11,26 +14,21 @@
     },
     "./package.json": "./package.json"
   },
-  "main": "./dist/index.cjs",
-  "module": "./dist/index.mjs",
-  "typings": "./dist/index.d.ts",
+  "types": "./dist/index.d.ts",
   "files": [
-    "dist",
-    "LICENSE"
+    "dist"
   ],
   "engines": {
     "node": ">=15"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/kshutkin/slimlib.git"
+    "url": "git+https://github.com/kshutkin/slimlib.git",
+    "directory": "refine-partition"
   },
-  "bugs": {
-    "url": "https://github.com/kshutkin/slimlib/issues"
-  },
+  "bugs": "https://github.com/kshutkin/slimlib/issues",
   "homepage": "https://github.com/kshutkin/slimlib/blob/main/refine-partition/README.md",
   "readme": "README.md",
-  "description": "Simple refine partition implementation",
   "keywords": [
     "@slimlib",
     "refine",

@@ -25,7 +25,7 @@ interface MockData {
 }
 
 type ReplacerFunction = (v: unknown) => unknown;
-type Constructor<T> = new (...args: any[]) => T;
+type Constructor<T> = new (...args: unknown[]) => T;
 
 const mock = Symbol();
 const unwrap = Symbol();
@@ -171,8 +171,7 @@ export default function createRecordingMockFactory() {
         mockDatas.push(mockData);
         (target as Unwrappable<T>)[mock] = mockData;
         return new Proxy(target, {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            set(target: T, p: string | symbol, value: any, receiver: any) {
+            set(target: T, p: string | symbol, value: unknown, receiver: unknown) {
                 const realValue = unwrapValue(value);
                 if (!mockData.sideEffects) {
                     mockData.sideEffects = [];
@@ -212,8 +211,7 @@ export default function createRecordingMockFactory() {
                 ++mockData.useCount;
                 return result;
             },
-            // eslint-disable-next-line @typescript-eslint/ban-types
-            construct(target: Constructor<T>, argArray: any[], newTarget: Function) {
+            construct(target: Constructor<T>, argArray: unknown[], newTarget: Function) {
                 const realTarget = unwrapValue(newTarget);
                 const realArguments = unwrapValue(argArray);
                 ++mockData.useCount;

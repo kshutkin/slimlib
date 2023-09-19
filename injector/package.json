@@ -1,9 +1,12 @@
 {
-  "version": "1.0.4",
-  "license": "MIT",
-  "name": "@slimlib/injector",
-  "author": "Konstantin Shutkin",
   "type": "module",
+  "version": "1.0.4",
+  "name": "@slimlib/injector",
+  "description": "Parameter names based dependency injector for nodejs",
+  "license": "MIT",
+  "author": "Konstantin Shutkin",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.mjs",
   "exports": {
     ".": {
       "require": "./dist/index.cjs",
@@ -11,26 +14,21 @@
     },
     "./package.json": "./package.json"
   },
-  "main": "./dist/index.cjs",
-  "module": "./dist/index.mjs",
-  "typings": "./dist/index.d.ts",
+  "types": "./dist/index.d.ts",
   "files": [
-    "dist",
-    "LICENSE"
+    "dist"
   ],
   "engines": {
     "node": ">=15"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/kshutkin/slimlib.git"
+    "url": "git+https://github.com/kshutkin/slimlib.git",
+    "directory": "injector"
   },
-  "bugs": {
-    "url": "https://github.com/kshutkin/slimlib/issues"
-  },
+  "bugs": "https://github.com/kshutkin/slimlib/issues",
   "homepage": "https://github.com/kshutkin/slimlib/blob/main/injector/README.md",
   "readme": "README.md",
-  "description": "Parameter names based dependency injector for nodejs",
   "keywords": [
     "@slimlib",
     "injector",

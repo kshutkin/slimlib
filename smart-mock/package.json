@@ -1,9 +1,12 @@
 {
-  "version": "0.1.4",
-  "license": "MIT",
-  "name": "@slimlib/smart-mock",
-  "author": "Konstantin Shutkin",
   "type": "module",
+  "version": "0.1.4",
+  "name": "@slimlib/smart-mock",
+  "description": "One more proxy based mock",
+  "license": "MIT",
+  "author": "Konstantin Shutkin",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.mjs",
   "exports": {
     ".": {
       "require": "./dist/index.cjs",
@@ -11,26 +14,21 @@
     },
     "./package.json": "./package.json"
   },
-  "main": "./dist/index.cjs",
-  "module": "./dist/index.mjs",
-  "typings": "./dist/index.d.ts",
+  "types": "./dist/index.d.ts",
   "files": [
-    "dist",
-    "LICENSE"
+    "dist"
   ],
   "engines": {
     "node": ">=15"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/kshutkin/slimlib.git"
+    "url": "git+https://github.com/kshutkin/slimlib.git",
+    "directory": "smart-mock"
   },
-  "bugs": {
-    "url": "https://github.com/kshutkin/slimlib/issues"
-  },
+  "bugs": "https://github.com/kshutkin/slimlib/issues",
   "homepage": "https://github.com/kshutkin/slimlib/blob/main/smart-mock/README.md",
   "readme": "README.md",
-  "description": "One more proxy based mock",
   "keywords": [
     "@slimlib",
     "mock",
