@@ -10,7 +10,7 @@ if (scopeTest && scopeTest[0]) {
     moduleNameMapper[`${scope}/(.*)$`] = '<rootDir>/../$1/src';
 }
 
-/** @type {import('ts-jest/dist/types').InitialOptionsTsJest} */
+/** @type {import('ts-jest/dist/types').JestConfigWithTsJest} */
 export default {
     preset: 'ts-jest',
     testEnvironment: 'node',
