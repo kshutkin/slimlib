@@ -211,6 +211,7 @@ export default function createRecordingMockFactory() {
                 ++mockData.useCount;
                 return result;
             },
+            // eslint-disable-next-line @typescript-eslint/ban-types
             construct(target: Constructor<T>, argArray: unknown[], newTarget: Function) {
                 const realTarget = unwrapValue(newTarget);
                 const realArguments = unwrapValue(argArray);
