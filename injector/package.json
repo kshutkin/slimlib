@@ -1,6 +1,6 @@
 {
   "type": "module",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "name": "@slimlib/injector",
   "description": "Parameter names based dependency injector for nodejs",
   "license": "MIT",
