@@ -29,6 +29,10 @@
       "require": "./dist/svelte.cjs",
       "default": "./dist/svelte.mjs"
     },
+    "./angular": {
+      "require": "./dist/angular.cjs",
+      "default": "./dist/angular.mjs"
+    },
     "./package.json": "./package.json"
   },
   "types": "./dist/index.d.ts",
@@ -37,7 +41,8 @@
     "react",
     "preact",
     "core",
-    "svelte"
+    "svelte",
+    "angular"
   ],
   "repository": {
     "type": "git",
@@ -52,7 +57,7 @@
     "proxy"
   ],
   "scripts": {
-    "build": "pkgbld-internal --umd=index,preact,react,svelte",
+    "build": "pkgbld-internal --umd=index,preact,react,svelte,angular",
     "test": "jest --collectCoverage",
     "lint": "eslint ./src"
   },
@@ -62,6 +67,7 @@
     "react": ">=17.0.0",
     "react-dom": ">=17.0.0",
     "@testing-library/react": "^14.0.0",
+    "@testing-library/angular": "^14.0.0",
     "@types/react-dom": ">=17.0.0",
     "jest-environment-jsdom": "^29.4.3",
     "@testing-library/svelte": "^3.2.2",
@@ -71,13 +77,17 @@
   },
   "peerDependencies": {
     "preact": ">=10.0.0",
-    "react": ">=17.0.0"
+    "react": ">=17.0.0",
+    "@angular/core": ">=16.0.0"
   },
   "peerDependenciesMeta": {
     "react": {
       "optional": true
     },
     "preact": {
+      "optional": true
+    },
+    "@angular/core": {
       "optional": true
     }
   }

@@ -49,7 +49,14 @@ importers:
   smart-mock: {}
 
   store:
+    dependencies:
+      '@angular/core':
+        specifier: '>=16.0.0'
+        version: 16.2.5(rxjs@7.8.1)(zone.js@0.13.3)
     devDependencies:
+      '@testing-library/angular':
+        specifier: ^14.0.0
+        version: 14.3.0(@angular/common@16.2.6)(@angular/core@16.2.5)(@angular/platform-browser@16.2.6)(@angular/router@16.2.6)
       '@testing-library/react':
         specifier: ^14.0.0
         version: 14.0.0(react-dom@18.2.0)(react@18.2.0)
@@ -97,6 +104,61 @@ packages:
     dependencies:
       '@jridgewell/gen-mapping': 0.1.1
       '@jridgewell/trace-mapping': 0.3.19
+    dev: true
+
+  /@angular/common@16.2.6(@angular/core@16.2.5)(rxjs@7.8.1):
+    resolution: {integrity: sha512-BjnahvtJHh2zXfCZjpWit+zMkggl/PrgUtPd02egzLmEKyXIMmQLYNpDZ+Pqgpb7eefU8yBPhL7WA2oKFjHjSg==}
+    engines: {node: ^16.14.0 || >=18.10.0}
+    peerDependencies:
+      '@angular/core': 16.2.6
+      rxjs: ^6.5.3 || ^7.4.0
+    dependencies:
+      '@angular/core': 16.2.5(rxjs@7.8.1)(zone.js@0.13.3)
+      rxjs: 7.8.1
+      tslib: 2.5.0
+    dev: true
+
+  /@angular/core@16.2.5(rxjs@7.8.1)(zone.js@0.13.3):
+    resolution: {integrity: sha512-Po2LMUnPg23D2qI7EYaoA4x3lRswx9nxfpwROzfFPbMNJ3JVbTK0HkTD2dFPGxRua2UjfJTb1um23tEGO4OGMQ==}
+    engines: {node: ^16.14.0 || >=18.10.0}
+    peerDependencies:
+      rxjs: ^6.5.3 || ^7.4.0
+      zone.js: ~0.13.0
+    dependencies:
+      rxjs: 7.8.1
+      tslib: 2.5.0
+      zone.js: 0.13.3
+
+  /@angular/platform-browser@16.2.6(@angular/common@16.2.6)(@angular/core@16.2.5):
+    resolution: {integrity: sha512-jXtarSZ/n6ytZQ9+Y0aDuazz5POz4UmLN3GxIWtc4kqPOQp4o3DCM16Ig4ioSm53Z/WSDASVaMwtRWN5SXCKfw==}
+    engines: {node: ^16.14.0 || >=18.10.0}
+    peerDependencies:
+      '@angular/animations': 16.2.6
+      '@angular/common': 16.2.6
+      '@angular/core': 16.2.6
+    peerDependenciesMeta:
+      '@angular/animations':
+        optional: true
+    dependencies:
+      '@angular/common': 16.2.6(@angular/core@16.2.5)(rxjs@7.8.1)
+      '@angular/core': 16.2.5(rxjs@7.8.1)(zone.js@0.13.3)
+      tslib: 2.5.0
+    dev: true
+
+  /@angular/router@16.2.6(@angular/common@16.2.6)(@angular/core@16.2.5)(@angular/platform-browser@16.2.6)(rxjs@7.8.1):
+    resolution: {integrity: sha512-huORA6D1UriaswbvVgfxpYQJofZ3hSDdJYRMI4lDcu1n6CaCoYnj8E3rqaU5U1Va0OeFmxzOuXG+3WyL+YfZgg==}
+    engines: {node: ^16.14.0 || >=18.10.0}
+    peerDependencies:
+      '@angular/common': 16.2.6
+      '@angular/core': 16.2.6
+      '@angular/platform-browser': 16.2.6
+      rxjs: ^6.5.3 || ^7.4.0
+    dependencies:
+      '@angular/common': 16.2.6(@angular/core@16.2.5)(rxjs@7.8.1)
+      '@angular/core': 16.2.5(rxjs@7.8.1)(zone.js@0.13.3)
+      '@angular/platform-browser': 16.2.6(@angular/common@16.2.6)(@angular/core@16.2.5)
+      rxjs: 7.8.1
+      tslib: 2.5.0
     dev: true
 
   /@babel/code-frame@7.18.6:
@@ -1142,6 +1204,22 @@ packages:
     resolution: {integrity: sha512-SwUDyjWnah1AaNl7kxsa7cfLhlTYoiyhDAIgyh+El30YvXs/o7OLXpYH88Zdhyx9JExKrmHDJ+10bwIcY80Jmw==}
     dependencies:
       '@sinonjs/commons': 2.0.0
+    dev: true
+
+  /@testing-library/angular@14.3.0(@angular/common@16.2.6)(@angular/core@16.2.5)(@angular/platform-browser@16.2.6)(@angular/router@16.2.6):
+    resolution: {integrity: sha512-HniH9B4+u9unr3xIo0gPrFjC0MFeN83xx1JajdL6Xgalc7pebRowCVMPQHXjry1f/1hb8Eyl8uMdCy4toG+f9A==}
+    peerDependencies:
+      '@angular/common': '>= 15.1.0 || >= 16.0.0'
+      '@angular/core': '>= 15.1.0 || >= 16.0.0'
+      '@angular/platform-browser': '>= 15.1.0 || >= 16.0.0'
+      '@angular/router': '>= 15.1.0 || >= 16.0.0'
+    dependencies:
+      '@angular/common': 16.2.6(@angular/core@16.2.5)(rxjs@7.8.1)
+      '@angular/core': 16.2.5(rxjs@7.8.1)(zone.js@0.13.3)
+      '@angular/platform-browser': 16.2.6(@angular/common@16.2.6)(@angular/core@16.2.5)
+      '@angular/router': 16.2.6(@angular/common@16.2.6)(@angular/core@16.2.5)(@angular/platform-browser@16.2.6)(rxjs@7.8.1)
+      '@testing-library/dom': 9.0.0
+      tslib: 2.5.0
     dev: true
 
   /@testing-library/dom@8.20.0:
@@ -4541,6 +4619,11 @@ packages:
       queue-microtask: 1.2.3
     dev: true
 
+  /rxjs@7.8.1:
+    resolution: {integrity: sha512-AA3TVj+0A2iuIoQkWEK/tqFjBq2j+6PO6Y0zJcvzLAFhEFIO3HL0vls9hWLncZbAAbK0mar7oZ4V079I/qPMxg==}
+    dependencies:
+      tslib: 2.5.0
+
   /safe-buffer@5.2.1:
     resolution: {integrity: sha512-rp3So07KcdmmKbGvgaNxQSJr7bGVSVk5S9Eq1F+ppbRo70+YeaDxkw5Dd8NPN+GD6bjnYm2VuPuCXmpuYvmCXQ==}
     dev: true
@@ -4976,7 +5059,6 @@ packages:
 
   /tslib@2.5.0:
     resolution: {integrity: sha512-336iVw3rtn2BUK7ORdIAHTyxHGRIHVReokCR3XjbckJMK7ms8FysBfhLR8IXnAgy7T0PTPNBWKiH514FOW/WSg==}
-    dev: true
 
   /tty-table@4.1.6:
     resolution: {integrity: sha512-kRj5CBzOrakV4VRRY5kUWbNYvo/FpOsz65DzI5op9P+cHov3+IqPbo1JE1ZnQGkHdZgNFDsrEjrfqqy/Ply9fw==}
@@ -5349,3 +5431,8 @@ packages:
     resolution: {integrity: sha512-rVksvsnNCdJ/ohGc6xgPwyN8eheCxsiLM8mxuE/t/mOVqJewPuO1miLpTHQiRgTKCLexL4MeAFVagts7HmNZ2Q==}
     engines: {node: '>=10'}
     dev: true
+
+  /zone.js@0.13.3:
+    resolution: {integrity: sha512-MKPbmZie6fASC/ps4dkmIhaT5eonHkEt6eAy80K42tAm0G2W+AahLJjbfi6X9NPdciOE9GRFTTM8u2IiF6O3ww==}
+    dependencies:
+      tslib: 2.5.0

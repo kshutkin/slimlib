@@ -1,0 +1,5 @@
+{
+  "type": "module",
+  "types": "../dist/angular.d.ts",
+  "main": "../dist/angular.mjs"
+}
