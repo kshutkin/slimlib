@@ -1,5 +1,11 @@
 Changelog
 
+## 1.4.0
+
+### Minor Changes
+
+- a1039b6: added angular signals basic implementation
+
 ## 1.3.6
 
 ### Patch Changes
