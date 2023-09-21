@@ -1,5 +1,13 @@
 Changelog
 
+## 1.4.1
+
+### Patch Changes
+
+- 118f643: Angular toSignal:
+  - use hard link to signal
+  - use untracked when setting signal state
+
 ## 1.4.0
 
 ### Minor Changes
