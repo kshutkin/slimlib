@@ -1,4 +1,4 @@
-import { signal, DestroyRef, inject, type ProviderToken, type Signal } from '@angular/core';
+import { signal, DestroyRef, inject, type ProviderToken, type Signal, untracked } from '@angular/core';
 import { type Store, createStoreFactory } from './core';
 
 export type InjectorLike = {
@@ -14,18 +14,11 @@ export const toSignal = <T>(store: Store<T>, injector?: InjectorLike) => {
 
     const state = signal<T>(store());
 
-    const stateRef = new WeakRef(state);
-
-    const unsubscribe = store((value: T) => {
-        const stateSignal = stateRef.deref();
-        if (stateSignal) {
-            stateSignal.set(value);
-        } else {
-            unsubscribe();
-        }
+    untracked(() => {
+        cleanupRef?.onDestroy(store((value: T) => {
+            state.set(value);
+        }));
     });
-
-    cleanupRef?.onDestroy(unsubscribe);
     
     return state.asReadonly();
 };
