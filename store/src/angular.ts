@@ -44,6 +44,7 @@ export class SlimlibStore<T extends object> {
     }
 
     select<P extends Signal<unknown>[], R>(...selectors: [...signals: P, projector: SignalsProjector<P, R, T>]) {
+        // eslint-disable-next-line @typescript-eslint/ban-types
         const projector = selectors.pop() as Function;
         return computed<R>(() => {
             const values = (selectors as unknown as P).map(selector => selector());
