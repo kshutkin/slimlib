@@ -1,5 +1,11 @@
 Changelog
 
+## 1.5.1
+
+### Patch Changes
+
+- 77b2fe3: added generic parameter in example
+
 ## 1.5.0
 
 ### Minor Changes
