@@ -1,5 +1,11 @@
 Changelog
 
+## 1.5.0
+
+### Minor Changes
+
+- 11ccb93: added select() helper and updated documentation
+
 ## 1.4.1
 
 ### Patch Changes
