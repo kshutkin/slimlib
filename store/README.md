@@ -98,7 +98,7 @@ import { SlimlibStore } from '@slimlib/store/angular';
 
 // create store
 @Injectable()
-export class StoreName extends SlimlibStore {
+export class StoreName extends SlimlibStore<State> {
     constructor() {
         super(/*Initial state*/{ field: 123 }});
     }
