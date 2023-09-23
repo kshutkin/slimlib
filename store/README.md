@@ -18,7 +18,7 @@ npm install --save-dev @slimlib/store
 
 # Usage
 
-React:
+### React
 
 ```javascript
 import { createStore, useStore } from '@slimlib/store/react';
@@ -39,7 +39,7 @@ function Component() {
 }
 ```
 
-Preact:
+### Preact
 
 ```javascript
 import { createStore, useStore } from '@slimlib/store/preact';
@@ -60,7 +60,7 @@ function Component() {
 }
 ```
 
-Svelte:
+### Svelte
 
 In store
 
@@ -87,6 +87,30 @@ import { storeName } from './stores/storeName';
 
 // use it in reactive way for reading data
 $storeName
+```
+
+### Angular
+
+In store
+
+```javascript
+import { SlimlibStore } from '@slimlib/store/angular';
+
+// create store
+@Injectable()
+export class StoreName extends SlimlibStore {
+    constructor() {
+        super(/*Initial state*/{ field: 123 }});
+    }
+
+    // selectors
+    field = this.select(state => state.field);
+
+    // actions
+    doSomething() {
+        this.state.field = value;
+    }
+}
 ```
 
 ## API
@@ -133,6 +157,23 @@ Function to subscribe to store inside component. Returns current state.
 #### `createStore<T>(initialState: T): [T, Store<T>, () => void]`
 
 Store factory created with `notifyAfterCreation` === `true`.
+
+### `angular` export
+
+#### `createStore<T>(initialState: T): [T, Store<T>, () => void]`
+
+Store factory created with `notifyAfterCreation` === `false`.
+
+#### `toSignal<T>(store: Store<T>): Signal<T>` - converts store to signal
+
+#### `SlimlibStore`
+
+Base class for store services.
+
+##### `constructor(initialState: T)` - creates store with initial state
+
+##### `state: T` - store state (proxy object)
+##### `select<R>(...signals: Signal[], projector: (state: T, ...signalValue: SignalValue<signals[index]>) => R): Signal<R>` - selector function that returns a signal
 
 ## Limitations
 
