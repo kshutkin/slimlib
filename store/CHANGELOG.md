@@ -1,5 +1,11 @@
 Changelog
 
+## 1.5.2
+
+### Patch Changes
+
+- c59d365: fix documentation because we export 2 functions from `core` already for some time
+
 ## 1.5.1
 
 ### Patch Changes
