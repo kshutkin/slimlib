@@ -119,7 +119,7 @@ export class StoreName extends SlimlibStore<State> {
 
 ####  `createStoreFactory(notifyAfterCreation: boolean)`
 
-The only exported function. It returns createStore factory (see next) which notifies immediately after creating store if `notifyAfterCreation` is truthy.
+Returns createStore factory (see next) which notifies immediately after creating store if `notifyAfterCreation` is truthy.
 
 #### `createStore<T>(initialState: T): [T, Store<T>, () => void]`
 
