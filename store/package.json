@@ -33,6 +33,10 @@
       "require": "./dist/angular.cjs",
       "default": "./dist/angular.mjs"
     },
+    "./rxjs": {
+      "require": "./dist/rxjs.cjs",
+      "default": "./dist/rxjs.mjs"
+    },
     "./package.json": "./package.json"
   },
   "types": "./dist/index.d.ts",
@@ -42,7 +46,8 @@
     "preact",
     "core",
     "svelte",
-    "angular"
+    "angular",
+    "rxjs"
   ],
   "repository": {
     "type": "git",
@@ -57,7 +62,7 @@
     "proxy"
   ],
   "scripts": {
-    "build": "pkgbld-internal --umd=index,preact,react,svelte,angular",
+    "build": "pkgbld-internal --umd=index,preact,react,svelte,angular,rxjs",
     "test": "jest --collectCoverage",
     "lint": "eslint ./src"
   },
@@ -78,7 +83,8 @@
   "peerDependencies": {
     "preact": ">=10.0.0",
     "react": ">=17.0.0",
-    "@angular/core": ">=16.0.0"
+    "@angular/core": ">=16.0.0",
+    "rxjs": ">=7.0.0"
   },
   "peerDependenciesMeta": {
     "react": {
@@ -88,6 +94,9 @@
       "optional": true
     },
     "@angular/core": {
+      "optional": true
+    },
+    "rxjs": {
       "optional": true
     }
   }

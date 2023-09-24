@@ -113,6 +113,23 @@ export class StoreName extends SlimlibStore<State> {
 }
 ```
 
+### rxjs
+
+```javascript
+import { createStore, toObservable } from '@slimlib/store/rxjs';
+
+// create store
+const [state, store] = createStore();
+
+// action
+export function doSomething() {
+    state.field = value;
+}
+
+// observable
+export const state$ = toObservable(store);
+```
+
 ## API
 
 ### `main` and `core` exports
@@ -174,6 +191,14 @@ Base class for store services.
 
 ##### `state: T` - store state (proxy object)
 ##### `select<R>(...signals: Signal[], projector: (state: T, ...signalValue: SignalValue<signals[index]>) => R): Signal<R>` - selector function that returns a signal
+
+### `rxjs` export
+
+#### `createStore<T>(initialState: T): [T, Store<T>, () => void]`
+
+Store factory created with `notifyAfterCreation` === `false`.
+
+#### `toObservable<T>(store: Store<T>): Observable<T>` - converts store to observable
 
 ## Limitations
 

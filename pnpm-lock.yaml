@@ -53,6 +53,9 @@ importers:
       '@angular/core':
         specifier: '>=16.0.0'
         version: 16.2.5(rxjs@7.8.1)(zone.js@0.13.3)
+      rxjs:
+        specifier: '>=7.0.0'
+        version: 7.8.1
     devDependencies:
       '@testing-library/angular':
         specifier: ^14.0.0
