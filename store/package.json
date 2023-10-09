@@ -10,30 +10,44 @@
   "unpkg": "./dist/index.umd.js",
   "exports": {
     ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
       "require": "./dist/index.cjs",
       "default": "./dist/index.mjs"
     },
     "./core": {
+      "types": "./dist/core.d.ts",
+      "import": "./dist/core.mjs",
       "require": "./dist/core.cjs",
       "default": "./dist/core.mjs"
     },
     "./react": {
+      "types": "./dist/react.d.ts",
+      "import": "./dist/react.mjs",
       "require": "./dist/react.cjs",
       "default": "./dist/react.mjs"
     },
     "./preact": {
+      "types": "./dist/preact.d.ts",
+      "import": "./dist/preact.mjs",
       "require": "./dist/preact.cjs",
       "default": "./dist/preact.mjs"
     },
     "./svelte": {
+      "types": "./dist/svelte.d.ts",
+      "import": "./dist/svelte.mjs",
       "require": "./dist/svelte.cjs",
       "default": "./dist/svelte.mjs"
     },
     "./angular": {
+      "types": "./dist/angular.d.ts",
+      "import": "./dist/angular.mjs",
       "require": "./dist/angular.cjs",
       "default": "./dist/angular.mjs"
     },
     "./rxjs": {
+      "types": "./dist/rxjs.d.ts",
+      "import": "./dist/rxjs.mjs",
       "require": "./dist/rxjs.cjs",
       "default": "./dist/rxjs.mjs"
     },
