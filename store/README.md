@@ -65,7 +65,7 @@ function Component() {
 In store
 
 ```javascript
-import { createStore, useStore } from '@slimlib/store/svelte';
+import { createStore } from '@slimlib/store/svelte';
 
 // create store
 const [state, subscribe] = createStore();
