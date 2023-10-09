@@ -1,6 +1,6 @@
 {
   "type": "module",
-  "version": "1.6.0",
+  "version": "1.6.1",
   "name": "@slimlib/store",
   "description": "Simple Proxy-based store for SPA",
   "license": "MIT",

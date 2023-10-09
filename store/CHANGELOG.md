@@ -1,5 +1,11 @@
 Changelog
 
+## 1.6.1
+
+### Patch Changes
+
+- fb2351d: added subpath exports types
+
 ## 1.6.0
 
 ### Minor Changes
