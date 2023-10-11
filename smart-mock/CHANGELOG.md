@@ -1,5 +1,11 @@
 Changelog
 
+## 0.1.6
+
+### Patch Changes
+
+- e157d13: use prune on package.json
+
 ## 0.1.5
 
 ### Patch Changes
