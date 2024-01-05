@@ -86,7 +86,7 @@
     "react": ">=17.0.0",
     "react-dom": ">=17.0.0",
     "@testing-library/react": "^14.0.0",
-    "@testing-library/angular": "^14.0.0",
+    "@testing-library/angular": "^15.0.0",
     "@types/react-dom": ">=17.0.0",
     "jest-environment-jsdom": "^29.4.3",
     "@testing-library/svelte": "^3.2.2",
