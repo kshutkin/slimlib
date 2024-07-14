@@ -202,8 +202,6 @@ Store factory created with `notifyAfterCreation` === `false`.
 
 ## Limitations
 
-`Map`, `Set`, `WeakMap`, `WeakSet` cannot be used as values in current implementation.
-
 Mixing proxied values and values from an underlying object can fail for cases where code needs checking for equality.
 
 For example searching for an array element from the underlying object in a proxied array will fail.
