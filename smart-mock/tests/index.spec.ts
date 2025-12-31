@@ -1,3 +1,4 @@
+import { describe, it, expect, beforeEach } from 'vitest';
 import createRecordingMockFactory from '../src/index.js';
 
 describe('smart-mock', () => {
@@ -111,7 +112,8 @@ describe('smart-mock', () => {
         it('curry', () => {
             const curry = createMock((fn: (...args: any[]) => any) => { return (arg: any) => () => undefined; }, 'curry');
             const result = generate(curry(() => undefined)('arg'));
-            expect(result).toEqual('curry(() => undefined)("arg")');
+            // esbuild may transform `undefined` to `void 0`
+            expect(result).toMatch(/^curry\(\(\) => (?:undefined|void 0)\)\("arg"\)$/);
         });
     });
 
@@ -125,7 +127,7 @@ describe('smart-mock', () => {
             expect(result).toEqual('tmp_0');
         });
 
-        xit('defineProperty', () => {
+        it.skip('defineProperty', () => {
             const factory = createMock(() => ({}), 'test');
             const instance = factory();
             Object.defineProperty(instance, 'property1', {
@@ -206,7 +208,7 @@ describe('smart-mock', () => {
     });
 
     describe('unwrapValue', () => {
-        xit('able to unwrap value', async () => {
+        it.skip('able to unwrap value', async () => {
             const mock = createMock({} as {prop?: object}, 'test');
             const emptyObject = {};
             mock.prop = emptyObject;

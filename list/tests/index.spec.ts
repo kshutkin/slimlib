@@ -1,3 +1,4 @@
+import { describe, it, expect } from 'vitest';
 import { append, appendRange, List, ListNode, prepend, prependRange, remove, removeRange } from '../src/index.js';
 
 describe('list', () => {

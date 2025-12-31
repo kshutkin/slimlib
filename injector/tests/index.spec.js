@@ -1,4 +1,5 @@
-import createInject, { type Provider } from '../src/index.js';
+import { describe, it, expect } from 'vitest';
+import createInject from '../src/index.js';
 
 describe('createInject', () => {
 
@@ -9,11 +10,11 @@ describe('createInject', () => {
     it('provide / inject', () => {
         const inject = createInject();
 
-        inject(($provide: Provider) => {
+        inject(function($provide) {
             $provide('value', 'test');
         });
 
-        const value = inject((value: string) => {
+        const value = inject(function(value) {
             return value;
         });
 

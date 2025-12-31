@@ -1,3 +1,4 @@
+import { describe, it, expect } from 'vitest';
 import refiner from '../src/index.js';
 
 describe('refine', () => {
