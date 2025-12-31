@@ -5,21 +5,19 @@
   "description": "Doubly linked list",
   "license": "MIT",
   "author": "Konstantin Shutkin",
-  "main": "./dist/index.cjs",
-  "module": "./dist/index.mjs",
-  "unpkg": "./dist/index.umd.js",
+  "main": "./src/index.js",
+  "module": "./src/index.js",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.mjs",
-      "require": "./dist/index.cjs",
-      "default": "./dist/index.mjs"
+      "types": "./types/index.d.ts",
+      "default": "./src/index.js"
     },
     "./package.json": "./package.json"
   },
-  "types": "./dist/index.d.ts",
+  "types": "./types/index.d.ts",
   "files": [
-    "dist"
+    "src",
+    "types"
   ],
   "repository": {
     "type": "git",
@@ -36,8 +34,11 @@
     "doubly linked list"
   ],
   "scripts": {
-    "build": "pkgbld-internal --umd=index",
+    "build": "dts-buddy",
     "test": "jest --collectCoverage",
     "lint": "eslint ./src"
+  },
+  "devDependencies": {
+    "dts-buddy": "^0.5.4"
   }
 }

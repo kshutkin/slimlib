@@ -1,16 +1,22 @@
+/**
+ * @template T
+ * @returns {(newPartitionCandidate?: Iterable<T>) => Iterable<Iterable<T>>}
+ */
+export default function() {
+    /** @type {Set<Set<T>>} */
+    const processed = new Set();
 
-export default function<T>() {
-    const processed = new Set<Set<T>>();
-
-    return (newPartitionCandidate?: Iterable<T>) => {
+    return (newPartitionCandidate) => {
         if (newPartitionCandidate) {
-            const intersections = new Map<Set<T>, Set<T>>();
+            /** @type {Map<Set<T>, Set<T>>} */
+            const intersections = new Map();
             for (const element of newPartitionCandidate) {
                 for (const partitionItem of processed) {
                     if (partitionItem.has(element)) {
-                        let intersection: Set<T> | undefined = intersections.get(partitionItem);
+                        /** @type {Set<T> | undefined} */
+                        let intersection = intersections.get(partitionItem);
                         if (intersection === undefined) {
-                            intersection = new Set<T>();
+                            intersection = new Set();
                             intersections.set(partitionItem, intersection);
                         }
                         intersection.add(element);
@@ -33,6 +39,6 @@ export default function<T>() {
                 processed.add(newPartitionItem);
             }
         }
-        return processed as Iterable<Iterable<T>>;
+        return /** @type {Iterable<Iterable<T>>} */ (processed);
     };
 }

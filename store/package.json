@@ -11,44 +11,44 @@
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.mjs",
       "require": "./dist/index.cjs",
+      "import": "./dist/index.mjs",
       "default": "./dist/index.mjs"
     },
     "./core": {
       "types": "./dist/core.d.ts",
-      "import": "./dist/core.mjs",
       "require": "./dist/core.cjs",
+      "import": "./dist/core.mjs",
       "default": "./dist/core.mjs"
     },
     "./react": {
       "types": "./dist/react.d.ts",
-      "import": "./dist/react.mjs",
       "require": "./dist/react.cjs",
+      "import": "./dist/react.mjs",
       "default": "./dist/react.mjs"
     },
     "./preact": {
       "types": "./dist/preact.d.ts",
-      "import": "./dist/preact.mjs",
       "require": "./dist/preact.cjs",
+      "import": "./dist/preact.mjs",
       "default": "./dist/preact.mjs"
     },
     "./svelte": {
       "types": "./dist/svelte.d.ts",
-      "import": "./dist/svelte.mjs",
       "require": "./dist/svelte.cjs",
+      "import": "./dist/svelte.mjs",
       "default": "./dist/svelte.mjs"
     },
     "./angular": {
       "types": "./dist/angular.d.ts",
-      "import": "./dist/angular.mjs",
       "require": "./dist/angular.cjs",
+      "import": "./dist/angular.mjs",
       "default": "./dist/angular.mjs"
     },
     "./rxjs": {
       "types": "./dist/rxjs.d.ts",
-      "import": "./dist/rxjs.mjs",
       "require": "./dist/rxjs.cjs",
+      "import": "./dist/rxjs.mjs",
       "default": "./dist/rxjs.mjs"
     },
     "./package.json": "./package.json"
@@ -78,7 +78,8 @@
   "scripts": {
     "build": "pkgbld-internal --umd=index,preact,react,svelte,angular,rxjs",
     "test": "jest --collectCoverage",
-    "lint": "eslint ./src"
+    "lint": "eslint ./src",
+    "prepack": "pkgbld-internal prune"
   },
   "devDependencies": {
     "@types/react": "^18.0.0",
@@ -112,6 +113,35 @@
     },
     "rxjs": {
       "optional": true
+    }
+  },
+  "typesVersions": {
+    "*": {
+      ".": [
+        "dist/index.d.ts"
+      ],
+      "./core": [
+        "dist/core.d.ts"
+      ],
+      "./react": [
+        "dist/react.d.ts"
+      ],
+      "./preact": [
+        "dist/preact.d.ts"
+      ],
+      "./svelte": [
+        "dist/svelte.d.ts"
+      ],
+      "./angular": [
+        "dist/angular.d.ts"
+      ],
+      "./rxjs": [
+        "dist/rxjs.d.ts"
+      ],
+      "*": [
+        "dist/index.d.ts",
+        "dist/*"
+      ]
     }
   }
 }

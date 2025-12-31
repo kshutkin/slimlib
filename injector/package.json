@@ -5,20 +5,19 @@
   "description": "Parameter names based dependency injector for nodejs",
   "license": "MIT",
   "author": "Konstantin Shutkin",
-  "main": "./dist/index.cjs",
-  "module": "./dist/index.mjs",
+  "main": "./src/index.js",
+  "module": "./src/index.js",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.mjs",
-      "require": "./dist/index.cjs",
-      "default": "./dist/index.mjs"
+      "types": "./types/index.d.ts",
+      "default": "./src/index.js"
     },
     "./package.json": "./package.json"
   },
-  "types": "./dist/index.d.ts",
+  "types": "./types/index.d.ts",
   "files": [
-    "dist"
+    "src",
+    "types"
   ],
   "engines": {
     "node": ">=15"
@@ -38,11 +37,14 @@
     "nodejs"
   ],
   "scripts": {
-    "build": "pkgbld-internal",
+    "build": "dts-buddy",
     "test": "jest --collectCoverage",
     "lint": "eslint ./src"
   },
   "dependencies": {
     "get-parameter-names": "0.3.0"
+  },
+  "devDependencies": {
+    "dts-buddy": "^0.6.2"
   }
 }

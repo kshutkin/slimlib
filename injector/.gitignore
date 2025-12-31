@@ -82,6 +82,10 @@ typings/
 .nuxt
 dist
 
+# Generated types (but keep manually created type declarations)
+types/index.d.ts
+types/index.d.ts.map
+
 # Gatsby files
 .cache/
 # Comment in the public line in if your project uses Gatsby and *not* Next.js
