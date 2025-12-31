@@ -1,4 +1,4 @@
-import createInject, { type Provider } from '../src';
+import createInject, { type Provider } from '../src/index.js';
 
 describe('createInject', () => {
 

@@ -1,4 +1,4 @@
-import refiner from '../src';
+import refiner from '../src/index.js';
 
 describe('refine', () => {
 

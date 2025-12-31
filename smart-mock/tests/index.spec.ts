@@ -1,4 +1,4 @@
-import createRecordingMockFactory from '../src';
+import createRecordingMockFactory from '../src/index.js';
 
 describe('smart-mock', () => {
 
