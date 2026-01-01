@@ -47,6 +47,7 @@ export const createStoreFactory = (notifyAfterCreation: boolean) => {
                 // TODO check if arrow function is fine here
                 return valueType === 'function' ? (...args: unknown[]) => {
                     enqueueNotification();
+                    // eslint-disable-next-line @typescript-eslint/ban-types
                     return (value as Function).apply(target, args.map(unwrapValue));
                 } : (value !== null && valueType === 'object' ? createProxy(value as T) : value);
             },
