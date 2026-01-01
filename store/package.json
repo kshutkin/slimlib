@@ -76,7 +76,7 @@
     "proxy"
   ],
   "scripts": {
-    "build": "pkgbld-internal --umd=index,preact,react,svelte,angular,rxjs",
+    "build": "pkgbld-internal",
     "test": "jest --collectCoverage",
     "lint": "eslint ./src",
     "prepack": "pkgbld-internal prune"

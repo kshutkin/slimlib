@@ -2,7 +2,7 @@ import { createStoreFactory, unwrapValue } from '../src';
 import util from 'util';
 
 const createStore = createStoreFactory(false);
-const createStoreWithNofificationAboutInitialState = createStoreFactory(true);
+const createStoreWithNotificationAboutInitialState = createStoreFactory(true);
 
 function flushPromises() {
     return new Promise(resolve => setTimeout(resolve));
@@ -21,7 +21,7 @@ describe('store', () => {
             store(subscriber);
             state.prop = 'test2';
             await flushPromises();
-            expect(subscriber).toBeCalledWith(expect.objectContaining({
+            expect(subscriber).toHaveBeenCalledWith(expect.objectContaining({
                 prop: 'test2'
             }));
             expect(store().prop).toBe('test2');
@@ -34,7 +34,7 @@ describe('store', () => {
             store(subscriber);
             state.prop = 42;
             await flushPromises();
-            expect(subscriber).toBeCalledWith(expect.objectContaining({
+            expect(subscriber).toHaveBeenCalledWith(expect.objectContaining({
                 prop: 42
             }));
             expect(store().prop).toBe(42);
@@ -47,7 +47,7 @@ describe('store', () => {
             store(subscriber);
             state.prop = true;
             await flushPromises();
-            expect(subscriber).toBeCalledWith(expect.objectContaining({
+            expect(subscriber).toHaveBeenCalledWith(expect.objectContaining({
                 prop: true
             }));
             expect(store().prop).toBe(true);
@@ -60,7 +60,7 @@ describe('store', () => {
             store(subscriber);
             state.prop = null;
             await flushPromises();
-            expect(subscriber).toBeCalledWith(expect.objectContaining({
+            expect(subscriber).toHaveBeenCalledWith(expect.objectContaining({
                 prop: null
             }));
             expect(store().prop).toBe(null);
@@ -73,7 +73,7 @@ describe('store', () => {
             store(subscriber);
             state.prop = undefined;
             await flushPromises();
-            expect(subscriber).toBeCalledWith(expect.objectContaining({
+            expect(subscriber).toHaveBeenCalledWith(expect.objectContaining({
                 prop: undefined
             }));
             expect(store().prop).toBe(undefined);
@@ -87,7 +87,7 @@ describe('store', () => {
             store(subscriber);
             state.prop = { b: 2 };
             await flushPromises();
-            expect(subscriber).toBeCalledWith(expect.objectContaining({
+            expect(subscriber).toHaveBeenCalledWith(expect.objectContaining({
                 prop: { b: 2 }
             }));
             expect(store().prop).toEqual({ b: 2 });
@@ -100,7 +100,7 @@ describe('store', () => {
             store(subscriber);
             state.push(42);
             await flushPromises();
-            expect(subscriber).toBeCalledWith([42]);
+            expect(subscriber).toHaveBeenCalledWith([42]);
             expect(store()).toEqual([42]);
             expect(state).toEqual([42]);
         });
@@ -122,7 +122,7 @@ describe('store', () => {
             await flushPromises();
             state.prop = 24;
             await flushPromises();
-            expect(subscriber).toBeCalledWith(expect.objectContaining({
+            expect(subscriber).toHaveBeenCalledWith(expect.objectContaining({
                 prop: 24
             }));
             expect(store().prop).toBe(24);
@@ -137,7 +137,7 @@ describe('store', () => {
                 value: 42
             });
             await flushPromises();
-            expect(subscriber).toBeCalledWith(expect.objectContaining({
+            expect(subscriber).toHaveBeenCalledWith(expect.objectContaining({
                 prop: 42
             }));
             expect(store().prop).toBe(42);
@@ -195,7 +195,7 @@ describe('store', () => {
             store(subscriber);
             state.prop.a = 2;
             await flushPromises();
-            expect(subscriber).toBeCalledWith(expect.objectContaining({
+            expect(subscriber).toHaveBeenCalledWith(expect.objectContaining({
                 prop: { a: 2 }
             }));
             expect(store().prop).toEqual({ a: 2 });
@@ -208,7 +208,7 @@ describe('store', () => {
             store(subscriber);
             delete state.prop;
             await flushPromises();
-            expect(subscriber).toBeCalledWith(expect.objectContaining({}));
+            expect(subscriber).toHaveBeenCalledWith(expect.objectContaining({}));
             expect(store().prop).toBe(undefined);
             expect(state.prop).toBe(undefined);
         });
@@ -219,7 +219,7 @@ describe('store', () => {
             store(subscriber);
             state.push(state[0] as {prop: number});
             await flushPromises();
-            expect(subscriber).toBeCalledWith([{prop: 42},{prop: 42}]);
+            expect(subscriber).toHaveBeenCalledWith([{prop: 42},{prop: 42}]);
             expect(store()).toEqual([{prop: 42},{prop: 42}]);
             expect(state).toEqual([{prop: 42},{prop: 42}]);
             expect(store().every(item => !util.types.isProxy(item))).toBeTruthy();
@@ -231,7 +231,7 @@ describe('store', () => {
             store(subscriber);
             (state.data[0] as {prop: string}).prop += 'test';
             await flushPromises();
-            expect(subscriber).toBeCalledWith({data:[{prop: 'test'}]});
+            expect(subscriber).toHaveBeenCalledWith({data:[{prop: 'test'}]});
             expect(store()).toEqual({data:[{prop: 'test'}]});
             expect(state).toEqual({data:[{prop: 'test'}]});
         });
@@ -242,11 +242,26 @@ describe('store', () => {
             expect(index).toBe(0);
         });
 
-        // it('find index in array (mixed objects)', () => {
-        //     const [state, store] = createStore({data:[{prop: ''}]});
-        //     const index = state.data.indexOf(store().data[0]);
-        //     expect(index).toBe(0);
-        // });
+        it('Map in store', () => {
+            const [state] = createStore(new Map([['prop', 'test']]));
+            expect(state.get('prop')).toBe('test');
+        });
+
+        it('Map in store (set value)', async () => {
+            const subscriber = jest.fn();
+            const value = new Map([['prop', 'test']]);
+            const [state, store] = createStore(value);
+            store(subscriber);
+            state.set('prop', 'test2');
+            await flushPromises();
+            expect(subscriber).toHaveBeenCalledWith(value);
+        });
+
+        it('find index in array (mixed objects)', () => {
+            const [state, store] = createStore({data:[{prop: ''}]});
+            const index = state.data.indexOf(store().data[0]!);
+            expect(index).toBe(0);
+        });
 
         it('swap in array', async () => {
             const subscriber = jest.fn();
@@ -256,7 +271,7 @@ describe('store', () => {
             (state.data[0] as {prop: string}) = state.data[1] as {prop: string};
             (state.data[1] as {prop: string}) = temp;
             await flushPromises();
-            expect(subscriber).toBeCalledWith({data:[{prop: '2'},{prop: '1'}]});
+            expect(subscriber).toHaveBeenCalledWith({data:[{prop: '2'},{prop: '1'}]});
             expect(store()).toEqual({data:[{prop: '2'},{prop: '1'}]});
             expect(state).toEqual({data:[{prop: '2'},{prop: '1'}]});
         });
@@ -267,7 +282,7 @@ describe('store', () => {
             store(subscriber);
             Object.assign(state, {test: true});
             await flushPromises();
-            expect(subscriber).toBeCalledWith({test: true});
+            expect(subscriber).toHaveBeenCalledWith({test: true});
             expect(store()).toEqual({test: true});
             expect(state).toEqual({test: true});
         });
@@ -278,7 +293,7 @@ describe('store', () => {
             store(subscriber);
             Object.assign(state, {test: true});
             await flushPromises();
-            expect(subscriber).toBeCalledWith({data: false, test: true});
+            expect(subscriber).toHaveBeenCalledWith({data: false, test: true});
             expect(store()).toEqual({data: false, test: true});
             expect(state).toEqual({data: false, test: true});
         });
@@ -352,20 +367,20 @@ describe('store', () => {
 describe('store with initial notification', () => {
     it('notifies after creation', async () => {
         const subscriber = jest.fn();
-        const [, store] = createStoreWithNofificationAboutInitialState({prop: 'test'});
+        const [, store] = createStoreWithNotificationAboutInitialState({prop: 'test'});
         store(subscriber);
         await flushPromises();
         expect(subscriber).toBeCalledTimes(1);
-        expect(subscriber).toBeCalledWith({prop: 'test'});
+        expect(subscriber).toHaveBeenCalledWith({prop: 'test'});
     });
 
-    it('deafult state', async () => {
+    it('default state', async () => {
         const subscriber = jest.fn();
-        const [, store] = createStoreWithNofificationAboutInitialState();
+        const [, store] = createStoreWithNotificationAboutInitialState();
         store(subscriber);
         await flushPromises();
         expect(subscriber).toBeCalledTimes(1);
-        expect(subscriber).toBeCalledWith({});
+        expect(subscriber).toHaveBeenCalledWith({});
     });
 });
 

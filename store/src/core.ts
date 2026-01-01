@@ -31,8 +31,7 @@ export const createStoreFactory = (notifyAfterCreation: boolean) => {
             }
         };
         const handler: ProxyHandler<T> = {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            set(target: T, p: string | symbol, value: any, receiver: any) {
+            set(target: T, p: string | symbol, value: unknown, receiver: unknown) {
                 const realValue = unwrapValue(value);
                 if (Reflect.get(target, p, receiver) !== realValue) {
                     Reflect.set(target, p, realValue, receiver);
@@ -40,11 +39,17 @@ export const createStoreFactory = (notifyAfterCreation: boolean) => {
                 }
                 return true;
             },
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            get(target: T, p: string | symbol, receiver: any) {
+            get(target: T, p: string | symbol, receiver: unknown) {
                 if (p === unwrap) return target;
                 const value = Reflect.get(target, p, receiver);
-                return value !== null && typeof value === 'object' && !(value instanceof RegExp) ? createProxy(value as T) : value;
+                const valueType = typeof value;
+                // TODO maybe cache the wrapper function
+                // TODO check if arrow function is fine here
+                return valueType === 'function' ? (...args: unknown[]) => {
+                    enqueueNotification();
+                    // eslint-disable-next-line @typescript-eslint/ban-types
+                    return (value as Function).apply(target, args.map(unwrapValue));
+                } : (value !== null && valueType === 'object' ? createProxy(value as T) : value);
             },
             defineProperty(...args: [T, string | symbol, PropertyDescriptor]) {
                 enqueueNotification();
