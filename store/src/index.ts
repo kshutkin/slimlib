@@ -48,10 +48,10 @@ export const createStoreFactory = (notifyAfterCreation: boolean) => {
                         const value = Reflect.get(target, p);
                         const valueType = typeof value;
                         // https://jsbench.me/p6mjxatbz4/1 - without function cache is faster in all major browsers
+                        // probably because of an extra unwrapValue required with cache and extra cache lookup
                         // TODO check if arrow function is fine here
                         return valueType === 'function' ? (...args: unknown[]) => {
                             enqueueNotification();
-                            // @ts-ignore
                             return (value as Function).apply(target, args.map(unwrapValue));
                         } : (value !== null && valueType === 'object' ? createProxy(value as T) : value);
                     },
