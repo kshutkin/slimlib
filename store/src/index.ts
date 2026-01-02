@@ -47,12 +47,12 @@ export const createStoreFactory = (notifyAfterCreation: boolean) => {
                         if (p === unwrap) return target;
                         const value = Reflect.get(target, p, receiver);
                         const valueType = typeof value;
-                        // TODO maybe cache the wrapper function, but it must be cached with a target?
+                        // https://jsbench.me/p6mjxatbz4/1 - without function cache is faster in all major browsers
                         // TODO check if arrow function is fine here
-                        return valueType === 'function' ? function(...args: unknown[]) {
+                        return valueType === 'function' ? (...args: unknown[]) => {
                             enqueueNotification();
                             // @ts-ignore
-                            return (value as Function).apply(unwrapValue(this), args.map(unwrapValue));
+                            return (value as Function).apply(target, args.map(unwrapValue));
                         } : (value !== null && valueType === 'object' ? createProxy(value as T) : value);
                     },
                     defineProperty(...args: [T, string | symbol, PropertyDescriptor]) {
