@@ -43,9 +43,9 @@ export const createStoreFactory = (notifyAfterCreation: boolean) => {
                         }
                         return true;
                     },
-                    get(target: T, p: string | symbol, receiver: unknown) {
+                    get(target: T, p: string | symbol) {
                         if (p === unwrap) return target;
-                        const value = Reflect.get(target, p, receiver);
+                        const value = Reflect.get(target, p, target);
                         const valueType = typeof value;
                         // https://jsbench.me/p6mjxatbz4/1 - without function cache is faster in all major browsers
                         // TODO check if arrow function is fine here

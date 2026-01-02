@@ -1,3 +1,4 @@
+import { describe, it, expect, vi } from 'vitest';
 import { createStoreFactory, unwrapValue } from '../src';
 import util from 'util';
 
@@ -16,7 +17,7 @@ describe('store', () => {
 
     describe('change detection', () => {
         it('string', async () => {
-            const subscriber = jest.fn();
+            const subscriber = vi.fn();
             const [state, store] = createStore({prop: 'test'});
             store(subscriber);
             state.prop = 'test2';
@@ -29,7 +30,7 @@ describe('store', () => {
         });
 
         it('number', async () => {
-            const subscriber = jest.fn();
+            const subscriber = vi.fn();
             const [state, store] = createStore({prop: 3});
             store(subscriber);
             state.prop = 42;
@@ -42,7 +43,7 @@ describe('store', () => {
         });
 
         it('boolean', async () => {
-            const subscriber = jest.fn();
+            const subscriber = vi.fn();
             const [state, store] = createStore({prop: false});
             store(subscriber);
             state.prop = true;
@@ -55,7 +56,7 @@ describe('store', () => {
         });
 
         it('1 => null', async () => {
-            const subscriber = jest.fn();
+            const subscriber = vi.fn();
             const [state, store] = createStore<{prop: null | number}>({prop: 1});
             store(subscriber);
             state.prop = null;
@@ -68,7 +69,7 @@ describe('store', () => {
         });
 
         it('1 => undefined', async () => {
-            const subscriber = jest.fn();
+            const subscriber = vi.fn();
             const [state, store] = createStore<{prop: undefined | number}>({prop: 1});
             store(subscriber);
             state.prop = undefined;
@@ -81,7 +82,7 @@ describe('store', () => {
         });
 
         it('object', async () => {
-            const subscriber = jest.fn();
+            const subscriber = vi.fn();
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const [state, store] = createStore<any>({prop: { a: 1 }});
             store(subscriber);
@@ -95,7 +96,7 @@ describe('store', () => {
         });
 
         it('array', async () => {
-            const subscriber = jest.fn();
+            const subscriber = vi.fn();
             const [state, store] = createStore<number[]>([]);
             store(subscriber);
             state.push(42);
@@ -112,7 +113,7 @@ describe('store', () => {
         });
 
         it('define writable property on Proxy', async () => {
-            const subscriber = jest.fn();
+            const subscriber = vi.fn();
             const [state, store] = createStore<{prop?: number}>({});
             store(subscriber);
             Object.defineProperty(state, 'prop', {
@@ -130,7 +131,7 @@ describe('store', () => {
         });
 
         it('define property on Proxy', async () => {
-            const subscriber = jest.fn();
+            const subscriber = vi.fn();
             const [state, store] = createStore<{prop?: number}>({});
             store(subscriber);
             Object.defineProperty(state, 'prop', {
@@ -170,7 +171,7 @@ describe('store', () => {
         });
 
         it('no changes', async () => {
-            const subscriber = jest.fn();
+            const subscriber = vi.fn();
             const [state, store] = createStore({prop: 'test'});
             store(subscriber);
             state.prop = 'test';
@@ -179,7 +180,7 @@ describe('store', () => {
         });
 
         it('triggers once per action', async () => {
-            const subscriber = jest.fn();
+            const subscriber = vi.fn();
             const [state, store] = createStore({prop: 'test'});
             store(subscriber);
             state.prop = 'test2';
@@ -189,7 +190,7 @@ describe('store', () => {
         });
 
         it('nested object', async () => {
-            const subscriber = jest.fn();
+            const subscriber = vi.fn();
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const [state, store] = createStore<any>({prop: { a: 1 }});
             store(subscriber);
@@ -203,7 +204,7 @@ describe('store', () => {
         });
 
         it('handles delete property', async () => {
-            const subscriber = jest.fn();
+            const subscriber = vi.fn();
             const [state, store] = createStore<{prop?: number}>({prop: 42});
             store(subscriber);
             delete state.prop;
@@ -214,7 +215,7 @@ describe('store', () => {
         });
 
         it('reuse object', async () => {
-            const subscriber = jest.fn();
+            const subscriber = vi.fn();
             const [state, store] = createStore([{prop: 42}]);
             store(subscriber);
             state.push(state[0] as {prop: number});
@@ -226,7 +227,7 @@ describe('store', () => {
         });
 
         it('change object in array', async () => {
-            const subscriber = jest.fn();
+            const subscriber = vi.fn();
             const [state, store] = createStore({data:[{prop: ''}]});
             store(subscriber);
             (state.data[0] as {prop: string}).prop += 'test';
@@ -248,12 +249,35 @@ describe('store', () => {
         });
 
         it('Map in store (set value)', async () => {
-            const subscriber = jest.fn();
+            const subscriber = vi.fn();
             const value = new Map([['prop', 'test']]);
             const [state, store] = createStore(value);
             store(subscriber);
             state.set('prop', 'test2');
             await flushPromises();
+            expect(subscriber).toHaveBeenCalledWith(value);
+        });
+
+        it('Map in store (get value)', async () => {
+            const subscriber = vi.fn();
+            const value = new Map([['prop', 'test']]);
+            const [state, store] = createStore(value);
+            store(subscriber);
+            const size = state.size;
+            await flushPromises();
+            expect(size).toBe(1);
+        });
+
+        it('second level proxy triggers subscriber', async () => {
+            const subscriber = vi.fn();
+            const value = {prop: { value: { value2: 1}}};
+            const [state, store] = createStore(value);
+            const prop = state.prop.value;
+            await flushPromises();
+            store(subscriber);
+            prop.value2 = 2;
+            await flushPromises();
+            expect(unwrapValue(prop) !== prop).toBeTruthy();
             expect(subscriber).toHaveBeenCalledWith(value);
         });
 
@@ -264,7 +288,7 @@ describe('store', () => {
         });
 
         it('swap in array', async () => {
-            const subscriber = jest.fn();
+            const subscriber = vi.fn();
             const [state, store] = createStore({data:[{prop: '1'},{prop: '2'}]});
             store(subscriber);
             const temp = state.data[0] as {prop: string};
@@ -277,7 +301,7 @@ describe('store', () => {
         });
 
         it('Object.assign (proxy as a target, no new properties)', async () => {
-            const subscriber = jest.fn();
+            const subscriber = vi.fn();
             const [state, store] = createStore({test: false});
             store(subscriber);
             Object.assign(state, {test: true});
@@ -288,7 +312,7 @@ describe('store', () => {
         });
 
         it('Object.assign (proxy as a target)', async () => {
-            const subscriber = jest.fn();
+            const subscriber = vi.fn();
             const [state, store] = createStore({data: false});
             store(subscriber);
             Object.assign(state, {test: true});
@@ -308,7 +332,7 @@ describe('store', () => {
 
     describe('publish/subscribe pattern', () => {
         it('one subscriber',async () => {
-            const subscriber = jest.fn();
+            const subscriber = vi.fn();
             const [state, store] = createStore({prop: 'test'});
             store(subscriber);
             state.prop = 'test2';
@@ -317,7 +341,7 @@ describe('store', () => {
         });
 
         it('unsubscribe',async () => {
-            const subscriber = jest.fn();
+            const subscriber = vi.fn();
             const [state, store] = createStore({prop: 'test'});
             const unsub = store(subscriber);
             unsub();
@@ -327,8 +351,8 @@ describe('store', () => {
         });
 
         it('multiple subscribers',async () => {
-            const subscriber = jest.fn();
-            const subscriber2 = jest.fn();
+            const subscriber = vi.fn();
+            const subscriber2 = vi.fn();
             const [state, store] = createStore({prop: 'test'});
             store(subscriber);
             store(subscriber2);
@@ -339,8 +363,8 @@ describe('store', () => {
         });
 
         it('multiple subscribers (unsubscribe one)',async () => {
-            const subscriber = jest.fn();
-            const subscriber2 = jest.fn();
+            const subscriber = vi.fn();
+            const subscriber2 = vi.fn();
             const [state, store] = createStore({prop: 'test'});
             store(subscriber);
             store(subscriber2)();
@@ -351,8 +375,8 @@ describe('store', () => {
         });
 
         it('multiple subscribers (unsubscribe all)',async () => {
-            const subscriber = jest.fn();
-            const subscriber2 = jest.fn();
+            const subscriber = vi.fn();
+            const subscriber2 = vi.fn();
             const [state, store] = createStore({prop: 'test'});
             store(subscriber)();
             store(subscriber2)();
@@ -366,7 +390,7 @@ describe('store', () => {
 
 describe('store with initial notification', () => {
     it('notifies after creation', async () => {
-        const subscriber = jest.fn();
+        const subscriber = vi.fn();
         const [, store] = createStoreWithNotificationAboutInitialState({prop: 'test'});
         store(subscriber);
         await flushPromises();
@@ -375,7 +399,7 @@ describe('store with initial notification', () => {
     });
 
     it('default state', async () => {
-        const subscriber = jest.fn();
+        const subscriber = vi.fn();
         const [, store] = createStoreWithNotificationAboutInitialState();
         store(subscriber);
         await flushPromises();
@@ -397,7 +421,7 @@ describe('unwrapValue', () => {
 describe('notification', () => {
     it('able to notify subscribers', async () => {
         const [, store, notify] = createStore({});
-        const listener = jest.fn();
+        const listener = vi.fn();
         store(listener);
         notify();
         await flushPromises();
@@ -405,7 +429,7 @@ describe('notification', () => {
     });
     it('notify twice', async () => {
         const [, store, notify] = createStore({});
-        const listener = jest.fn();
+        const listener = vi.fn();
         store(listener);
         notify();
         notify();
