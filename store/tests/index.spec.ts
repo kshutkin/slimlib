@@ -175,7 +175,7 @@ describe('store', () => {
             store(subscriber);
             state.prop = 'test';
             await flushPromises();
-            expect(subscriber).toBeCalledTimes(0);
+            expect(subscriber).toHaveBeenCalledTimes(0);
         });
 
         it('triggers once per action', async () => {
@@ -185,7 +185,7 @@ describe('store', () => {
             state.prop = 'test2';
             state.prop = 'test3';
             await flushPromises();
-            expect(subscriber).toBeCalledTimes(1);
+            expect(subscriber).toHaveBeenCalledTimes(1);
         });
 
         it('nested object', async () => {
@@ -313,7 +313,7 @@ describe('store', () => {
             store(subscriber);
             state.prop = 'test2';
             await flushPromises();
-            expect(subscriber).toBeCalledTimes(1);
+            expect(subscriber).toHaveBeenCalledTimes(1);
         });
 
         it('unsubscribe',async () => {
@@ -323,7 +323,7 @@ describe('store', () => {
             unsub();
             state.prop = 'test2';
             await flushPromises();
-            expect(subscriber).toBeCalledTimes(0);
+            expect(subscriber).toHaveBeenCalledTimes(0);
         });
 
         it('multiple subscribers',async () => {
@@ -334,8 +334,8 @@ describe('store', () => {
             store(subscriber2);
             state.prop = 'test2';
             await flushPromises();
-            expect(subscriber).toBeCalledTimes(1);
-            expect(subscriber2).toBeCalledTimes(1);
+            expect(subscriber).toHaveBeenCalledTimes(1);
+            expect(subscriber2).toHaveBeenCalledTimes(1);
         });
 
         it('multiple subscribers (unsubscribe one)',async () => {
@@ -346,8 +346,8 @@ describe('store', () => {
             store(subscriber2)();
             state.prop = 'test2';
             await flushPromises();
-            expect(subscriber).toBeCalledTimes(1);
-            expect(subscriber2).toBeCalledTimes(0);
+            expect(subscriber).toHaveBeenCalledTimes(1);
+            expect(subscriber2).toHaveBeenCalledTimes(0);
         });
 
         it('multiple subscribers (unsubscribe all)',async () => {
@@ -358,8 +358,8 @@ describe('store', () => {
             store(subscriber2)();
             state.prop = 'test2';
             await flushPromises();
-            expect(subscriber).toBeCalledTimes(0);
-            expect(subscriber2).toBeCalledTimes(0);
+            expect(subscriber).toHaveBeenCalledTimes(0);
+            expect(subscriber2).toHaveBeenCalledTimes(0);
         });
     });
 });
@@ -370,7 +370,7 @@ describe('store with initial notification', () => {
         const [, store] = createStoreWithNotificationAboutInitialState({prop: 'test'});
         store(subscriber);
         await flushPromises();
-        expect(subscriber).toBeCalledTimes(1);
+        expect(subscriber).toHaveBeenCalledTimes(1);
         expect(subscriber).toHaveBeenCalledWith({prop: 'test'});
     });
 
@@ -379,7 +379,7 @@ describe('store with initial notification', () => {
         const [, store] = createStoreWithNotificationAboutInitialState();
         store(subscriber);
         await flushPromises();
-        expect(subscriber).toBeCalledTimes(1);
+        expect(subscriber).toHaveBeenCalledTimes(1);
         expect(subscriber).toHaveBeenCalledWith({});
     });
 });
@@ -401,7 +401,7 @@ describe('notification', () => {
         store(listener);
         notify();
         await flushPromises();
-        expect(listener).toBeCalledTimes(1);
+        expect(listener).toHaveBeenCalledTimes(1);
     });
     it('notify twice', async () => {
         const [, store, notify] = createStore({});
@@ -410,6 +410,6 @@ describe('notification', () => {
         notify();
         notify();
         await flushPromises();
-        expect(listener).toBeCalledTimes(1);
+        expect(listener).toHaveBeenCalledTimes(1);
     });
 });

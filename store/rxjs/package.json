@@ -1,5 +1,0 @@
-{
-  "type": "module",
-  "types": "../dist/rxjs.d.ts",
-  "main": "../dist/rxjs.mjs"
-}

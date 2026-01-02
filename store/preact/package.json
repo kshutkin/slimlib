@@ -1,5 +1,0 @@
-{
-  "type": "module",
-  "types": "../dist/preact.d.ts",
-  "main": "../dist/preact.mjs"
-}

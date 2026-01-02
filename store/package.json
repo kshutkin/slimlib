@@ -15,42 +15,6 @@
       "import": "./dist/index.mjs",
       "default": "./dist/index.mjs"
     },
-    "./core": {
-      "types": "./dist/core.d.ts",
-      "require": "./dist/core.cjs",
-      "import": "./dist/core.mjs",
-      "default": "./dist/core.mjs"
-    },
-    "./react": {
-      "types": "./dist/react.d.ts",
-      "require": "./dist/react.cjs",
-      "import": "./dist/react.mjs",
-      "default": "./dist/react.mjs"
-    },
-    "./preact": {
-      "types": "./dist/preact.d.ts",
-      "require": "./dist/preact.cjs",
-      "import": "./dist/preact.mjs",
-      "default": "./dist/preact.mjs"
-    },
-    "./svelte": {
-      "types": "./dist/svelte.d.ts",
-      "require": "./dist/svelte.cjs",
-      "import": "./dist/svelte.mjs",
-      "default": "./dist/svelte.mjs"
-    },
-    "./angular": {
-      "types": "./dist/angular.d.ts",
-      "require": "./dist/angular.cjs",
-      "import": "./dist/angular.mjs",
-      "default": "./dist/angular.mjs"
-    },
-    "./rxjs": {
-      "types": "./dist/rxjs.d.ts",
-      "require": "./dist/rxjs.cjs",
-      "import": "./dist/rxjs.mjs",
-      "default": "./dist/rxjs.mjs"
-    },
     "./package.json": "./package.json"
   },
   "types": "./dist/index.d.ts",
@@ -82,38 +46,8 @@
     "prepack": "pkgbld-internal prune"
   },
   "devDependencies": {
-    "@types/react": "^18.0.0",
-    "preact": ">=10.0.0",
-    "react": ">=17.0.0",
-    "react-dom": ">=17.0.0",
-    "@testing-library/react": "^14.0.0",
-    "@testing-library/angular": "^15.0.0",
-    "@types/react-dom": ">=17.0.0",
     "jest-environment-jsdom": "^29.4.3",
-    "@testing-library/svelte": "^3.2.2",
-    "svelte": "^3.55.1",
-    "svelte-jester": "^2.3.2",
     "tslib": "^2.5.0"
-  },
-  "peerDependencies": {
-    "preact": ">=10.0.0",
-    "react": ">=17.0.0",
-    "@angular/core": ">=16.0.0",
-    "rxjs": ">=7.0.0"
-  },
-  "peerDependenciesMeta": {
-    "react": {
-      "optional": true
-    },
-    "preact": {
-      "optional": true
-    },
-    "@angular/core": {
-      "optional": true
-    },
-    "rxjs": {
-      "optional": true
-    }
   },
   "typesVersions": {
     "*": {

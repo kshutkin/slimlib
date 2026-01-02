@@ -1,5 +1,0 @@
-{
-  "type": "module",
-  "types": "../dist/svelte.d.ts",
-  "main": "../dist/svelte.mjs"
-}
