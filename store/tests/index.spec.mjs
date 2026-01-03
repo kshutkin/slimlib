@@ -63,7 +63,7 @@ describe('store', () => {
 
         it('1 => null', async () => {
             const subscriber = vi.fn();
-            /** @type {[{prop: null | number}, any]} */
+            /** @type {[{prop: null | number}, any, any]} */
             const [state, store] = createStore({ prop: 1 });
             store(subscriber);
             state.prop = null;
@@ -79,7 +79,7 @@ describe('store', () => {
 
         it('1 => undefined', async () => {
             const subscriber = vi.fn();
-            /** @type {[{prop: undefined | number}, any]} */
+            /** @type {[{prop: undefined | number}, any, any]} */
             const [state, store] = createStore({ prop: 1 });
             store(subscriber);
             state.prop = undefined;
@@ -95,7 +95,7 @@ describe('store', () => {
 
         it('object', async () => {
             const subscriber = vi.fn();
-            /** @type {[any, any]} */
+            /** @type {[any, any, any]} */
             const [state, store] = createStore({ prop: { a: 1 } });
             store(subscriber);
             state.prop = { b: 2 };
@@ -111,7 +111,7 @@ describe('store', () => {
 
         it('array', async () => {
             const subscriber = vi.fn();
-            /** @type {[number[], any]} */
+            /** @type {[number[], any, any]} */
             const [state, store] = createStore([]);
             store(subscriber);
             state.push(42);
@@ -129,7 +129,7 @@ describe('store', () => {
 
         it('define writable property on Proxy', async () => {
             const subscriber = vi.fn();
-            /** @type {[{prop?: number}, any]} */
+            /** @type {[{prop?: number}, any, any]} */
             const [state, store] = createStore({});
             store(subscriber);
             Object.defineProperty(state, 'prop', {
@@ -150,7 +150,7 @@ describe('store', () => {
 
         it('define property on Proxy', async () => {
             const subscriber = vi.fn();
-            /** @type {[{prop?: number}, any]} */
+            /** @type {[{prop?: number}, any, any]} */
             const [state, store] = createStore({});
             store(subscriber);
             Object.defineProperty(state, 'prop', {
@@ -172,7 +172,7 @@ describe('store', () => {
                 configurable: false,
                 value: 42,
             });
-            /** @type {[{prop?: number}, any]} */
+            /** @type {[{prop?: number}, any, any]} */
             const [state, store] = createStore(initialState);
             expect(() => {
                 state.prop = 24;
@@ -182,7 +182,7 @@ describe('store', () => {
         });
 
         it('allows iteration over array', () => {
-            /** @type {[number[], any]} */
+            /** @type {[number[], any, any]} */
             const [state] = createStore([1, 2, 3]);
             let summ = 0;
             expect(() => {
@@ -214,7 +214,7 @@ describe('store', () => {
 
         it('nested object', async () => {
             const subscriber = vi.fn();
-            /** @type {[any, any]} */
+            /** @type {[any, any, any]} */
             const [state, store] = createStore({ prop: { a: 1 } });
             store(subscriber);
             state.prop.a = 2;
@@ -230,7 +230,7 @@ describe('store', () => {
 
         it('handles delete property', async () => {
             const subscriber = vi.fn();
-            /** @type {[{prop?: number}, any]} */
+            /** @type {[{prop?: number}, any, any]} */
             const [state, store] = createStore({ prop: 42 });
             store(subscriber);
             delete state.prop;
@@ -244,7 +244,7 @@ describe('store', () => {
             const subscriber = vi.fn();
             const [state, store] = createStore([{ prop: 42 }]);
             store(subscriber);
-            state.push(state[0]);
+            state.push(/** @type {any} */ (state[0]));
             await flushPromises();
             expect(subscriber).toHaveBeenCalledWith([{ prop: 42 }, { prop: 42 }]);
             expect(store()).toEqual([{ prop: 42 }, { prop: 42 }]);
@@ -256,7 +256,7 @@ describe('store', () => {
             const subscriber = vi.fn();
             const [state, store] = createStore({ data: [{ prop: '' }] });
             store(subscriber);
-            state.data[0].prop += 'test';
+            /** @type {any} */ (state.data[0]).prop += 'test';
             await flushPromises();
             expect(subscriber).toHaveBeenCalledWith({ data: [{ prop: 'test' }] });
             expect(store()).toEqual({ data: [{ prop: 'test' }] });
@@ -265,7 +265,7 @@ describe('store', () => {
 
         it('find index in array (only wrappers)', () => {
             const [state] = createStore({ data: [{ prop: '' }] });
-            const index = state.data.indexOf(state.data[0]);
+            const index = state.data.indexOf(/** @type {any} */ (state.data[0]));
             expect(index).toBe(0);
         });
 
@@ -309,7 +309,7 @@ describe('store', () => {
 
         it('find index in array (mixed objects)', () => {
             const [state, store] = createStore({ data: [{ prop: '' }] });
-            const index = state.data.indexOf(store().data[0]);
+            const index = state.data.indexOf(/** @type {any} */ (store().data[0]));
             expect(index).toBe(0);
         });
 
@@ -317,8 +317,8 @@ describe('store', () => {
             const subscriber = vi.fn();
             const [state, store] = createStore({ data: [{ prop: '1' }, { prop: '2' }] });
             store(subscriber);
-            const temp = state.data[0];
-            state.data[0] = state.data[1];
+            const temp = /** @type {any} */ (state.data[0]);
+            state.data[0] = /** @type {any} */ (state.data[1]);
             state.data[1] = temp;
             await flushPromises();
             expect(subscriber).toHaveBeenCalledWith({ data: [{ prop: '2' }, { prop: '1' }] });
@@ -951,7 +951,7 @@ describe('store', () => {
 
 describe('unwrapValue', () => {
     it('able to unwrap value', async () => {
-        /** @type {[{prop?: object}, any]} */
+        /** @type {[{prop?: object}, any, any]} */
         const [state] = createStore({});
         const emptyObject = {};
         state.prop = emptyObject;

@@ -171,6 +171,7 @@ describe('smart-mock', () => {
             const curry = createMock(() => {
                 return () => () => undefined;
             }, 'curry');
+            // @ts-expect-error
             const result = generate(curry(() => undefined)('arg'));
             // esbuild may transform `undefined` to `void 0`
             expect(result).toMatch(/^curry\(\(\) => (?:undefined|void 0)\)\("arg"\)$/);
