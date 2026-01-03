@@ -2,8 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { createStoreFactory, unwrapValue } from '../src';
 import util from 'util';
 
-const createStore = createStoreFactory(false);
-const createStoreWithNotificationAboutInitialState = createStoreFactory(true);
+const createStore = createStoreFactory();
 
 function flushPromises() {
     return new Promise(resolve => setTimeout(resolve));
@@ -879,26 +878,6 @@ describe('store', () => {
             expect(subscriber).toHaveBeenCalledTimes(0);
             expect(subscriber2).toHaveBeenCalledTimes(0);
         });
-    });
-});
-
-describe('store with initial notification', () => {
-    it('notifies after creation', async () => {
-        const subscriber = vi.fn();
-        const [, store] = createStoreWithNotificationAboutInitialState({prop: 'test'});
-        store(subscriber);
-        await flushPromises();
-        expect(subscriber).toHaveBeenCalledTimes(1);
-        expect(subscriber).toHaveBeenCalledWith({prop: 'test'});
-    });
-
-    it('default state', async () => {
-        const subscriber = vi.fn();
-        const [, store] = createStoreWithNotificationAboutInitialState();
-        store(subscriber);
-        await flushPromises();
-        expect(subscriber).toHaveBeenCalledTimes(1);
-        expect(subscriber).toHaveBeenCalledWith({});
     });
 });
 
