@@ -2,32 +2,7 @@
 
 const STRIP_PATTERN = /(static.*$)|(\/\/.*$)|(\/\*[\s\S]*?\*\/)|^\s*async(?:\s*|\()(?!\s*=)|\s/gm;
 
-const nonVarChars = ['=', '(', ')', ','];
-
-/**
- * Generator function that yields segments with delimiter information
- * @param {string} string - The string to parse
- * @returns {Generator<[string|null, string], void, undefined>}
- */
-function* matchNexter(string) {
-    const delimiters = new Set(nonVarChars);
-    let buffer = '';
-    let currentDelimiter = null;
-
-    for (const char of string) {
-        if (delimiters.has(char)) {
-            yield [currentDelimiter, buffer];
-            buffer = '';
-            currentDelimiter = char;
-        } else {
-            buffer += char;
-        }
-    }
-
-    if (buffer) {
-        yield [currentDelimiter, buffer];
-    }
-}
+const DELIMITERS = new Set(['=', '(', ')', ',']);
 
 /**
  * Parse a function and extract its parameter names
@@ -35,37 +10,52 @@ function* matchNexter(string) {
  * @returns {string[]} Array of parameter names
  */
 export default function parse(input) {
+    const cleaned = input.toString().replace(STRIP_PATTERN, '');
+
     let firstVar = true;
     let depthDefaultParams = 0;
     let depthParenthesis = 0;
     const vars = [];
 
-    for (const segment of matchNexter(input.toString().replace(STRIP_PATTERN, ''))) {
-        const [delimiter, text] = segment;
-        if (!delimiter) {
-            if (text.length) vars.push(text);
-        } else if (delimiter === '=') {
-            if (text[0] === '>' && depthDefaultParams === 0) break;
-            depthDefaultParams++;
-        } else if (delimiter === ')') {
-            if (depthParenthesis === 0) break;
-            depthParenthesis--;
-        } else if (delimiter === '(') {
-            if (firstVar) {
-                vars.pop();
+    let buffer = '';
+    let currentDelimiter = null;
+
+    for (const char of cleaned) {
+        if (DELIMITERS.has(char)) {
+            // Process the segment
+            const delimiter = currentDelimiter;
+            const text = buffer;
+            buffer = '';
+            currentDelimiter = char;
+
+            if (!delimiter) {
                 if (text.length) vars.push(text);
-                firstVar = false;
-            } else if (vars.length) {
-                firstVar = true;
-                depthParenthesis++;
-            } else if (depthParenthesis === 0) {
+            } else if (delimiter === '=') {
+                if (text[0] === '>' && depthDefaultParams === 0) return vars;
+                depthDefaultParams++;
+            } else if (delimiter === ')') {
+                if (depthParenthesis === 0) return vars;
+                depthParenthesis--;
+            } else if (delimiter === '(') {
+                if (firstVar) {
+                    vars.pop();
+                    if (text.length) vars.push(text);
+                    firstVar = false;
+                } else if (vars.length) {
+                    firstVar = true;
+                    depthParenthesis++;
+                } else if (depthParenthesis === 0) {
+                    depthDefaultParams = 0;
+                    vars.push(text);
+                }
+            } else if (delimiter === ',' && depthParenthesis === 0) {
                 depthDefaultParams = 0;
                 vars.push(text);
             }
-        } else if (delimiter === ',' && depthParenthesis === 0) {
-            depthDefaultParams = 0;
-            vars.push(text);
+        } else {
+            buffer += char;
         }
     }
+
     return vars;
 }
