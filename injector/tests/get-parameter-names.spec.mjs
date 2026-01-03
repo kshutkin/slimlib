@@ -115,6 +115,11 @@ describe('function tests', () => {
         expect(arg(f)).toEqual(['a']);
     });
 
+    it('supports function with name followed by double opening paren', () => {
+        var f = 'function func(()=>x) {}';
+        expect(arg(f)).toEqual(['']);
+    });
+
     it('supports ES2015 fat arrow functions without parens and new line no parens fat arrow function', () => {
         var f = 'a => a.map(\n b => b)';
         expect(arg(f)).toEqual(['a']);
