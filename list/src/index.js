@@ -13,11 +13,6 @@
  * @implements {ListNode}
  */
 export class List {
-    /** @type {ListNode} */
-    n;
-    /** @type {ListNode} */
-    p;
-
     constructor() {
         this.n = this.p = this;
     }
@@ -35,10 +30,10 @@ export class List {
             },
         };
     }
-    // shorter but slower version commented
+    // shorter but slower version commented (https://jsbench.me/3smcj5v9pz)
     // *[Symbol.iterator]() {
     //     for (let current = this.n; current != this; current = current.n) {
-    //         yield current as T & ListNode;
+    //         yield /** @type {T & ListNode} */ (current);
     //     }
     // }
 }
