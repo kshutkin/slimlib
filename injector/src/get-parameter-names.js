@@ -14,8 +14,7 @@ function* matchNexter(string) {
     let buffer = '';
     let currentDelimiter = null;
 
-    for (let i = 0; i < string.length; i++) {
-        const char = /** @type {string} */ (string[i]);
+    for (const char of string) {
         if (delimiters.has(char)) {
             yield [currentDelimiter, buffer];
             buffer = '';
