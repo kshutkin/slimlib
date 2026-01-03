@@ -26,25 +26,25 @@ function* matchNexter(string) {
      * @param {number} stringIndex - Current string index
      * @returns {number[]} Updated array of indexes
      */
-    function updateIndex(stringIndex) {
+    const updateIndex = stringIndex => {
         return indexes.map((foundAt, i) => {
             if (foundAt === stringIndex) {
                 return string.indexOf(/** @type {string} */ (nonVarChars[i]), foundAt + 1);
             }
             return foundAt;
         });
-    }
+    };
 
     /**
      * Find the minimum index from the indexes array
      * @returns {number} Minimum index or Infinity if none found
      */
-    function minIndex() {
+    const minIndex = () => {
         return Math.min.apply(
             Math,
             indexes.filter(i => i > -1)
         );
-    }
+    };
 
     let indexes = nonVarChars.map(c => string.indexOf(c));
     let index = 0;
