@@ -83,9 +83,8 @@ export default function parse(input) {
         input.toString().replace(ES6_STATIC, '').replace(NEW_LINES, '').replace(COMMENTS, '').replace(ASYNC, '').replace(SPACES, '')
     );
 
-    let next = gen.next();
+    const next = gen.next();
     let value = next.value;
-    let argsEnded = false;
     let firstVar = true;
     const depth = {
         defaultParams: 0,
@@ -96,13 +95,11 @@ export default function parse(input) {
     if (value?.subString?.length) {
         vars.push(value.subString);
     }
-    next = gen.next();
-    value = next.value;
-    while (value !== undefined && !argsEnded) {
+    for (value of gen) {
         const firstChar = value.subString[0];
         if (firstChar === '=') {
             if (value.subString[1] === '>' && depth.defaultParams === 0) {
-                argsEnded = true;
+                break;
             } else {
                 depth.defaultParams++;
             }
@@ -119,7 +116,7 @@ export default function parse(input) {
         } else if (firstChar === ')' && depth.parenthesis > 0) {
             depth.parenthesis--;
         } else if (firstChar === ')' && depth.parenthesis === 0) {
-            argsEnded = true;
+            break;
         } else if (firstChar === ',' || (firstChar === '(' && vars.length === 0)) {
             const newVar = value.subString.slice(1);
             if (depth.parenthesis === 0) {
@@ -127,8 +124,6 @@ export default function parse(input) {
                 vars.push(newVar);
             }
         }
-        next = gen.next();
-        value = next.value;
     }
     return vars;
 }
