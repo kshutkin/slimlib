@@ -2,11 +2,11 @@
  * @template T
  * @returns {(newPartitionCandidate?: Iterable<T>) => Iterable<Iterable<T>>}
  */
-export default function() {
+export default function () {
     /** @type {Set<Set<T>>} */
     const processed = new Set();
 
-    return (newPartitionCandidate) => {
+    return newPartitionCandidate => {
         if (newPartitionCandidate) {
             /** @type {Map<Set<T>, Set<T>>} */
             const intersections = new Map();

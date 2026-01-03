@@ -7,18 +7,19 @@ import getParameterNames from 'get-parameter-names';
 /**
  * @returns {<F extends (...args: any[]) => any>(func: F, scope?: object) => ReturnType<F>}
  */
-export default function createInjector() {
+export default function () {
     /** @type {Record<string, unknown>} */
     const dependencies = Object.create(null);
 
-    dependencies['$provide'] = /** @type {Provider} */ ((key, value) => {
-        dependencies[key] = value;
-    });
-    
+    dependencies.$provide = /** @type {Provider} */ (
+        (key, value) => {
+            dependencies[key] = value;
+        }
+    );
+
     return (func, scope = {}) =>
         func.apply(
             scope,
-            getParameterNames(func)
-                .map((/** @type {string} */ key) => dependencies[key])
+            getParameterNames(func).map((/** @type {string} */ key) => dependencies[key])
         );
 }

@@ -1,8 +1,8 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
+
 import createInject from '../src/index.js';
 
 describe('createInject', () => {
-
     it('smoke', () => {
         expect(createInject).toBeDefined();
     });
@@ -10,11 +10,13 @@ describe('createInject', () => {
     it('provide / inject', () => {
         const inject = createInject();
 
-        inject(function($provide) {
+        // biome-ignore lint/complexity/useArrowFunction: getParameterNames requires regular functions
+        inject(function ($provide) {
             $provide('value', 'test');
         });
 
-        const value = inject(function(value) {
+        // biome-ignore lint/complexity/useArrowFunction: getParameterNames requires regular functions
+        const value = inject(function (value) {
             return value;
         });
 

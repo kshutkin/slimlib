@@ -1,39 +1,39 @@
 {
-  "type": "module",
-  "version": "1.6.2",
-  "name": "@slimlib/store",
-  "description": "Simple Proxy-based store for SPA",
-  "license": "MIT",
-  "author": "Konstantin Shutkin",
-  "main": "./src/index.js",
-  "module": "./src/index.js",
-  "exports": {
-    ".": {
-      "types": "./types/index.d.ts",
-      "default": "./src/index.js"
+    "type": "module",
+    "version": "1.6.2",
+    "name": "@slimlib/store",
+    "description": "Simple Proxy-based store for SPA",
+    "license": "MIT",
+    "author": "Konstantin Shutkin",
+    "main": "./src/index.js",
+    "module": "./src/index.js",
+    "exports": {
+        ".": {
+            "types": "./types/index.d.ts",
+            "default": "./src/index.js"
+        },
+        "./package.json": "./package.json"
     },
-    "./package.json": "./package.json"
-  },
-  "types": "./types/index.d.ts",
-  "files": [
-    "src",
-    "types"
-  ],
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/kshutkin/slimlib.git",
-    "directory": "store"
-  },
-  "bugs": "https://github.com/kshutkin/slimlib/issues",
-  "homepage": "https://github.com/kshutkin/slimlib/blob/main/store/README.md",
-  "keywords": [
-    "@slimlib",
-    "store",
-    "proxy"
-  ],
-  "scripts": {
-    "build": "dts-buddy",
-    "test": "vitest run --coverage --config ./vitest.config.js",
-    "lint": "eslint ./src"
-  }
+    "types": "./types/index.d.ts",
+    "files": [
+        "src",
+        "types"
+    ],
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/kshutkin/slimlib.git",
+        "directory": "store"
+    },
+    "bugs": "https://github.com/kshutkin/slimlib/issues",
+    "homepage": "https://github.com/kshutkin/slimlib/blob/main/store/README.md",
+    "keywords": [
+        "@slimlib",
+        "store",
+        "proxy"
+    ],
+    "scripts": {
+        "build": "dts-buddy",
+        "test": "vitest run --coverage --config ./vitest.config.js",
+        "lint": "eslint ./src"
+    }
 }

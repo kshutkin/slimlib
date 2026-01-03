@@ -14,14 +14,7 @@ export default defineConfig({
         coverage: {
             provider: 'v8',
             reportsDirectory: './coverage',
-            exclude: [
-                'node_modules',
-                '**/tests/**',
-                '**/dist/**',
-                '**/types/**',
-                '**/*.config.js',
-                '**/*.d.ts'
-            ],
+            exclude: ['node_modules', '**/tests/**', '**/dist/**', '**/types/**', '**/*.config.js', '**/*.d.ts'],
         },
     },
 });

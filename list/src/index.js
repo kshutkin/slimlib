@@ -30,9 +30,9 @@ export class List {
                 current = current.n;
                 return {
                     done: current === this,
-                    value: /** @type {T & ListNode} */ (current)
+                    value: /** @type {T & ListNode} */ (current),
                 };
-            }
+            },
         };
     }
     // shorter but slower version commented
@@ -100,7 +100,7 @@ export const prependRange = (element, begin, end) => {
 /**
  * @param {ListNode} element
  */
-export const remove = (element) => {
+export const remove = element => {
     element.p.n = element.n;
     element.n.p = element.p;
 };

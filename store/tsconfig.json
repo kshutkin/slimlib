@@ -1,15 +1,15 @@
 {
-  "include": ["src", "tests"],
-  "compilerOptions": {
-    "lib": ["dom", "esnext"],
-    "target": "esnext",
-    "module": "esnext",
-    "esModuleInterop": true,
-    "strict": true,
-    "noUncheckedIndexedAccess": true,
-    "moduleResolution": "node",
-    "allowJs": true,
-    "checkJs": true,
-    "noEmit": true
-  }
+    "include": ["src", "tests"],
+    "compilerOptions": {
+        "lib": ["dom", "esnext"],
+        "target": "esnext",
+        "module": "esnext",
+        "esModuleInterop": true,
+        "strict": true,
+        "noUncheckedIndexedAccess": true,
+        "moduleResolution": "node",
+        "allowJs": true,
+        "checkJs": true,
+        "noEmit": true
+    }
 }

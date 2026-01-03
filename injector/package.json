@@ -1,47 +1,47 @@
 {
-  "type": "module",
-  "version": "1.0.6",
-  "name": "@slimlib/injector",
-  "description": "Parameter names based dependency injector for nodejs",
-  "license": "MIT",
-  "author": "Konstantin Shutkin",
-  "main": "./src/index.js",
-  "module": "./src/index.js",
-  "exports": {
-    ".": {
-      "types": "./types/index.d.ts",
-      "default": "./src/index.js"
+    "type": "module",
+    "version": "1.0.6",
+    "name": "@slimlib/injector",
+    "description": "Parameter names based dependency injector for nodejs",
+    "license": "MIT",
+    "author": "Konstantin Shutkin",
+    "main": "./src/index.js",
+    "module": "./src/index.js",
+    "exports": {
+        ".": {
+            "types": "./types/index.d.ts",
+            "default": "./src/index.js"
+        },
+        "./package.json": "./package.json"
     },
-    "./package.json": "./package.json"
-  },
-  "types": "./types/index.d.ts",
-  "files": [
-    "src",
-    "types"
-  ],
-  "engines": {
-    "node": ">=15"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/kshutkin/slimlib.git",
-    "directory": "injector"
-  },
-  "bugs": "https://github.com/kshutkin/slimlib/issues",
-  "homepage": "https://github.com/kshutkin/slimlib/blob/main/injector/README.md",
-  "readme": "README.md",
-  "keywords": [
-    "@slimlib",
-    "injector",
-    "dependency injection",
-    "nodejs"
-  ],
-  "scripts": {
-    "build": "dts-buddy",
-    "test": "vitest run --coverage --config ../vitest.config.js",
-    "lint": "eslint ./src"
-  },
-  "dependencies": {
-    "get-parameter-names": "0.3.0"
-  }
+    "types": "./types/index.d.ts",
+    "files": [
+        "src",
+        "types"
+    ],
+    "engines": {
+        "node": ">=15"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/kshutkin/slimlib.git",
+        "directory": "injector"
+    },
+    "bugs": "https://github.com/kshutkin/slimlib/issues",
+    "homepage": "https://github.com/kshutkin/slimlib/blob/main/injector/README.md",
+    "readme": "README.md",
+    "keywords": [
+        "@slimlib",
+        "injector",
+        "dependency injection",
+        "nodejs"
+    ],
+    "scripts": {
+        "build": "dts-buddy",
+        "test": "vitest run --coverage --config ../vitest.config.js",
+        "lint": "eslint ./src"
+    },
+    "dependencies": {
+        "get-parameter-names": "0.3.0"
+    }
 }

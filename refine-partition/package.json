@@ -1,42 +1,42 @@
 {
-  "type": "module",
-  "version": "1.0.3",
-  "name": "@slimlib/refine-partition",
-  "description": "Simple refine partition implementation",
-  "license": "MIT",
-  "author": "Konstantin Shutkin",
-  "exports": {
-    ".": {
-      "types": "./types/index.d.ts",
-      "default": "./src/index.js"
+    "type": "module",
+    "version": "1.0.3",
+    "name": "@slimlib/refine-partition",
+    "description": "Simple refine partition implementation",
+    "license": "MIT",
+    "author": "Konstantin Shutkin",
+    "exports": {
+        ".": {
+            "types": "./types/index.d.ts",
+            "default": "./src/index.js"
+        },
+        "./package.json": "./package.json"
     },
-    "./package.json": "./package.json"
-  },
-  "types": "./types/index.d.ts",
-  "files": [
-    "src",
-    "types"
-  ],
-  "engines": {
-    "node": ">=15"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/kshutkin/slimlib.git",
-    "directory": "refine-partition"
-  },
-  "bugs": "https://github.com/kshutkin/slimlib/issues",
-  "homepage": "https://github.com/kshutkin/slimlib/blob/main/refine-partition/README.md",
-  "readme": "README.md",
-  "keywords": [
-    "@slimlib",
-    "refine",
-    "partition",
-    "refine partition"
-  ],
-  "scripts": {
-    "build": "dts-buddy",
-    "test": "vitest run --coverage --config ../vitest.config.js",
-    "lint": "eslint ./src"
-  }
+    "types": "./types/index.d.ts",
+    "files": [
+        "src",
+        "types"
+    ],
+    "engines": {
+        "node": ">=15"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/kshutkin/slimlib.git",
+        "directory": "refine-partition"
+    },
+    "bugs": "https://github.com/kshutkin/slimlib/issues",
+    "homepage": "https://github.com/kshutkin/slimlib/blob/main/refine-partition/README.md",
+    "readme": "README.md",
+    "keywords": [
+        "@slimlib",
+        "refine",
+        "partition",
+        "refine partition"
+    ],
+    "scripts": {
+        "build": "dts-buddy",
+        "test": "vitest run --coverage --config ../vitest.config.js",
+        "lint": "eslint ./src"
+    }
 }

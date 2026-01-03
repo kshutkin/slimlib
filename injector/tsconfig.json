@@ -1,16 +1,16 @@
 {
-  "include": ["src", "types"],
-  "compilerOptions": {
-    "lib": ["esnext"],
-    "target": "esnext",
-    "module": "esnext",
-    "esModuleInterop": true,
-    "strict": true,
-    "noUncheckedIndexedAccess": true,
-    "declaration": true,
-    "moduleResolution": "node",
-    "allowJs": true,
-    "checkJs": true,
-    "noEmit": true
-  }
+    "include": ["src", "types"],
+    "compilerOptions": {
+        "lib": ["esnext"],
+        "target": "esnext",
+        "module": "esnext",
+        "esModuleInterop": true,
+        "strict": true,
+        "noUncheckedIndexedAccess": true,
+        "declaration": true,
+        "moduleResolution": "node",
+        "allowJs": true,
+        "checkJs": true,
+        "noEmit": true
+    }
 }

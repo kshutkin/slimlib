@@ -1,41 +1,41 @@
 {
-  "type": "module",
-  "version": "0.1.6",
-  "name": "@slimlib/smart-mock",
-  "description": "One more proxy based mock",
-  "license": "MIT",
-  "author": "Konstantin Shutkin",
-  "exports": {
-    ".": {
-      "types": "./types/index.d.ts",
-      "default": "./src/index.js"
+    "type": "module",
+    "version": "0.1.6",
+    "name": "@slimlib/smart-mock",
+    "description": "One more proxy based mock",
+    "license": "MIT",
+    "author": "Konstantin Shutkin",
+    "exports": {
+        ".": {
+            "types": "./types/index.d.ts",
+            "default": "./src/index.js"
+        },
+        "./package.json": "./package.json"
     },
-    "./package.json": "./package.json"
-  },
-  "types": "./types/index.d.ts",
-  "files": [
-    "src",
-    "types"
-  ],
-  "engines": {
-    "node": ">=15"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/kshutkin/slimlib.git",
-    "directory": "smart-mock"
-  },
-  "bugs": "https://github.com/kshutkin/slimlib/issues",
-  "homepage": "https://github.com/kshutkin/slimlib/blob/main/smart-mock/README.md",
-  "readme": "README.md",
-  "keywords": [
-    "@slimlib",
-    "mock",
-    "smart-mock"
-  ],
-  "scripts": {
-    "build": "dts-buddy",
-    "test": "vitest run --coverage --config ../vitest.config.js",
-    "lint": "eslint ./src"
-  }
+    "types": "./types/index.d.ts",
+    "files": [
+        "src",
+        "types"
+    ],
+    "engines": {
+        "node": ">=15"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/kshutkin/slimlib.git",
+        "directory": "smart-mock"
+    },
+    "bugs": "https://github.com/kshutkin/slimlib/issues",
+    "homepage": "https://github.com/kshutkin/slimlib/blob/main/smart-mock/README.md",
+    "readme": "README.md",
+    "keywords": [
+        "@slimlib",
+        "mock",
+        "smart-mock"
+    ],
+    "scripts": {
+        "build": "dts-buddy",
+        "test": "vitest run --coverage --config ../vitest.config.js",
+        "lint": "eslint ./src"
+    }
 }

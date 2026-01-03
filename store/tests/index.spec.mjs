@@ -1,7 +1,8 @@
-/* eslint-disable @typescript-eslint/no-this-alias */
-import { describe, it, expect, vi } from 'vitest';
+import util from 'node:util';
+
+import { describe, expect, it, vi } from 'vitest';
+
 import { createStoreFactory, unwrapValue } from '../src/index.js';
-import util from 'util';
 
 const createStore = createStoreFactory();
 
@@ -10,7 +11,6 @@ function flushPromises() {
 }
 
 describe('store', () => {
-
     it('smoke', () => {
         expect(createStoreFactory).toBeDefined();
     });
@@ -18,39 +18,45 @@ describe('store', () => {
     describe('change detection', () => {
         it('string', async () => {
             const subscriber = vi.fn();
-            const [state, store] = createStore({prop: 'test'});
+            const [state, store] = createStore({ prop: 'test' });
             store(subscriber);
             state.prop = 'test2';
             await flushPromises();
-            expect(subscriber).toHaveBeenCalledWith(expect.objectContaining({
-                prop: 'test2'
-            }));
+            expect(subscriber).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    prop: 'test2',
+                })
+            );
             expect(store().prop).toBe('test2');
             expect(state.prop).toBe('test2');
         });
 
         it('number', async () => {
             const subscriber = vi.fn();
-            const [state, store] = createStore({prop: 3});
+            const [state, store] = createStore({ prop: 3 });
             store(subscriber);
             state.prop = 42;
             await flushPromises();
-            expect(subscriber).toHaveBeenCalledWith(expect.objectContaining({
-                prop: 42
-            }));
+            expect(subscriber).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    prop: 42,
+                })
+            );
             expect(store().prop).toBe(42);
             expect(state.prop).toBe(42);
         });
 
         it('boolean', async () => {
             const subscriber = vi.fn();
-            const [state, store] = createStore({prop: false});
+            const [state, store] = createStore({ prop: false });
             store(subscriber);
             state.prop = true;
             await flushPromises();
-            expect(subscriber).toHaveBeenCalledWith(expect.objectContaining({
-                prop: true
-            }));
+            expect(subscriber).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    prop: true,
+                })
+            );
             expect(store().prop).toBe(true);
             expect(state.prop).toBe(true);
         });
@@ -58,13 +64,15 @@ describe('store', () => {
         it('1 => null', async () => {
             const subscriber = vi.fn();
             /** @type {[{prop: null | number}, any]} */
-            const [state, store] = createStore({prop: 1});
+            const [state, store] = createStore({ prop: 1 });
             store(subscriber);
             state.prop = null;
             await flushPromises();
-            expect(subscriber).toHaveBeenCalledWith(expect.objectContaining({
-                prop: null
-            }));
+            expect(subscriber).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    prop: null,
+                })
+            );
             expect(store().prop).toBe(null);
             expect(state.prop).toBe(null);
         });
@@ -72,13 +80,15 @@ describe('store', () => {
         it('1 => undefined', async () => {
             const subscriber = vi.fn();
             /** @type {[{prop: undefined | number}, any]} */
-            const [state, store] = createStore({prop: 1});
+            const [state, store] = createStore({ prop: 1 });
             store(subscriber);
             state.prop = undefined;
             await flushPromises();
-            expect(subscriber).toHaveBeenCalledWith(expect.objectContaining({
-                prop: undefined
-            }));
+            expect(subscriber).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    prop: undefined,
+                })
+            );
             expect(store().prop).toBe(undefined);
             expect(state.prop).toBe(undefined);
         });
@@ -86,13 +96,15 @@ describe('store', () => {
         it('object', async () => {
             const subscriber = vi.fn();
             /** @type {[any, any]} */
-            const [state, store] = createStore({prop: { a: 1 }});
+            const [state, store] = createStore({ prop: { a: 1 } });
             store(subscriber);
             state.prop = { b: 2 };
             await flushPromises();
-            expect(subscriber).toHaveBeenCalledWith(expect.objectContaining({
-                prop: { b: 2 }
-            }));
+            expect(subscriber).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    prop: { b: 2 },
+                })
+            );
             expect(store().prop).toEqual({ b: 2 });
             expect(state.prop).toEqual({ b: 2 });
         });
@@ -109,9 +121,9 @@ describe('store', () => {
             expect(state).toEqual([42]);
         });
 
-        it('RegExp',  () => {
-            const [state, store] = createStore({prop: /abc/});
-            expect(store()).toEqual({prop: /abc/});
+        it('RegExp', () => {
+            const [state, store] = createStore({ prop: /abc/ });
+            expect(store()).toEqual({ prop: /abc/ });
             expect(state.prop.test('abc')).toBeTruthy();
         });
 
@@ -122,14 +134,16 @@ describe('store', () => {
             store(subscriber);
             Object.defineProperty(state, 'prop', {
                 value: 42,
-                writable: true
+                writable: true,
             });
             await flushPromises();
             state.prop = 24;
             await flushPromises();
-            expect(subscriber).toHaveBeenCalledWith(expect.objectContaining({
-                prop: 24
-            }));
+            expect(subscriber).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    prop: 24,
+                })
+            );
             expect(store().prop).toBe(24);
             expect(state.prop).toBe(24);
         });
@@ -140,12 +154,14 @@ describe('store', () => {
             const [state, store] = createStore({});
             store(subscriber);
             Object.defineProperty(state, 'prop', {
-                value: 42
+                value: 42,
             });
             await flushPromises();
-            expect(subscriber).toHaveBeenCalledWith(expect.objectContaining({
-                prop: 42
-            }));
+            expect(subscriber).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    prop: 42,
+                })
+            );
             expect(store().prop).toBe(42);
             expect(state.prop).toBe(42);
         });
@@ -154,7 +170,7 @@ describe('store', () => {
             const initialState = {};
             Object.defineProperty(initialState, 'prop', {
                 configurable: false,
-                value: 42
+                value: 42,
             });
             /** @type {[{prop?: number}, any]} */
             const [state, store] = createStore(initialState);
@@ -179,7 +195,7 @@ describe('store', () => {
 
         it('no changes', async () => {
             const subscriber = vi.fn();
-            const [state, store] = createStore({prop: 'test'});
+            const [state, store] = createStore({ prop: 'test' });
             store(subscriber);
             state.prop = 'test';
             await flushPromises();
@@ -188,7 +204,7 @@ describe('store', () => {
 
         it('triggers once per action', async () => {
             const subscriber = vi.fn();
-            const [state, store] = createStore({prop: 'test'});
+            const [state, store] = createStore({ prop: 'test' });
             store(subscriber);
             state.prop = 'test2';
             state.prop = 'test3';
@@ -199,13 +215,15 @@ describe('store', () => {
         it('nested object', async () => {
             const subscriber = vi.fn();
             /** @type {[any, any]} */
-            const [state, store] = createStore({prop: { a: 1 }});
+            const [state, store] = createStore({ prop: { a: 1 } });
             store(subscriber);
             state.prop.a = 2;
             await flushPromises();
-            expect(subscriber).toHaveBeenCalledWith(expect.objectContaining({
-                prop: { a: 2 }
-            }));
+            expect(subscriber).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    prop: { a: 2 },
+                })
+            );
             expect(store().prop).toEqual({ a: 2 });
             expect(state.prop).toEqual({ a: 2 });
         });
@@ -213,7 +231,7 @@ describe('store', () => {
         it('handles delete property', async () => {
             const subscriber = vi.fn();
             /** @type {[{prop?: number}, any]} */
-            const [state, store] = createStore({prop: 42});
+            const [state, store] = createStore({ prop: 42 });
             store(subscriber);
             delete state.prop;
             await flushPromises();
@@ -224,29 +242,29 @@ describe('store', () => {
 
         it('reuse object', async () => {
             const subscriber = vi.fn();
-            const [state, store] = createStore([{prop: 42}]);
+            const [state, store] = createStore([{ prop: 42 }]);
             store(subscriber);
             state.push(state[0]);
             await flushPromises();
-            expect(subscriber).toHaveBeenCalledWith([{prop: 42},{prop: 42}]);
-            expect(store()).toEqual([{prop: 42},{prop: 42}]);
-            expect(state).toEqual([{prop: 42},{prop: 42}]);
-            expect(store().every(/** @param {unknown} item */ (item) => !util.types.isProxy(item))).toBeTruthy();
+            expect(subscriber).toHaveBeenCalledWith([{ prop: 42 }, { prop: 42 }]);
+            expect(store()).toEqual([{ prop: 42 }, { prop: 42 }]);
+            expect(state).toEqual([{ prop: 42 }, { prop: 42 }]);
+            expect(store().every(/** @param {unknown} item */ item => !util.types.isProxy(item))).toBeTruthy();
         });
 
         it('change object in array', async () => {
             const subscriber = vi.fn();
-            const [state, store] = createStore({data:[{prop: ''}]});
+            const [state, store] = createStore({ data: [{ prop: '' }] });
             store(subscriber);
             state.data[0].prop += 'test';
             await flushPromises();
-            expect(subscriber).toHaveBeenCalledWith({data:[{prop: 'test'}]});
-            expect(store()).toEqual({data:[{prop: 'test'}]});
-            expect(state).toEqual({data:[{prop: 'test'}]});
+            expect(subscriber).toHaveBeenCalledWith({ data: [{ prop: 'test' }] });
+            expect(store()).toEqual({ data: [{ prop: 'test' }] });
+            expect(state).toEqual({ data: [{ prop: 'test' }] });
         });
 
         it('find index in array (only wrappers)', () => {
-            const [state] = createStore({data:[{prop: ''}]});
+            const [state] = createStore({ data: [{ prop: '' }] });
             const index = state.data.indexOf(state.data[0]);
             expect(index).toBe(0);
         });
@@ -278,7 +296,7 @@ describe('store', () => {
 
         it('second level proxy triggers subscriber', async () => {
             const subscriber = vi.fn();
-            const value = {prop: { value: { value2: 1}}};
+            const value = { prop: { value: { value2: 1 } } };
             const [state, store] = createStore(value);
             const prop = state.prop.value;
             await flushPromises();
@@ -290,33 +308,33 @@ describe('store', () => {
         });
 
         it('find index in array (mixed objects)', () => {
-            const [state, store] = createStore({data:[{prop: ''}]});
+            const [state, store] = createStore({ data: [{ prop: '' }] });
             const index = state.data.indexOf(store().data[0]);
             expect(index).toBe(0);
         });
 
         it('swap in array', async () => {
             const subscriber = vi.fn();
-            const [state, store] = createStore({data:[{prop: '1'},{prop: '2'}]});
+            const [state, store] = createStore({ data: [{ prop: '1' }, { prop: '2' }] });
             store(subscriber);
             const temp = state.data[0];
             state.data[0] = state.data[1];
             state.data[1] = temp;
             await flushPromises();
-            expect(subscriber).toHaveBeenCalledWith({data:[{prop: '2'},{prop: '1'}]});
-            expect(store()).toEqual({data:[{prop: '2'},{prop: '1'}]});
-            expect(state).toEqual({data:[{prop: '2'},{prop: '1'}]});
+            expect(subscriber).toHaveBeenCalledWith({ data: [{ prop: '2' }, { prop: '1' }] });
+            expect(store()).toEqual({ data: [{ prop: '2' }, { prop: '1' }] });
+            expect(state).toEqual({ data: [{ prop: '2' }, { prop: '1' }] });
         });
 
         it('Object.assign (proxy as a target, no new properties)', async () => {
             const subscriber = vi.fn();
-            const [state, store] = createStore({test: false});
+            const [state, store] = createStore({ test: false });
             store(subscriber);
-            Object.assign(state, {test: true});
+            Object.assign(state, { test: true });
             await flushPromises();
-            expect(subscriber).toHaveBeenCalledWith({test: true});
-            expect(store()).toEqual({test: true});
-            expect(state).toEqual({test: true});
+            expect(subscriber).toHaveBeenCalledWith({ test: true });
+            expect(store()).toEqual({ test: true });
+            expect(state).toEqual({ test: true });
         });
 
         describe('function proxying through proxy', () => {
@@ -387,7 +405,7 @@ describe('store', () => {
                     /** @type {unknown[]} */
                     let receivedArgs = [];
                     /** @type {function(this: unknown, number, string): string} */
-                    const classicFunc = function(a, b) {
+                    const classicFunc = function (a, b) {
                         capturedThis = this;
                         receivedArgs = [a, b];
                         return 'classic-result';
@@ -408,7 +426,7 @@ describe('store', () => {
                     /** @type {unknown[]} */
                     let receivedArgs = [];
                     /** @type {function(this: unknown, number, string): string} */
-                    const classicFunc = function(a, b) {
+                    const classicFunc = function (a, b) {
                         capturedThis = this;
                         receivedArgs = [a, b];
                         return 'classic-result';
@@ -430,7 +448,7 @@ describe('store', () => {
                     /** @type {unknown[]} */
                     let receivedArgs = [];
                     /** @type {function(this: unknown, number, string): string} */
-                    const classicFunc = function(a, b) {
+                    const classicFunc = function (a, b) {
                         capturedThis = this;
                         receivedArgs = [a, b];
                         return 'classic-result';
@@ -520,7 +538,7 @@ describe('store', () => {
                     /** @type {unknown[]} */
                     let receivedArgs = [];
                     /** @type {function(this: unknown, number, string): string} */
-                    const classicFunc = function(a, b) {
+                    const classicFunc = function (a, b) {
                         capturedThis = this;
                         receivedArgs = [a, b];
                         return 'proto-classic-result';
@@ -544,7 +562,7 @@ describe('store', () => {
                     /** @type {unknown[]} */
                     let receivedArgs = [];
                     /** @type {function(this: unknown, number, string): string} */
-                    const classicFunc = function(a, b) {
+                    const classicFunc = function (a, b) {
                         capturedThis = this;
                         receivedArgs = [a, b];
                         return 'proto-classic-result';
@@ -569,7 +587,7 @@ describe('store', () => {
                     /** @type {unknown[]} */
                     let receivedArgs = [];
                     /** @type {function(this: unknown, number, string): string} */
-                    const classicFunc = function(a, b) {
+                    const classicFunc = function (a, b) {
                         capturedThis = this;
                         receivedArgs = [a, b];
                         return 'proto-classic-result';
@@ -782,7 +800,7 @@ describe('store', () => {
                     /** @type {unknown[]} */
                     let receivedArgs = [];
                     /** @type {function(this: unknown, number, string): string} */
-                    const classicFunc = function(a, b) {
+                    const classicFunc = (a, b) => {
                         receivedArgs = [a, b];
                         return a + b;
                     };
@@ -797,7 +815,7 @@ describe('store', () => {
                     /** @type {unknown[]} */
                     let receivedArgs = [];
                     /** @type {function(this: unknown, number, string): string} */
-                    const classicFunc = function(a, b) {
+                    const classicFunc = (a, b) => {
                         receivedArgs = [a, b];
                         return a + b;
                     };
@@ -812,7 +830,7 @@ describe('store', () => {
                 it('unwraps proxy arguments when calling function', async () => {
                     let receivedArg = null;
                     /** @type {function(this: unknown, object): void} */
-                    const classicFunc = function(arg) {
+                    const classicFunc = arg => {
                         receivedArg = arg;
                     };
                     const innerObj = { inner: true };
@@ -829,9 +847,7 @@ describe('store', () => {
                 it('calling function through proxy triggers notification', async () => {
                     const subscriber = vi.fn();
                     /** @type {function(this: unknown): string} */
-                    const classicFunc = function() {
-                        return 'result';
-                    };
+                    const classicFunc = () => 'result';
                     const obj = { func: classicFunc, value: 42 };
                     const [state, store] = createStore(obj);
                     store(subscriber);
@@ -843,9 +859,7 @@ describe('store', () => {
                 it('calling prototype function through proxy triggers notification', async () => {
                     const subscriber = vi.fn();
                     /** @type {function(this: unknown): string} */
-                    const classicFunc = function() {
-                        return 'result';
-                    };
+                    const classicFunc = () => 'result';
                     const proto = { func: classicFunc };
                     const obj = Object.create(proto);
                     obj.value = 42;
@@ -860,36 +874,36 @@ describe('store', () => {
 
         it('Object.assign (proxy as a target)', async () => {
             const subscriber = vi.fn();
-            const [state, store] = createStore({data: false});
+            const [state, store] = createStore({ data: false });
             store(subscriber);
-            Object.assign(state, {test: true});
+            Object.assign(state, { test: true });
             await flushPromises();
-            expect(subscriber).toHaveBeenCalledWith({data: false, test: true});
-            expect(store()).toEqual({data: false, test: true});
-            expect(state).toEqual({data: false, test: true});
+            expect(subscriber).toHaveBeenCalledWith({ data: false, test: true });
+            expect(store()).toEqual({ data: false, test: true });
+            expect(state).toEqual({ data: false, test: true });
         });
 
         it('Object.assign (proxy as a source)', () => {
-            const [state] = createStore({data: false});
+            const [state] = createStore({ data: false });
             const target = {};
             Object.assign(target, state);
-            expect(target).toEqual({data: false});
+            expect(target).toEqual({ data: false });
         });
     });
 
     describe('publish/subscribe pattern', () => {
-        it('one subscriber',async () => {
+        it('one subscriber', async () => {
             const subscriber = vi.fn();
-            const [state, store] = createStore({prop: 'test'});
+            const [state, store] = createStore({ prop: 'test' });
             store(subscriber);
             state.prop = 'test2';
             await flushPromises();
             expect(subscriber).toHaveBeenCalledTimes(1);
         });
 
-        it('unsubscribe',async () => {
+        it('unsubscribe', async () => {
             const subscriber = vi.fn();
-            const [state, store] = createStore({prop: 'test'});
+            const [state, store] = createStore({ prop: 'test' });
             const unsub = store(subscriber);
             unsub();
             state.prop = 'test2';
@@ -897,10 +911,10 @@ describe('store', () => {
             expect(subscriber).toHaveBeenCalledTimes(0);
         });
 
-        it('multiple subscribers',async () => {
+        it('multiple subscribers', async () => {
             const subscriber = vi.fn();
             const subscriber2 = vi.fn();
-            const [state, store] = createStore({prop: 'test'});
+            const [state, store] = createStore({ prop: 'test' });
             store(subscriber);
             store(subscriber2);
             state.prop = 'test2';
@@ -909,10 +923,10 @@ describe('store', () => {
             expect(subscriber2).toHaveBeenCalledTimes(1);
         });
 
-        it('multiple subscribers (unsubscribe one)',async () => {
+        it('multiple subscribers (unsubscribe one)', async () => {
             const subscriber = vi.fn();
             const subscriber2 = vi.fn();
-            const [state, store] = createStore({prop: 'test'});
+            const [state, store] = createStore({ prop: 'test' });
             store(subscriber);
             store(subscriber2)();
             state.prop = 'test2';
@@ -921,10 +935,10 @@ describe('store', () => {
             expect(subscriber2).toHaveBeenCalledTimes(0);
         });
 
-        it('multiple subscribers (unsubscribe all)',async () => {
+        it('multiple subscribers (unsubscribe all)', async () => {
             const subscriber = vi.fn();
             const subscriber2 = vi.fn();
-            const [state, store] = createStore({prop: 'test'});
+            const [state, store] = createStore({ prop: 'test' });
             store(subscriber)();
             store(subscriber2)();
             state.prop = 'test2';

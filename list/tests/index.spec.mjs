@@ -1,8 +1,8 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
+
 import { append, appendRange, List, prepend, prependRange, remove, removeRange } from '../src/index.js';
 
 describe('list', () => {
-
     it('smoke', () => {
         expect(List).toBeDefined();
     });
@@ -79,11 +79,11 @@ describe('list', () => {
 
     it('append / remove / iterate', () => {
         const list = new List();
-        let elem;
         append(list, { value: 1 });
         append(list, { value: 2 });
         append(list, { value: 3 });
-        append(list, (elem = { value: 4 }));
+        const elem = { value: 4 };
+        append(list, elem);
         append(list, { value: 5 });
         append(list, { value: 6 });
         append(list, { value: 7 });

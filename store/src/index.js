@@ -35,14 +35,14 @@ const unwrap = Symbol();
  * @param {T} value
  * @returns {T}
  */
-export const unwrapValue = (value) => (value != null && /** @type {Unwrappable<T>} */(value)[unwrap]) || value;
+export const unwrapValue = value => (value != null && /** @type {Unwrappable<T>} */ (value)[unwrap]) || value;
 
 /**
  * Creates a store factory function
  * @returns {<T extends object>(object?: T) => [T, Store<T>, () => void]}
  */
 export const createStoreFactory = () => {
-    return (object = /** @type {any} */({})) => {
+    return (object = /** @type {any} */ ({})) => {
         let willNotifyNextTick = false;
         const proxiesCache = new WeakMap();
         const storeListeners = new Set();
@@ -64,9 +64,9 @@ export const createStoreFactory = () => {
          * @param {T} object
          * @returns {T}
          */
-        const createProxy = (object) => {
+        const createProxy = object => {
             if (proxiesCache.has(object)) {
-                return /** @type {T} */(proxiesCache.get(object));
+                return /** @type {T} */ (proxiesCache.get(object));
             } else {
                 const proxy = new Proxy(object, {
                     set(target, p, value, receiver) {
@@ -83,10 +83,14 @@ export const createStoreFactory = () => {
                         const valueType = typeof value;
                         // https://jsbench.me/p6mjxatbz4/1 - without function cache is faster in all major browsers
                         // probably because of an extra unwrapValue required with cache and extra cache lookup
-                        return valueType === 'function' ? (/** @param {...any} args */(...args) => {
-                            enqueueNotification();
-                            return /** @type {Function} */(value).apply(target, args.map(unwrapValue));
-                        }) : (value !== null && valueType === 'object' ? createProxy(/** @type {any} */(value)) : value);
+                        return valueType === 'function'
+                            ? /** @param {...any} args */ (...args) => {
+                                  enqueueNotification();
+                                  return /** @type {Function} */ (value).apply(target, args.map(unwrapValue));
+                              }
+                            : value !== null && valueType === 'object'
+                              ? createProxy(/** @type {any} */ (value))
+                              : value;
                     },
                     defineProperty(...args) {
                         enqueueNotification();
@@ -98,10 +102,10 @@ export const createStoreFactory = () => {
                             enqueueNotification();
                         }
                         return result;
-                    }
+                    },
                 });
                 proxiesCache.set(object, proxy);
-                return /** @type {T} */(proxy);
+                return /** @type {T} */ (proxy);
             }
         };
 
@@ -109,14 +113,16 @@ export const createStoreFactory = () => {
 
         return [
             proxy,
-            /** @type {Store<any>} */((cb) => {
-                if (!cb) {
-                    return object;
+            /** @type {Store<any>} */ (
+                cb => {
+                    if (!cb) {
+                        return object;
+                    }
+                    storeListeners.add(cb);
+                    return () => storeListeners.delete(cb);
                 }
-                storeListeners.add(cb);
-                return () => storeListeners.delete(cb);
-            }),
-            enqueueNotification
+            ),
+            enqueueNotification,
         ];
     };
 };
