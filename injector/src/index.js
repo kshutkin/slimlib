@@ -1,4 +1,4 @@
-import getParameterNames from 'get-parameter-names';
+import getParameterNames from './get-parameter-names';
 
 /**
  * @typedef {(key: string, value: unknown) => void} Provider
