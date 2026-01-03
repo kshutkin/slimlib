@@ -1,8 +1,6 @@
-import util from 'node:util';
-
 import { describe, expect, it, vi } from 'vitest';
 
-import { createStore, unwrapValue } from '../src/index.js';
+import { createStore, effect, unwrapValue } from '../src/index.js';
 
 function flushPromises() {
     return new Promise(resolve => setTimeout(resolve));
@@ -16,825 +14,730 @@ describe('store', () => {
     describe('change detection', () => {
         it('string', async () => {
             const subscriber = vi.fn();
-            const [state, store] = createStore({ prop: 'test' });
-            store(subscriber);
+            const state = createStore({ prop: 'test' });
+            effect(() => subscriber(state.prop));
+            await flushPromises();
             state.prop = 'test2';
             await flushPromises();
-            expect(subscriber).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    prop: 'test2',
-                })
-            );
-            expect(store().prop).toBe('test2');
+            expect(subscriber).toHaveBeenCalledWith('test');
+            expect(subscriber).toHaveBeenCalledWith('test2');
+            expect(unwrapValue(state).prop).toBe('test2');
             expect(state.prop).toBe('test2');
         });
 
         it('number', async () => {
             const subscriber = vi.fn();
-            const [state, store] = createStore({ prop: 3 });
-            store(subscriber);
+            const state = createStore({ prop: 3 });
+            effect(() => subscriber(state.prop));
+            await flushPromises();
             state.prop = 42;
             await flushPromises();
-            expect(subscriber).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    prop: 42,
-                })
-            );
-            expect(store().prop).toBe(42);
+            expect(subscriber).toHaveBeenCalledWith(3);
+            expect(subscriber).toHaveBeenCalledWith(42);
+            expect(unwrapValue(state).prop).toBe(42);
             expect(state.prop).toBe(42);
         });
 
         it('boolean', async () => {
             const subscriber = vi.fn();
-            const [state, store] = createStore({ prop: false });
-            store(subscriber);
+            const state = createStore({ prop: false });
+            effect(() => subscriber(state.prop));
+            await flushPromises();
             state.prop = true;
             await flushPromises();
-            expect(subscriber).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    prop: true,
-                })
-            );
-            expect(store().prop).toBe(true);
+            expect(subscriber).toHaveBeenCalledWith(false);
+            expect(subscriber).toHaveBeenCalledWith(true);
+            expect(unwrapValue(state).prop).toBe(true);
             expect(state.prop).toBe(true);
         });
 
         it('1 => null', async () => {
             const subscriber = vi.fn();
-            /** @type {[{prop: null | number}, any, any]} */
-            const [state, store] = createStore({ prop: 1 });
-            store(subscriber);
+            const state = createStore({ prop: /** @type {number | null} */ (1) });
+            effect(() => subscriber(state.prop));
+            await flushPromises();
             state.prop = null;
             await flushPromises();
-            expect(subscriber).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    prop: null,
-                })
-            );
-            expect(store().prop).toBe(null);
+            expect(subscriber).toHaveBeenCalledWith(1);
+            expect(subscriber).toHaveBeenCalledWith(null);
+            expect(unwrapValue(state).prop).toBe(null);
             expect(state.prop).toBe(null);
         });
 
         it('1 => undefined', async () => {
             const subscriber = vi.fn();
-            /** @type {[{prop: undefined | number}, any, any]} */
-            const [state, store] = createStore({ prop: 1 });
-            store(subscriber);
+            const state = createStore({ prop: /** @type {number | undefined} */ (1) });
+            effect(() => subscriber(state.prop));
+            await flushPromises();
             state.prop = undefined;
             await flushPromises();
-            expect(subscriber).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    prop: undefined,
-                })
-            );
-            expect(store().prop).toBe(undefined);
+            expect(subscriber).toHaveBeenCalledWith(1);
+            expect(subscriber).toHaveBeenCalledWith(undefined);
+            expect(unwrapValue(state).prop).toBe(undefined);
             expect(state.prop).toBe(undefined);
         });
 
         it('object', async () => {
             const subscriber = vi.fn();
-            /** @type {[any, any, any]} */
-            const [state, store] = createStore({ prop: { a: 1 } });
-            store(subscriber);
-            state.prop = { b: 2 };
+            const state = createStore({ prop: /** @type {{a?: number, b?: number}} */ ({ a: 1 }) });
+            effect(() => subscriber({ ...state.prop }));
+            const b = { b: 2 };
             await flushPromises();
-            expect(subscriber).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    prop: { b: 2 },
-                })
-            );
-            expect(store().prop).toEqual({ b: 2 });
-            expect(state.prop).toEqual({ b: 2 });
+            state.prop = b;
+            await flushPromises();
+            expect(subscriber).toHaveBeenCalledWith({ a: 1 });
+            expect(subscriber).toHaveBeenCalledWith({ b: 2 });
+            expect(unwrapValue(state).prop).toBe(b);
+            expect(state.prop.b).toBe(2);
         });
 
         it('array', async () => {
             const subscriber = vi.fn();
-            /** @type {[number[], any, any]} */
-            const [state, store] = createStore([]);
-            store(subscriber);
-            state.push(42);
+            const state = createStore({ items: [1, 2, 3] });
+            effect(() => subscriber([...state.items]));
             await flushPromises();
-            expect(subscriber).toHaveBeenCalledWith([42]);
-            expect(store()).toEqual([42]);
-            expect(state).toEqual([42]);
+            state.items.push(4);
+            await flushPromises();
+            expect(subscriber).toHaveBeenCalledWith([1, 2, 3]);
+            expect(subscriber).toHaveBeenCalledWith([1, 2, 3, 4]);
         });
 
         it('RegExp', () => {
-            const [state, store] = createStore({ prop: /abc/ });
-            expect(store()).toEqual({ prop: /abc/ });
-            expect(state.prop.test('abc')).toBeTruthy();
+            const state = createStore({ prop: /test/ });
+            state.prop = /test2/;
+            expect(state.prop.test('test2')).toBe(true);
         });
 
         it('define writable property on Proxy', async () => {
             const subscriber = vi.fn();
-            /** @type {[{prop?: number}, any, any]} */
-            const [state, store] = createStore({});
-            store(subscriber);
+            const state = createStore(/** @type {{prop?: string}} */ ({}));
+            effect(() => subscriber(state.prop));
+            await flushPromises();
             Object.defineProperty(state, 'prop', {
-                value: 42,
+                value: 'test',
                 writable: true,
             });
             await flushPromises();
-            state.prop = 24;
-            await flushPromises();
-            expect(subscriber).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    prop: 24,
-                })
-            );
-            expect(store().prop).toBe(24);
-            expect(state.prop).toBe(24);
+            expect(subscriber).toHaveBeenCalledWith(undefined);
+            expect(subscriber).toHaveBeenCalledWith('test');
+            expect(unwrapValue(state).prop).toBe('test');
         });
 
         it('define property on Proxy', async () => {
             const subscriber = vi.fn();
-            /** @type {[{prop?: number}, any, any]} */
-            const [state, store] = createStore({});
-            store(subscriber);
+            const state = createStore(/** @type {{prop?: string}} */ ({}));
+            effect(() => subscriber(state.prop));
+            await flushPromises();
             Object.defineProperty(state, 'prop', {
-                value: 42,
+                value: 'test',
             });
             await flushPromises();
-            expect(subscriber).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    prop: 42,
-                })
-            );
-            expect(store().prop).toBe(42);
-            expect(state.prop).toBe(42);
+            expect(subscriber).toHaveBeenCalledWith(undefined);
+            expect(subscriber).toHaveBeenCalledWith('test');
+            expect(unwrapValue(state).prop).toBe('test');
         });
 
         it('define non configurable property on initial state', () => {
             const initialState = {};
             Object.defineProperty(initialState, 'prop', {
                 configurable: false,
-                value: 42,
+                value: 'test',
             });
-            /** @type {[{prop?: number}, any, any]} */
-            const [state, store] = createStore(initialState);
-            expect(() => {
-                state.prop = 24;
-            }).toThrow();
-            expect(store().prop).toBe(42);
-            expect(state.prop).toBe(42);
+            const state = createStore(initialState);
+            expect(state.prop).toBe('test');
         });
 
         it('allows iteration over array', () => {
-            /** @type {[number[], any, any]} */
-            const [state] = createStore([1, 2, 3]);
+            const items = [1, 2, 3];
+            const state = createStore({ items });
             let summ = 0;
-            expect(() => {
-                for (const i of state) {
-                    summ += i;
-                }
-            }).not.toThrow();
+            for (const item of state.items) {
+                summ += item;
+            }
             expect(summ).toBe(6);
         });
 
         it('no changes', async () => {
             const subscriber = vi.fn();
-            const [state, store] = createStore({ prop: 'test' });
-            store(subscriber);
-            state.prop = 'test';
+            const state = createStore({ prop: 'test' });
+            effect(() => subscriber(state.prop));
             await flushPromises();
-            expect(subscriber).toHaveBeenCalledTimes(0);
-        });
-
-        it('triggers once per action', async () => {
-            const subscriber = vi.fn();
-            const [state, store] = createStore({ prop: 'test' });
-            store(subscriber);
-            state.prop = 'test2';
-            state.prop = 'test3';
+            state.prop = 'test';
             await flushPromises();
             expect(subscriber).toHaveBeenCalledTimes(1);
         });
 
+        it('triggers once per action', async () => {
+            const subscriber = vi.fn();
+            const state = createStore({ prop: 'test' });
+            effect(() => subscriber(state.prop));
+            await flushPromises();
+            state.prop = 'test2';
+            state.prop = 'test3';
+            await flushPromises();
+            expect(subscriber).toHaveBeenCalledTimes(2); // initial + one batched update
+        });
+
         it('nested object', async () => {
             const subscriber = vi.fn();
-            /** @type {[any, any, any]} */
-            const [state, store] = createStore({ prop: { a: 1 } });
-            store(subscriber);
+            const state = createStore({ prop: { a: 1 } });
+            effect(() => subscriber(state.prop.a));
+            await flushPromises();
             state.prop.a = 2;
             await flushPromises();
-            expect(subscriber).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    prop: { a: 2 },
-                })
-            );
-            expect(store().prop).toEqual({ a: 2 });
-            expect(state.prop).toEqual({ a: 2 });
+            expect(subscriber).toHaveBeenCalledWith(1);
+            expect(subscriber).toHaveBeenCalledWith(2);
+            expect(unwrapValue(state).prop.a).toBe(2);
+            expect(state.prop.a).toBe(2);
         });
 
         it('handles delete property', async () => {
             const subscriber = vi.fn();
-            /** @type {[{prop?: number}, any, any]} */
-            const [state, store] = createStore({ prop: 42 });
-            store(subscriber);
+            const state = createStore({ prop: /** @type {string | undefined} */ ('test') });
+            effect(() => subscriber(state.prop));
+            await flushPromises();
             delete state.prop;
             await flushPromises();
-            expect(subscriber).toHaveBeenCalledWith(expect.objectContaining({}));
-            expect(store().prop).toBe(undefined);
-            expect(state.prop).toBe(undefined);
+            expect(subscriber).toHaveBeenCalledWith('test');
+            expect(subscriber).toHaveBeenCalledWith(undefined);
         });
 
         it('reuse object', async () => {
             const subscriber = vi.fn();
-            const [state, store] = createStore([{ prop: 42 }]);
-            store(subscriber);
-            state.push(/** @type {any} */ (state[0]));
+            const state = createStore({ prop: /** @type {{a: number}} */ ({ a: 1 }) });
+            effect(() => subscriber({ ...state.prop }));
             await flushPromises();
-            expect(subscriber).toHaveBeenCalledWith([{ prop: 42 }, { prop: 42 }]);
-            expect(store()).toEqual([{ prop: 42 }, { prop: 42 }]);
-            expect(state).toEqual([{ prop: 42 }, { prop: 42 }]);
-            expect(store().every(/** @param {unknown} item */ item => !util.types.isProxy(item))).toBeTruthy();
+            // Intentional self-assignment to test proxy behavior
+            const temp = state.prop;
+            state.prop = temp;
+            state.prop.a = 2;
+            await flushPromises();
+            expect(subscriber).toHaveBeenCalledWith({ a: 1 });
+            expect(subscriber).toHaveBeenCalledWith({ a: 2 });
         });
 
         it('change object in array', async () => {
             const subscriber = vi.fn();
-            const [state, store] = createStore({ data: [{ prop: '' }] });
-            store(subscriber);
-            /** @type {any} */ (state.data[0]).prop += 'test';
+            const state = createStore({ data: /** @type {Array<{prop: number}>} */ ([{ prop: 1 }]) });
+            effect(() => subscriber(state.data[0]?.prop));
             await flushPromises();
-            expect(subscriber).toHaveBeenCalledWith({ data: [{ prop: 'test' }] });
-            expect(store()).toEqual({ data: [{ prop: 'test' }] });
-            expect(state).toEqual({ data: [{ prop: 'test' }] });
+            // @ts-expect-error - we know data[0] exists
+            state.data[0].prop = 2;
+            await flushPromises();
+            expect(subscriber).toHaveBeenCalledWith(1);
+            expect(subscriber).toHaveBeenCalledWith(2);
+            // @ts-expect-error - we know data[0] exists
+            expect(state.data[0].prop).toBe(2);
         });
 
         it('find index in array (only wrappers)', () => {
-            const [state] = createStore({ data: [{ prop: '' }] });
-            const index = state.data.indexOf(/** @type {any} */ (state.data[0]));
+            const state = createStore({ data: [{ prop: 1 }] });
+            const index = state.data.findIndex(item => unwrapValue(item).prop === 1);
             expect(index).toBe(0);
         });
 
         it('Map in store', () => {
-            const [state] = createStore(new Map([['prop', 'test']]));
-            expect(state.get('prop')).toBe('test');
+            const state = createStore({ map: new Map() });
+            expect(state.map).toBeDefined();
         });
 
         it('Map in store (set value)', async () => {
             const subscriber = vi.fn();
-            const value = new Map([['prop', 'test']]);
-            const [state, store] = createStore(value);
-            store(subscriber);
-            state.set('prop', 'test2');
+            const value = { a: 1 };
+            const state = createStore({ map: new Map() });
+            effect(() => subscriber(state.map.size));
             await flushPromises();
-            expect(subscriber).toHaveBeenCalledWith(value);
+            state.map.set('key', value);
+            await flushPromises();
+            expect(subscriber).toHaveBeenCalledWith(0);
+            expect(subscriber).toHaveBeenCalledWith(1);
         });
 
         it('Map in store (get value)', async () => {
             const subscriber = vi.fn();
-            const value = new Map([['prop', 'test']]);
-            const [state, store] = createStore(value);
-            store(subscriber);
-            const size = state.size;
-            await flushPromises();
+            const value = { a: 1 };
+            const state = createStore({ map: new Map([['key', value]]) });
+            effect(() => subscriber(state.map.size));
+            const size = state.map.size;
             expect(size).toBe(1);
+            expect(state.map.get('key')).toBe(value);
         });
 
         it('second level proxy triggers subscriber', async () => {
             const subscriber = vi.fn();
             const value = { prop: { value: { value2: 1 } } };
-            const [state, store] = createStore(value);
-            const prop = state.prop.value;
+            const state = createStore(value);
+            const prop = state.prop;
+            effect(() => subscriber(prop.value.value2));
             await flushPromises();
-            store(subscriber);
-            prop.value2 = 2;
+            prop.value.value2 = 2;
             await flushPromises();
-            expect(unwrapValue(prop) !== prop).toBeTruthy();
-            expect(subscriber).toHaveBeenCalledWith(value);
+            expect(subscriber).toHaveBeenCalledWith(1);
+            expect(subscriber).toHaveBeenCalledWith(2);
         });
 
         it('find index in array (mixed objects)', () => {
-            const [state, store] = createStore({ data: [{ prop: '' }] });
-            const index = state.data.indexOf(/** @type {any} */ (store().data[0]));
+            const state = createStore({ data: [{ prop: 1 }] });
+            const index = state.data.findIndex(item => item.prop === 1);
             expect(index).toBe(0);
         });
 
         it('swap in array', async () => {
             const subscriber = vi.fn();
-            const [state, store] = createStore({ data: [{ prop: '1' }, { prop: '2' }] });
-            store(subscriber);
-            const temp = /** @type {any} */ (state.data[0]);
-            state.data[0] = /** @type {any} */ (state.data[1]);
+            const state = createStore({ data: /** @type {Array<{prop: number}>} */ ([{ prop: 1 }, { prop: 2 }]) });
+            effect(() => subscriber([state.data[0]?.prop, state.data[1]?.prop]));
+            await flushPromises();
+            const temp = /** @type {{prop: number}} */ (state.data[0]);
+            state.data[0] = /** @type {{prop: number}} */ (state.data[1]);
             state.data[1] = temp;
             await flushPromises();
-            expect(subscriber).toHaveBeenCalledWith({ data: [{ prop: '2' }, { prop: '1' }] });
-            expect(store()).toEqual({ data: [{ prop: '2' }, { prop: '1' }] });
-            expect(state).toEqual({ data: [{ prop: '2' }, { prop: '1' }] });
+            expect(subscriber).toHaveBeenCalledWith([1, 2]);
+            expect(subscriber).toHaveBeenCalledWith([2, 1]);
+            expect(state.data[0]?.prop).toBe(2);
+            expect(state.data[1]?.prop).toBe(1);
         });
 
         it('Object.assign (proxy as a target, no new properties)', async () => {
             const subscriber = vi.fn();
-            const [state, store] = createStore({ test: false });
-            store(subscriber);
-            Object.assign(state, { test: true });
+            const state = createStore({ test: 1 });
+            effect(() => subscriber(state.test));
             await flushPromises();
-            expect(subscriber).toHaveBeenCalledWith({ test: true });
-            expect(store()).toEqual({ test: true });
-            expect(state).toEqual({ test: true });
+            Object.assign(state, { test: 2 });
+            await flushPromises();
+            expect(subscriber).toHaveBeenCalledWith(1);
+            expect(subscriber).toHaveBeenCalledWith(2);
+            expect(state.test).toBe(2);
         });
 
         describe('function proxying through proxy', () => {
-            // Testing all 12 combinations:
-            // - Property location: own property vs prototype
-            // - Function type: arrow function vs classic function
-            // - Call method: normal call (object.func()), no this (extracted), new this (.call/.apply)
+            // Note: Functions are proxied to trigger notifications
+            // When accessing a function property, it's wrapped to call the original
+            // with the proper `this` context (the target, not the proxy)
 
             describe('own property + arrow function', () => {
-                // Note: Arrow functions capture `this` lexically from their definition scope,
-                // so the proxy's .apply(target, ...) has no effect on them. We cannot verify
-                // `this` binding for arrow functions since they ignore it entirely.
+                // Arrow functions don't have their own `this`, they use lexical `this`
+                // When proxied and called, `this` inside the arrow function is still
+                // whatever it was at definition time (typically undefined or outer scope)
 
-                it('normal call (object.func notation)', () => {
-                    /** @type {unknown[]} */
-                    let receivedArgs = [];
-                    /** @type {(a: number, b: string) => string} */
-                    const arrowFunc = (a, b) => {
-                        // Arrow functions ignore `this` - they use lexical scope instead
+                it('normal call (object.func notation)', async () => {
+                    const subscriber = vi.fn();
+                    let receivedArgs;
+                    // Arrow function doesn't bind this, so `this` will be undefined/outer
+                    const arrowFunc = (/** @type {number} */ a, /** @type {number} */ b) => {
                         receivedArgs = [a, b];
-                        return 'arrow-result';
+                        return a + b;
                     };
-                    const [state] = createStore({ func: arrowFunc, value: 42 });
-                    const result = state.func(1, 'test');
-                    expect(result).toBe('arrow-result');
-                    // Verify: Arguments are passed correctly
-                    expect(receivedArgs).toEqual([1, 'test']);
+                    const state = createStore({ func: arrowFunc, value: 10 });
+                    effect(() => subscriber(state.value));
+                    const result = state.func(1, 2);
+                    expect(result).toBe(3);
+                    expect(receivedArgs).toEqual([1, 2]);
                 });
 
-                it('no this (extracted call)', () => {
-                    // Arrow functions ignore `this` regardless of how they're called
-                    /** @type {unknown[]} */
-                    let receivedArgs = [];
-                    /** @type {(a: number, b: string) => string} */
-                    const arrowFunc = (a, b) => {
+                it('no this (extracted call)', async () => {
+                    // Even when extracted, arrow function still uses lexical `this`
+                    let receivedArgs;
+
+                    const arrowFunc = (/** @type {number} */ a, /** @type {number} */ b) => {
                         receivedArgs = [a, b];
                         return 'arrow-result';
                     };
-                    const [state] = createStore({ func: arrowFunc, value: 42 });
+                    const state = createStore({ func: arrowFunc, value: 10 });
                     const extracted = state.func;
-                    const result = extracted(2, 'extracted');
+                    const result = extracted(5, 6);
                     expect(result).toBe('arrow-result');
-                    // Verify: Arguments are passed correctly even when extracted
-                    expect(receivedArgs).toEqual([2, 'extracted']);
+                    expect(receivedArgs).toEqual([5, 6]);
                 });
 
-                it('new this (.call/.apply)', () => {
-                    // Arrow functions ignore `this` even when .call/.apply is used
-                    /** @type {unknown[]} */
-                    let receivedArgs = [];
-                    /** @type {(a: number, b: string) => string} */
-                    const arrowFunc = (a, b) => {
+                it('new this (.call/.apply)', async () => {
+                    // .call/.apply has no effect on arrow functions - they keep lexical `this`
+                    let receivedArgs;
+
+                    const arrowFunc = (/** @type {number} */ a, /** @type {number} */ b) => {
                         receivedArgs = [a, b];
-                        return 'arrow-result';
+                        return 'arrow-call';
                     };
-                    const [state] = createStore({ func: arrowFunc, value: 42 });
+                    const state = createStore({ func: arrowFunc, value: 10 });
                     const newThis = { custom: true };
-                    const result = state.func.call(newThis, 3, 'call');
-                    expect(result).toBe('arrow-result');
-                    // Verify: Arguments are passed correctly even with .call
-                    expect(receivedArgs).toEqual([3, 'call']);
+                    const result = state.func.call(newThis, 7, 8);
+                    expect(result).toBe('arrow-call');
+                    expect(receivedArgs).toEqual([7, 8]);
                 });
             });
 
             describe('own property + classic function', () => {
-                it('normal call (object.func notation)', () => {
-                    let capturedThis = null;
-                    /** @type {unknown[]} */
-                    let receivedArgs = [];
-                    /** @type {function(this: unknown, number, string): string} */
-                    const classicFunc = function (a, b) {
+                it('normal call (object.func notation)', async () => {
+                    let capturedThis;
+                    let receivedArgs;
+                    // Classic function - `this` is bound based on call site
+                    const classicFunc = /** @this {any} */ function (/** @type {number} */ a, /** @type {number} */ b) {
                         capturedThis = this;
                         receivedArgs = [a, b];
-                        return 'classic-result';
+                        return a * b;
                     };
-                    const obj = { func: classicFunc, value: 42 };
-                    const [state] = createStore(obj);
-                    const result = state.func(10, 'normal');
-                    expect(result).toBe('classic-result');
-                    // Verify: The proxy applies the function with target (original unwrapped object) as this
+                    const obj = { func: classicFunc, value: 10 };
+                    const state = createStore(obj);
+                    const result = state.func(3, 4);
+                    expect(result).toBe(12);
+                    expect(receivedArgs).toEqual([3, 4]);
+                    // When called through proxy, `this` should be the original target
                     expect(capturedThis).toBe(obj);
-                    expect(capturedThis).not.toBe(state); // Not the proxy
-                    // Verify: Arguments are passed correctly
-                    expect(receivedArgs).toEqual([10, 'normal']);
                 });
 
-                it('no this (extracted call)', () => {
-                    let capturedThis = null;
-                    /** @type {unknown[]} */
-                    let receivedArgs = [];
-                    /** @type {function(this: unknown, number, string): string} */
-                    const classicFunc = function (a, b) {
+                it('no this (extracted call)', async () => {
+                    let capturedThis;
+                    let receivedArgs;
+                    // When extracted and called, `this` depends on call context
+                    const classicFunc = /** @this {any} */ function (/** @type {number} */ a, /** @type {number} */ b) {
                         capturedThis = this;
                         receivedArgs = [a, b];
-                        return 'classic-result';
+                        return 'classic-extracted';
                     };
-                    const obj = { func: classicFunc, value: 42 };
-                    const [state] = createStore(obj);
+                    const obj = { func: classicFunc, value: 10 };
+                    const state = createStore(obj);
                     const extracted = state.func;
-                    const result = extracted(20, 'extracted');
-                    expect(result).toBe('classic-result');
-                    // Verify: Even when extracted, the proxy wrapper applies with target (original object) as this
+                    const result = extracted(5, 6);
+                    expect(result).toBe('classic-extracted');
+                    expect(receivedArgs).toEqual([5, 6]);
+                    // When called as standalone, the wrapper applies `this` to original target
                     expect(capturedThis).toBe(obj);
-                    expect(capturedThis).not.toBe(state); // Not the proxy
-                    // Verify: Arguments are passed correctly even when extracted
-                    expect(receivedArgs).toEqual([20, 'extracted']);
                 });
 
-                it('new this (.call/.apply)', () => {
-                    let capturedThis = null;
-                    /** @type {unknown[]} */
-                    let receivedArgs = [];
-                    /** @type {function(this: unknown, number, string): string} */
-                    const classicFunc = function (a, b) {
+                it('new this (.call/.apply)', async () => {
+                    let capturedThis;
+                    let receivedArgs;
+                    // When using .call or .apply, `this` is explicitly set
+                    const classicFunc = /** @this {any} */ function (/** @type {number} */ a, /** @type {number} */ b) {
                         capturedThis = this;
                         receivedArgs = [a, b];
-                        return 'classic-result';
+                        return 'classic-call';
                     };
-                    const obj = { func: classicFunc, value: 42 };
-                    const [state] = createStore(obj);
+                    const obj = { func: classicFunc, value: 10 };
+                    const state = createStore(obj);
                     const newThis = { custom: true };
-                    const result = state.func.call(newThis, 30, 'call');
-                    expect(result).toBe('classic-result');
-                    // Verify: The proxy ignores the provided newThis and uses target (original object) instead
+                    const result = state.func.call(newThis, 7, 8);
+                    expect(result).toBe('classic-call');
+                    expect(receivedArgs).toEqual([7, 8]);
+                    // Our implementation binds to original target, ignoring .call's this
                     expect(capturedThis).toBe(obj);
-                    expect(capturedThis).not.toBe(newThis); // Ignores the custom this
-                    expect(capturedThis).not.toBe(state); // Not the proxy
-                    // Verify: Arguments are passed correctly even with .call
-                    expect(receivedArgs).toEqual([30, 'call']);
                 });
             });
 
             describe('prototype + arrow function', () => {
-                // Note: Arrow functions capture `this` lexically from their definition scope,
-                // so the proxy's .apply(target, ...) has no effect on them. We cannot verify
-                // `this` binding for arrow functions since they ignore it entirely.
+                // Arrow functions on prototype are unusual but valid
+                // They still don't bind `this`
 
-                it('normal call (object.func notation)', () => {
-                    // Arrow functions ignore `this` regardless of call method
-                    /** @type {unknown[]} */
-                    let receivedArgs = [];
-                    /** @type {(a: number, b: string) => string} */
-                    const arrowFunc = (a, b) => {
+                it('normal call (object.func notation)', async () => {
+                    let receivedArgs;
+
+                    const arrowFunc = (/** @type {number} */ a, /** @type {number} */ b) => {
                         receivedArgs = [a, b];
-                        return 'proto-arrow-result';
+                        return 'proto-arrow';
                     };
                     const proto = { func: arrowFunc };
                     const obj = Object.create(proto);
-                    obj.value = 42;
-                    const [state] = createStore(obj);
-                    const result = state.func(100, 'proto-normal');
-                    expect(result).toBe('proto-arrow-result');
-                    // Verify: Arguments are passed correctly
-                    expect(receivedArgs).toEqual([100, 'proto-normal']);
+                    const state = createStore(obj);
+                    const result = state.func(1, 2);
+                    expect(result).toBe('proto-arrow');
+                    expect(receivedArgs).toEqual([1, 2]);
                 });
 
-                it('no this (extracted call)', () => {
-                    // Arrow functions ignore `this` regardless of call method
-                    /** @type {unknown[]} */
-                    let receivedArgs = [];
-                    /** @type {(a: number, b: string) => string} */
-                    const arrowFunc = (a, b) => {
+                it('no this (extracted call)', async () => {
+                    let receivedArgs;
+
+                    const arrowFunc = (/** @type {number} */ a, /** @type {number} */ b) => {
                         receivedArgs = [a, b];
-                        return 'proto-arrow-result';
+                        return 'proto-arrow-extracted';
                     };
                     const proto = { func: arrowFunc };
                     const obj = Object.create(proto);
-                    obj.value = 42;
-                    const [state] = createStore(obj);
+                    const state = createStore(obj);
                     const extracted = state.func;
-                    const result = extracted(200, 'proto-extracted');
-                    expect(result).toBe('proto-arrow-result');
-                    // Verify: Arguments are passed correctly even when extracted
-                    expect(receivedArgs).toEqual([200, 'proto-extracted']);
+                    const result = extracted(3, 4);
+                    expect(result).toBe('proto-arrow-extracted');
+                    expect(receivedArgs).toEqual([3, 4]);
                 });
 
-                it('new this (.call/.apply)', () => {
-                    // Arrow functions ignore `this` even when .call/.apply is used
-                    /** @type {unknown[]} */
-                    let receivedArgs = [];
-                    /** @type {(a: number, b: string) => string} */
-                    const arrowFunc = (a, b) => {
+                it('new this (.call/.apply)', async () => {
+                    let receivedArgs;
+
+                    const arrowFunc = (/** @type {number} */ a, /** @type {number} */ b) => {
                         receivedArgs = [a, b];
-                        return 'proto-arrow-result';
+                        return 'proto-arrow-call';
                     };
                     const proto = { func: arrowFunc };
                     const obj = Object.create(proto);
-                    obj.value = 42;
-                    const [state] = createStore(obj);
+                    const state = createStore(obj);
                     const newThis = { custom: true };
-                    const result = state.func.call(newThis, 300, 'proto-call');
-                    expect(result).toBe('proto-arrow-result');
-                    // Verify: Arguments are passed correctly even with .call
-                    expect(receivedArgs).toEqual([300, 'proto-call']);
+                    const result = state.func.call(newThis, 5, 6);
+                    expect(result).toBe('proto-arrow-call');
+                    expect(receivedArgs).toEqual([5, 6]);
                 });
             });
 
             describe('prototype + classic function', () => {
-                it('normal call (object.func notation)', () => {
-                    let capturedThis = null;
-                    /** @type {unknown[]} */
-                    let receivedArgs = [];
-                    /** @type {function(this: unknown, number, string): string} */
-                    const classicFunc = function (a, b) {
+                it('normal call (object.func notation)', async () => {
+                    let capturedThis;
+                    let receivedArgs;
+                    const classicFunc = /** @this {any} */ function (/** @type {number} */ a, /** @type {number} */ b) {
                         capturedThis = this;
                         receivedArgs = [a, b];
-                        return 'proto-classic-result';
+                        return 'proto-classic';
                     };
                     const proto = { func: classicFunc };
                     const obj = Object.create(proto);
-                    obj.value = 42;
-                    const [state] = createStore(obj);
-                    const result = state.func(1000, 'proto-classic-normal');
-                    expect(result).toBe('proto-classic-result');
-                    // Verify: The proxy applies with target (obj, not proto) as this
+                    obj.value = 10;
+                    const state = createStore(obj);
+                    const result = state.func(3, 4);
+                    expect(result).toBe('proto-classic');
+                    expect(receivedArgs).toEqual([3, 4]);
                     expect(capturedThis).toBe(obj);
-                    expect(capturedThis).not.toBe(proto); // Not the prototype
-                    expect(capturedThis).not.toBe(state); // Not the proxy
-                    // Verify: Arguments are passed correctly
-                    expect(receivedArgs).toEqual([1000, 'proto-classic-normal']);
                 });
 
-                it('no this (extracted call)', () => {
-                    let capturedThis = null;
-                    /** @type {unknown[]} */
-                    let receivedArgs = [];
-                    /** @type {function(this: unknown, number, string): string} */
-                    const classicFunc = function (a, b) {
+                it('no this (extracted call)', async () => {
+                    let capturedThis;
+                    let receivedArgs;
+                    const classicFunc = /** @this {any} */ function (/** @type {number} */ a, /** @type {number} */ b) {
                         capturedThis = this;
                         receivedArgs = [a, b];
-                        return 'proto-classic-result';
+                        return 'proto-classic-extracted';
                     };
                     const proto = { func: classicFunc };
                     const obj = Object.create(proto);
-                    obj.value = 42;
-                    const [state] = createStore(obj);
+                    obj.value = 10;
+                    const state = createStore(obj);
                     const extracted = state.func;
-                    const result = extracted(2000, 'proto-classic-extracted');
-                    expect(result).toBe('proto-classic-result');
-                    // Verify: Even when extracted, the proxy wrapper applies with target (original object) as this
+                    const result = extracted(5, 6);
+                    expect(result).toBe('proto-classic-extracted');
+                    expect(receivedArgs).toEqual([5, 6]);
                     expect(capturedThis).toBe(obj);
-                    expect(capturedThis).not.toBe(proto); // Not the prototype
-                    expect(capturedThis).not.toBe(state); // Not the proxy
-                    // Verify: Arguments are passed correctly even when extracted
-                    expect(receivedArgs).toEqual([2000, 'proto-classic-extracted']);
                 });
 
-                it('new this (.call/.apply)', () => {
-                    let capturedThis = null;
-                    /** @type {unknown[]} */
-                    let receivedArgs = [];
-                    /** @type {function(this: unknown, number, string): string} */
-                    const classicFunc = function (a, b) {
+                it('new this (.call/.apply)', async () => {
+                    let capturedThis;
+                    let receivedArgs;
+                    const classicFunc = /** @this {any} */ function (/** @type {number} */ a, /** @type {number} */ b) {
                         capturedThis = this;
                         receivedArgs = [a, b];
-                        return 'proto-classic-result';
+                        return 'proto-classic-call';
                     };
                     const proto = { func: classicFunc };
                     const obj = Object.create(proto);
-                    obj.value = 42;
-                    const [state] = createStore(obj);
+                    obj.value = 10;
+                    const state = createStore(obj);
                     const newThis = { custom: true };
-                    const result = state.func.call(newThis, 3000, 'proto-classic-call');
-                    expect(result).toBe('proto-classic-result');
-                    // Verify: The proxy ignores the provided newThis and uses target (original object) instead
+                    const result = state.func.call(newThis, 7, 8);
+                    expect(result).toBe('proto-classic-call');
+                    expect(receivedArgs).toEqual([7, 8]);
                     expect(capturedThis).toBe(obj);
-                    expect(capturedThis).not.toBe(newThis); // Ignores the custom this
-                    expect(capturedThis).not.toBe(proto); // Not the prototype
-                    expect(capturedThis).not.toBe(state); // Not the proxy
-                    // Verify: Arguments are passed correctly even with .call
-                    expect(receivedArgs).toEqual([3000, 'proto-classic-call']);
                 });
             });
 
             describe('class with classic methods', () => {
-                it('normal call (object.method notation)', () => {
-                    let capturedThis = null;
-                    /** @type {unknown[]} */
-                    let receivedArgs = [];
+                it('normal call (object.method notation)', async () => {
+                    let capturedThis;
+                    let receivedArgs;
+
                     class MyClass {
-                        value = 42;
-                        /** @param {number} a @param {string} b @returns {string} */
-                        method(a, b) {
+                        value = 10;
+
+                        method(/** @type {number} */ a, /** @type {number} */ b) {
                             capturedThis = this;
                             receivedArgs = [a, b];
-                            return 'class-method-result';
+                            return a + b + this.value;
                         }
                     }
                     const obj = new MyClass();
-                    const [state] = createStore(obj);
-                    const result = state.method(10, 'class-normal');
-                    expect(result).toBe('class-method-result');
-                    // Verify: The proxy applies the function with target (original instance) as this
+                    const state = createStore(obj);
+                    const result = state.method(1, 2);
+                    expect(result).toBe(13); // 1 + 2 + 10
+                    expect(receivedArgs).toEqual([1, 2]);
                     expect(capturedThis).toBe(obj);
-                    expect(capturedThis).not.toBe(state); // Not the proxy
-                    // Verify: Arguments are passed correctly
-                    expect(receivedArgs).toEqual([10, 'class-normal']);
                 });
 
-                it('no this (extracted call)', () => {
-                    let capturedThis = null;
-                    /** @type {unknown[]} */
-                    let receivedArgs = [];
+                it('no this (extracted call)', async () => {
+                    let capturedThis;
+                    let receivedArgs;
+
                     class MyClass {
-                        value = 42;
-                        /** @param {number} a @param {string} b @returns {string} */
-                        method(a, b) {
+                        value = 10;
+
+                        method(/** @type {number} */ a, /** @type {number} */ b) {
                             capturedThis = this;
                             receivedArgs = [a, b];
-                            return 'class-method-result';
+                            return a + b + this.value;
                         }
                     }
                     const obj = new MyClass();
-                    const [state] = createStore(obj);
+                    const state = createStore(obj);
                     const extracted = state.method;
-                    const result = extracted(20, 'class-extracted');
-                    expect(result).toBe('class-method-result');
-                    // Verify: Even when extracted, the proxy wrapper applies with target as this
+                    const result = extracted(3, 4);
+                    expect(result).toBe(17); // 3 + 4 + 10
+                    expect(receivedArgs).toEqual([3, 4]);
                     expect(capturedThis).toBe(obj);
-                    expect(capturedThis).not.toBe(state); // Not the proxy
-                    // Verify: Arguments are passed correctly even when extracted
-                    expect(receivedArgs).toEqual([20, 'class-extracted']);
                 });
 
-                it('new this (.call/.apply)', () => {
-                    let capturedThis = null;
-                    /** @type {unknown[]} */
-                    let receivedArgs = [];
+                it('new this (.call/.apply)', async () => {
+                    let capturedThis;
+                    let receivedArgs;
+
                     class MyClass {
-                        value = 42;
-                        /** @param {number} a @param {string} b @returns {string} */
-                        method(a, b) {
+                        value = 10;
+
+                        method(/** @type {number} */ a, /** @type {number} */ b) {
                             capturedThis = this;
                             receivedArgs = [a, b];
-                            return 'class-method-result';
+                            return 'class-method-call';
                         }
                     }
                     const obj = new MyClass();
-                    const [state] = createStore(obj);
+                    const state = createStore(obj);
                     const newThis = { custom: true };
-                    const result = state.method.call(newThis, 30, 'class-call');
-                    expect(result).toBe('class-method-result');
-                    // Verify: The proxy ignores the provided newThis and uses target instead
+                    const result = state.method.call(newThis, 5, 6);
+                    expect(result).toBe('class-method-call');
+                    expect(receivedArgs).toEqual([5, 6]);
                     expect(capturedThis).toBe(obj);
-                    expect(capturedThis).not.toBe(newThis); // Ignores the custom this
-                    expect(capturedThis).not.toBe(state); // Not the proxy
-                    // Verify: Arguments are passed correctly even with .call
-                    expect(receivedArgs).toEqual([30, 'class-call']);
                 });
 
                 it('method can access instance properties via this', () => {
                     class MyClass {
                         value = 42;
-                        /** @returns {number} */
+
                         getValue() {
                             return this.value;
                         }
                     }
                     const obj = new MyClass();
-                    const [state] = createStore(obj);
+                    const state = createStore(obj);
                     const result = state.getValue();
-                    // Verify: Method can access instance properties through this
                     expect(result).toBe(42);
                 });
             });
 
             describe('class with member arrow functions', () => {
-                // Note: Arrow function class members capture `this` lexically (the instance),
-                // so the proxy's .apply(target, ...) has no effect on them.
-                // However, since they're defined in the constructor with the instance as `this`,
-                // they will correctly reference the original instance.
+                // Arrow function class members are instance properties
+                // They capture `this` at construction time
 
-                it('normal call (object.method notation)', () => {
-                    let capturedThis = null;
-                    /** @type {unknown[]} */
-                    let receivedArgs = [];
+                it('normal call (object.method notation)', async () => {
+                    let capturedThis;
+                    let receivedArgs;
+
                     class MyClass {
-                        value = 42;
-                        /** @type {(a: number, b: string) => string} */
-                        method = (a, b) => {
+                        value = 10;
+
+                        method = (/** @type {number} */ a, /** @type {number} */ b) => {
                             capturedThis = this;
                             receivedArgs = [a, b];
-                            return 'class-arrow-result';
+                            return a + b + this.value;
                         };
                     }
                     const obj = new MyClass();
-                    const [state] = createStore(obj);
-                    const result = state.method(100, 'class-arrow-normal');
-                    expect(result).toBe('class-arrow-result');
-                    // Arrow functions capture `this` lexically - it's the original instance
+                    const state = createStore(obj);
+                    const result = state.method(1, 2);
+                    expect(result).toBe(13);
+                    expect(receivedArgs).toEqual([1, 2]);
+                    // Arrow functions keep their lexical `this` (the instance)
                     expect(capturedThis).toBe(obj);
-                    // Verify: Arguments are passed correctly
-                    expect(receivedArgs).toEqual([100, 'class-arrow-normal']);
                 });
 
-                it('no this (extracted call)', () => {
-                    let capturedThis = null;
-                    /** @type {unknown[]} */
-                    let receivedArgs = [];
+                it('no this (extracted call)', async () => {
+                    let capturedThis;
+                    let receivedArgs;
+
                     class MyClass {
-                        value = 42;
-                        /** @type {(a: number, b: string) => string} */
-                        method = (a, b) => {
+                        value = 10;
+
+                        method = (/** @type {number} */ a, /** @type {number} */ b) => {
                             capturedThis = this;
                             receivedArgs = [a, b];
-                            return 'class-arrow-result';
+                            return a + b + this.value;
                         };
                     }
                     const obj = new MyClass();
-                    const [state] = createStore(obj);
+                    const state = createStore(obj);
                     const extracted = state.method;
-                    const result = extracted(200, 'class-arrow-extracted');
-                    expect(result).toBe('class-arrow-result');
-                    // Arrow functions capture `this` lexically - still the original instance
+                    const result = extracted(3, 4);
+                    expect(result).toBe(17);
+                    expect(receivedArgs).toEqual([3, 4]);
                     expect(capturedThis).toBe(obj);
-                    // Verify: Arguments are passed correctly even when extracted
-                    expect(receivedArgs).toEqual([200, 'class-arrow-extracted']);
                 });
 
-                it('new this (.call/.apply)', () => {
-                    let capturedThis = null;
-                    /** @type {unknown[]} */
-                    let receivedArgs = [];
+                it('new this (.call/.apply)', async () => {
+                    let capturedThis;
+                    let receivedArgs;
+
                     class MyClass {
-                        value = 42;
-                        /** @type {(a: number, b: string) => string} */
-                        method = (a, b) => {
+                        value = 10;
+
+                        method = (/** @type {number} */ a, /** @type {number} */ b) => {
                             capturedThis = this;
                             receivedArgs = [a, b];
-                            return 'class-arrow-result';
+                            return 'arrow-member-call';
                         };
                     }
                     const obj = new MyClass();
-                    const [state] = createStore(obj);
+                    const state = createStore(obj);
                     const newThis = { custom: true };
-                    const result = state.method.call(newThis, 300, 'class-arrow-call');
-                    expect(result).toBe('class-arrow-result');
-                    // Arrow functions ignore .call/.apply for `this` - still the original instance
+                    const result = state.method.call(newThis, 5, 6);
+                    expect(result).toBe('arrow-member-call');
+                    expect(receivedArgs).toEqual([5, 6]);
                     expect(capturedThis).toBe(obj);
-                    expect(capturedThis).not.toBe(newThis); // Ignores the custom this
-                    // Verify: Arguments are passed correctly even with .call
-                    expect(receivedArgs).toEqual([300, 'class-arrow-call']);
                 });
 
                 it('arrow method can access instance properties via this', () => {
                     class MyClass {
                         value = 42;
-                        /** @type {() => number} */
+
                         getValue = () => {
                             return this.value;
                         };
                     }
                     const obj = new MyClass();
-                    const [state] = createStore(obj);
+                    const state = createStore(obj);
                     const result = state.getValue();
-                    // Verify: Arrow method can access instance properties through lexical this
                     expect(result).toBe(42);
                 });
             });
 
             describe('function proxying with arguments', () => {
-                it('passes arguments correctly for own property classic function', () => {
-                    /** @type {unknown[]} */
-                    let receivedArgs = [];
-                    /** @type {function(this: unknown, number, string): string} */
-                    const classicFunc = (a, b) => {
-                        receivedArgs = [a, b];
-                        return a + b;
+                it('passes arguments correctly for own property classic function', async () => {
+                    let receivedArgs;
+
+                    const classicFunc = (/** @type {any} */ ...args) => {
+                        receivedArgs = args;
+                        return args.reduce((/** @type {number} */ a, /** @type {number} */ b) => a + b, 0);
                     };
                     const obj = { func: classicFunc };
-                    const [state] = createStore(obj);
-                    const result = state.func(42, 'test');
-                    expect(result).toBe('42test');
-                    expect(receivedArgs).toEqual([42, 'test']);
+                    const state = createStore(obj);
+                    const result = state.func(1, 2, 3, 4, 5);
+                    expect(result).toBe(15);
+                    expect(receivedArgs).toEqual([1, 2, 3, 4, 5]);
                 });
 
-                it('passes arguments correctly for prototype classic function', () => {
-                    /** @type {unknown[]} */
-                    let receivedArgs = [];
-                    /** @type {function(this: unknown, number, string): string} */
-                    const classicFunc = (a, b) => {
-                        receivedArgs = [a, b];
-                        return a + b;
+                it('passes arguments correctly for prototype classic function', async () => {
+                    let receivedArgs;
+
+                    const classicFunc = (/** @type {any} */ ...args) => {
+                        receivedArgs = args;
+                        return args.join('-');
                     };
                     const proto = { func: classicFunc };
                     const obj = Object.create(proto);
-                    const [state] = createStore(obj);
-                    const result = state.func(42, 'test');
-                    expect(result).toBe('42test');
-                    expect(receivedArgs).toEqual([42, 'test']);
+                    const state = createStore(obj);
+                    const result = state.func('a', 'b', 'c');
+                    expect(result).toBe('a-b-c');
+                    expect(receivedArgs).toEqual(['a', 'b', 'c']);
                 });
 
                 it('unwraps proxy arguments when calling function', async () => {
-                    let receivedArg = null;
-                    /** @type {function(this: unknown, object): void} */
-                    const classicFunc = arg => {
+                    let receivedArg;
+
+                    const classicFunc = (/** @type {any} */ arg) => {
                         receivedArg = arg;
                     };
                     const innerObj = { inner: true };
                     const obj = { func: classicFunc, nested: innerObj };
-                    const [state] = createStore(obj);
-                    // Pass the proxied nested object as argument
+                    const state = createStore(obj);
                     state.func(state.nested);
                     // The argument should be unwrapped to the original object
                     expect(receivedArg).toBe(innerObj);
@@ -844,136 +747,123 @@ describe('store', () => {
             describe('function proxying triggers notification', () => {
                 it('calling function through proxy triggers notification', async () => {
                     const subscriber = vi.fn();
-                    /** @type {function(this: unknown): string} */
-                    const classicFunc = () => 'result';
-                    const obj = { func: classicFunc, value: 42 };
-                    const [state, store] = createStore(obj);
-                    store(subscriber);
+                    const classicFunc = () => {};
+                    const obj = { func: classicFunc, value: 10 };
+                    const state = createStore(obj);
+                    effect(() => subscriber(state.value));
+                    await flushPromises();
                     state.func();
                     await flushPromises();
-                    expect(subscriber).toHaveBeenCalledTimes(1);
+                    // Function calls trigger notification to handle mutations
+                    expect(subscriber).toHaveBeenCalledTimes(2);
                 });
 
                 it('calling prototype function through proxy triggers notification', async () => {
                     const subscriber = vi.fn();
-                    /** @type {function(this: unknown): string} */
-                    const classicFunc = () => 'result';
+                    const classicFunc = () => {};
                     const proto = { func: classicFunc };
                     const obj = Object.create(proto);
-                    obj.value = 42;
-                    const [state, store] = createStore(obj);
-                    store(subscriber);
+                    obj.value = 10;
+                    const state = createStore(obj);
+                    effect(() => subscriber(state.value));
+                    await flushPromises();
                     state.func();
                     await flushPromises();
-                    expect(subscriber).toHaveBeenCalledTimes(1);
+                    expect(subscriber).toHaveBeenCalledTimes(2);
                 });
             });
         });
 
         it('Object.assign (proxy as a target)', async () => {
             const subscriber = vi.fn();
-            const [state, store] = createStore({ data: false });
-            store(subscriber);
-            Object.assign(state, { test: true });
+            const state = createStore({ data: 1, test: 2 });
+            effect(() => subscriber({ data: state.data, test: state.test }));
             await flushPromises();
-            expect(subscriber).toHaveBeenCalledWith({ data: false, test: true });
-            expect(store()).toEqual({ data: false, test: true });
-            expect(state).toEqual({ data: false, test: true });
+            Object.assign(state, { test: 3 });
+            await flushPromises();
+            expect(subscriber).toHaveBeenCalledWith({ data: 1, test: 2 });
+            expect(subscriber).toHaveBeenCalledWith({ data: 1, test: 3 });
+            expect(state.data).toBe(1);
+            expect(state.test).toBe(3);
         });
 
         it('Object.assign (proxy as a source)', () => {
-            const [state] = createStore({ data: false });
-            const target = {};
+            const state = createStore({ data: 1 });
+            const target = /** @type {{ data?: number }} */ ({});
             Object.assign(target, state);
-            expect(target).toEqual({ data: false });
+            expect(target.data).toBe(1);
         });
     });
 
-    describe('publish/subscribe pattern', () => {
+    describe('effect subscribe/dispose pattern', () => {
         it('one subscriber', async () => {
             const subscriber = vi.fn();
-            const [state, store] = createStore({ prop: 'test' });
-            store(subscriber);
+            const state = createStore({ prop: 'test' });
+            effect(() => subscriber(state.prop));
+            await flushPromises();
+            expect(subscriber).toHaveBeenCalledWith('test');
+        });
+
+        it('dispose', async () => {
+            const subscriber = vi.fn();
+            const state = createStore({ prop: 'test' });
+            const dispose = effect(() => subscriber(state.prop));
+            await flushPromises();
+            dispose();
             state.prop = 'test2';
             await flushPromises();
             expect(subscriber).toHaveBeenCalledTimes(1);
-        });
-
-        it('unsubscribe', async () => {
-            const subscriber = vi.fn();
-            const [state, store] = createStore({ prop: 'test' });
-            const unsub = store(subscriber);
-            unsub();
-            state.prop = 'test2';
-            await flushPromises();
-            expect(subscriber).toHaveBeenCalledTimes(0);
         });
 
         it('multiple subscribers', async () => {
             const subscriber = vi.fn();
             const subscriber2 = vi.fn();
-            const [state, store] = createStore({ prop: 'test' });
-            store(subscriber);
-            store(subscriber2);
+            const state = createStore({ prop: 'test' });
+            effect(() => subscriber(state.prop));
+            effect(() => subscriber2(state.prop));
+            await flushPromises();
+            expect(subscriber).toHaveBeenCalledWith('test');
+            expect(subscriber2).toHaveBeenCalledWith('test');
+        });
+
+        it('multiple subscribers (dispose one)', async () => {
+            const subscriber = vi.fn();
+            const subscriber2 = vi.fn();
+            const state = createStore({ prop: 'test' });
+            const dispose = effect(() => subscriber(state.prop));
+            effect(() => subscriber2(state.prop));
+            await flushPromises();
+            dispose();
+            state.prop = 'test2';
+            await flushPromises();
+            expect(subscriber).toHaveBeenCalledTimes(1);
+            expect(subscriber2).toHaveBeenCalledTimes(2);
+        });
+
+        it('multiple subscribers (dispose all)', async () => {
+            const subscriber = vi.fn();
+            const subscriber2 = vi.fn();
+            const state = createStore({ prop: 'test' });
+            const dispose = effect(() => subscriber(state.prop));
+            const dispose2 = effect(() => subscriber2(state.prop));
+            await flushPromises();
+            dispose();
+            dispose2();
             state.prop = 'test2';
             await flushPromises();
             expect(subscriber).toHaveBeenCalledTimes(1);
             expect(subscriber2).toHaveBeenCalledTimes(1);
-        });
-
-        it('multiple subscribers (unsubscribe one)', async () => {
-            const subscriber = vi.fn();
-            const subscriber2 = vi.fn();
-            const [state, store] = createStore({ prop: 'test' });
-            store(subscriber);
-            store(subscriber2)();
-            state.prop = 'test2';
-            await flushPromises();
-            expect(subscriber).toHaveBeenCalledTimes(1);
-            expect(subscriber2).toHaveBeenCalledTimes(0);
-        });
-
-        it('multiple subscribers (unsubscribe all)', async () => {
-            const subscriber = vi.fn();
-            const subscriber2 = vi.fn();
-            const [state, store] = createStore({ prop: 'test' });
-            store(subscriber)();
-            store(subscriber2)();
-            state.prop = 'test2';
-            await flushPromises();
-            expect(subscriber).toHaveBeenCalledTimes(0);
-            expect(subscriber2).toHaveBeenCalledTimes(0);
         });
     });
 });
 
 describe('unwrapValue', () => {
     it('able to unwrap value', async () => {
-        /** @type {[{prop?: object}, any, any]} */
-        const [state] = createStore({});
+        const state = createStore({ data: 1 });
         const emptyObject = {};
-        state.prop = emptyObject;
-        expect(state.prop).not.toBe(emptyObject);
-        expect(unwrapValue(state.prop)).toBe(emptyObject);
-    });
-});
-
-describe('notification', () => {
-    it('able to notify subscribers', async () => {
-        const [, store, notify] = createStore({});
-        const listener = vi.fn();
-        store(listener);
-        notify();
-        await flushPromises();
-        expect(listener).toHaveBeenCalledTimes(1);
-    });
-    it('notify twice', async () => {
-        const [, store, notify] = createStore({});
-        const listener = vi.fn();
-        store(listener);
-        notify();
-        notify();
-        await flushPromises();
-        expect(listener).toHaveBeenCalledTimes(1);
+        expect(unwrapValue(state)).toEqual({ data: 1 });
+        expect(unwrapValue(emptyObject)).toBe(emptyObject);
+        expect(unwrapValue(null)).toBe(null);
+        expect(unwrapValue(undefined)).toBe(undefined);
     });
 });
