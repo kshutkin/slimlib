@@ -50,29 +50,26 @@ export default function parse(input) {
     for (segment of gen) {
         const [delimiter, text] = segment;
         if (delimiter === '=') {
-            if (text[0] === '>' && depthDefaultParams === 0) {
-                break;
-            } else {
-                depthDefaultParams++;
-            }
-        } else if (delimiter === '(' && !firstVar && vars.length) {
-            firstVar = true;
-            depthParenthesis++;
-        } else if (delimiter === '(' && firstVar) {
-            vars.pop();
-            if (text.length) {
-                vars.push(text);
-            }
-            firstVar = false;
-        } else if (delimiter === ')' && depthParenthesis > 0) {
+            if (text[0] === '>' && depthDefaultParams === 0) break;
+            depthDefaultParams++;
+        } else if (delimiter === ')') {
+            if (depthParenthesis === 0) break;
             depthParenthesis--;
-        } else if (delimiter === ')' && depthParenthesis === 0) {
-            break;
-        } else if (delimiter === ',' || (delimiter === '(' && vars.length === 0)) {
-            if (depthParenthesis === 0) {
+        } else if (delimiter === '(') {
+            if (firstVar) {
+                vars.pop();
+                if (text.length) vars.push(text);
+                firstVar = false;
+            } else if (vars.length) {
+                firstVar = true;
+                depthParenthesis++;
+            } else if (depthParenthesis === 0) {
                 depthDefaultParams = 0;
                 vars.push(text);
             }
+        } else if (delimiter === ',' && depthParenthesis === 0) {
+            depthDefaultParams = 0;
+            vars.push(text);
         }
     }
     return vars;
