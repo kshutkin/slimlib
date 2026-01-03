@@ -29,7 +29,7 @@ function* matchNexter(string) {
     function updateIndex(stringIndex) {
         return indexes.map((foundAt, i) => {
             if (foundAt === stringIndex) {
-                return string.indexOf(nonVarChars[i], foundAt + 1);
+                return string.indexOf(/** @type {string} */ (nonVarChars[i]), foundAt + 1);
             }
             return foundAt;
         });
