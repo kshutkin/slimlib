@@ -1,10 +1,6 @@
 /* based on https://github.com/CaptEmulation/get-parameter-names (MIT) */
 
-const COMMENTS = /((\/\/.*$)|(\/\*[\s\S]*?\*\/))/gm;
-const SPACES = /\s/gm;
-const NEW_LINES = /\r?\n|\r/gm;
-const ASYNC = /^\s*async(\s*|\()(?!\s*=)/;
-const ES6_STATIC = /static.*$/gm;
+const STRIP_PATTERN = /(static.*$)|(\/\/.*$)|(\/\*[\s\S]*?\*\/)|^\s*async(?:\s*|\()(?!\s*=)|\s/gm;
 
 const nonVarChars = ['=', '(', ')', ','];
 
@@ -79,9 +75,7 @@ function* matchNexter(string) {
  * @returns {string[]} Array of parameter names
  */
 export default function parse(input) {
-    const gen = matchNexter(
-        input.toString().replace(ES6_STATIC, '').replace(NEW_LINES, '').replace(COMMENTS, '').replace(ASYNC, '').replace(SPACES, '')
-    );
+    const gen = matchNexter(input.toString().replace(STRIP_PATTERN, ''));
 
     const next = gen.next();
     let value = next.value;
