@@ -24,7 +24,7 @@ function* matchNexter(string) {
         }
     }
 
-    if (buffer || currentDelimiter) {
+    if (buffer) {
         yield [currentDelimiter, buffer];
     }
 }
