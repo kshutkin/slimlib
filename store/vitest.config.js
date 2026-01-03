@@ -1,13 +1,11 @@
-import { defineConfig } from 'vitest/config';
+import { defineConfig, mergeConfig } from 'vitest/config';
+import baseConfig from '../vitest.config.js';
 
-export default defineConfig({
-    test: {
-        include: ['tests/**/*.spec.{ts,js}'],
-        environment: 'jsdom',
-        coverage: {
-            provider: 'v8',
-            include: ['src/**/*.ts'],
-            reporter: ['text', 'lcov'],
+export default mergeConfig(
+    baseConfig,
+    defineConfig({
+        test: {
+            environment: 'jsdom',
         },
-    },
-});
+    })
+);

@@ -5,27 +5,19 @@
   "description": "Simple Proxy-based store for SPA",
   "license": "MIT",
   "author": "Konstantin Shutkin",
-  "main": "./dist/index.cjs",
-  "module": "./dist/index.mjs",
-  "unpkg": "./dist/index.umd.js",
+  "main": "./src/index.js",
+  "module": "./src/index.js",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "require": "./dist/index.cjs",
-      "import": "./dist/index.mjs",
-      "default": "./dist/index.mjs"
+      "types": "./types/index.d.ts",
+      "default": "./src/index.js"
     },
     "./package.json": "./package.json"
   },
-  "types": "./dist/index.d.ts",
+  "types": "./types/index.d.ts",
   "files": [
-    "dist",
-    "react",
-    "preact",
-    "core",
-    "svelte",
-    "angular",
-    "rxjs"
+    "src",
+    "types"
   ],
   "repository": {
     "type": "git",
@@ -40,44 +32,8 @@
     "proxy"
   ],
   "scripts": {
-    "build": "pkgbld-internal",
-    "test": "vitest run --coverage",
-    "lint": "eslint ./src",
-    "prepack": "pkgbld-internal prune"
-  },
-  "devDependencies": {
-    "@vitest/coverage-v8": "^2.1.8",
-    "jsdom": "^25.0.1",
-    "tslib": "^2.5.0",
-    "vitest": "^2.1.8"
-  },
-  "typesVersions": {
-    "*": {
-      ".": [
-        "dist/index.d.ts"
-      ],
-      "./core": [
-        "dist/core.d.ts"
-      ],
-      "./react": [
-        "dist/react.d.ts"
-      ],
-      "./preact": [
-        "dist/preact.d.ts"
-      ],
-      "./svelte": [
-        "dist/svelte.d.ts"
-      ],
-      "./angular": [
-        "dist/angular.d.ts"
-      ],
-      "./rxjs": [
-        "dist/rxjs.d.ts"
-      ],
-      "*": [
-        "dist/index.d.ts",
-        "dist/*"
-      ]
-    }
+    "build": "dts-buddy",
+    "test": "vitest run --coverage --config ./vitest.config.js",
+    "lint": "eslint ./src"
   }
 }

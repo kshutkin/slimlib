@@ -1,14 +1,15 @@
 {
-  "include": ["src", "types"],
+  "include": ["src", "tests"],
   "compilerOptions": {
     "lib": ["dom", "esnext"],
     "target": "esnext",
     "module": "esnext",
     "esModuleInterop": true,
     "strict": true,
-    "declaration": true,
     "noUncheckedIndexedAccess": true,
     "moduleResolution": "node",
-    "jsx": "react"
+    "allowJs": true,
+    "checkJs": true,
+    "noEmit": true
   }
 }

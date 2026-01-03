@@ -35,12 +35,7 @@
   ],
   "scripts": {
     "build": "dts-buddy",
-    "test": "vitest run --coverage",
+    "test": "vitest run --coverage --config ../vitest.config.js",
     "lint": "eslint ./src"
-  },
-  "devDependencies": {
-    "@vitest/coverage-v8": "^2.1.8",
-    "dts-buddy": "^0.5.4",
-    "vitest": "^2.1.8"
   }
 }

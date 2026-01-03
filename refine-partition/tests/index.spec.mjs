@@ -40,16 +40,16 @@ describe('refine', () => {
     });
 });
 
-function runRefine(input: string[][]) {
-    const instance = refiner<string>();
+function runRefine(input) {
+    const instance = refiner();
     for (const element of input) {
         instance(element);
     }
     return toPojo(instance());
 }
 
-function toPojo(input: Iterable<Iterable<string>>) {
-    const result: string[][] = [];
+function toPojo(input) {
+    const result = [];
     for (const set of input) {
         result.push([...set]);
     }

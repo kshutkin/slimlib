@@ -1,5 +1,6 @@
+/* eslint-disable @typescript-eslint/no-this-alias */
 import { describe, it, expect, vi } from 'vitest';
-import { createStoreFactory, unwrapValue } from '../src';
+import { createStoreFactory, unwrapValue } from '../src/index.js';
 import util from 'util';
 
 const createStore = createStoreFactory();
@@ -56,7 +57,8 @@ describe('store', () => {
 
         it('1 => null', async () => {
             const subscriber = vi.fn();
-            const [state, store] = createStore<{prop: null | number}>({prop: 1});
+            /** @type {[{prop: null | number}, any]} */
+            const [state, store] = createStore({prop: 1});
             store(subscriber);
             state.prop = null;
             await flushPromises();
@@ -69,7 +71,8 @@ describe('store', () => {
 
         it('1 => undefined', async () => {
             const subscriber = vi.fn();
-            const [state, store] = createStore<{prop: undefined | number}>({prop: 1});
+            /** @type {[{prop: undefined | number}, any]} */
+            const [state, store] = createStore({prop: 1});
             store(subscriber);
             state.prop = undefined;
             await flushPromises();
@@ -82,8 +85,8 @@ describe('store', () => {
 
         it('object', async () => {
             const subscriber = vi.fn();
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const [state, store] = createStore<any>({prop: { a: 1 }});
+            /** @type {[any, any]} */
+            const [state, store] = createStore({prop: { a: 1 }});
             store(subscriber);
             state.prop = { b: 2 };
             await flushPromises();
@@ -96,7 +99,8 @@ describe('store', () => {
 
         it('array', async () => {
             const subscriber = vi.fn();
-            const [state, store] = createStore<number[]>([]);
+            /** @type {[number[], any]} */
+            const [state, store] = createStore([]);
             store(subscriber);
             state.push(42);
             await flushPromises();
@@ -113,7 +117,8 @@ describe('store', () => {
 
         it('define writable property on Proxy', async () => {
             const subscriber = vi.fn();
-            const [state, store] = createStore<{prop?: number}>({});
+            /** @type {[{prop?: number}, any]} */
+            const [state, store] = createStore({});
             store(subscriber);
             Object.defineProperty(state, 'prop', {
                 value: 42,
@@ -131,7 +136,8 @@ describe('store', () => {
 
         it('define property on Proxy', async () => {
             const subscriber = vi.fn();
-            const [state, store] = createStore<{prop?: number}>({});
+            /** @type {[{prop?: number}, any]} */
+            const [state, store] = createStore({});
             store(subscriber);
             Object.defineProperty(state, 'prop', {
                 value: 42
@@ -150,7 +156,8 @@ describe('store', () => {
                 configurable: false,
                 value: 42
             });
-            const [state, store] = createStore<{prop?: number}>(initialState);
+            /** @type {[{prop?: number}, any]} */
+            const [state, store] = createStore(initialState);
             expect(() => {
                 state.prop = 24;
             }).toThrow();
@@ -159,7 +166,8 @@ describe('store', () => {
         });
 
         it('allows iteration over array', () => {
-            const [state] = createStore<number[]>([1, 2, 3]);
+            /** @type {[number[], any]} */
+            const [state] = createStore([1, 2, 3]);
             let summ = 0;
             expect(() => {
                 for (const i of state) {
@@ -190,8 +198,8 @@ describe('store', () => {
 
         it('nested object', async () => {
             const subscriber = vi.fn();
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const [state, store] = createStore<any>({prop: { a: 1 }});
+            /** @type {[any, any]} */
+            const [state, store] = createStore({prop: { a: 1 }});
             store(subscriber);
             state.prop.a = 2;
             await flushPromises();
@@ -204,7 +212,8 @@ describe('store', () => {
 
         it('handles delete property', async () => {
             const subscriber = vi.fn();
-            const [state, store] = createStore<{prop?: number}>({prop: 42});
+            /** @type {[{prop?: number}, any]} */
+            const [state, store] = createStore({prop: 42});
             store(subscriber);
             delete state.prop;
             await flushPromises();
@@ -217,19 +226,19 @@ describe('store', () => {
             const subscriber = vi.fn();
             const [state, store] = createStore([{prop: 42}]);
             store(subscriber);
-            state.push(state[0] as {prop: number});
+            state.push(state[0]);
             await flushPromises();
             expect(subscriber).toHaveBeenCalledWith([{prop: 42},{prop: 42}]);
             expect(store()).toEqual([{prop: 42},{prop: 42}]);
             expect(state).toEqual([{prop: 42},{prop: 42}]);
-            expect(store().every(item => !util.types.isProxy(item))).toBeTruthy();
+            expect(store().every(/** @param {unknown} item */ (item) => !util.types.isProxy(item))).toBeTruthy();
         });
 
         it('change object in array', async () => {
             const subscriber = vi.fn();
             const [state, store] = createStore({data:[{prop: ''}]});
             store(subscriber);
-            (state.data[0] as {prop: string}).prop += 'test';
+            state.data[0].prop += 'test';
             await flushPromises();
             expect(subscriber).toHaveBeenCalledWith({data:[{prop: 'test'}]});
             expect(store()).toEqual({data:[{prop: 'test'}]});
@@ -238,7 +247,7 @@ describe('store', () => {
 
         it('find index in array (only wrappers)', () => {
             const [state] = createStore({data:[{prop: ''}]});
-            const index = state.data.indexOf(state.data[0] as {prop: string});
+            const index = state.data.indexOf(state.data[0]);
             expect(index).toBe(0);
         });
 
@@ -282,7 +291,7 @@ describe('store', () => {
 
         it('find index in array (mixed objects)', () => {
             const [state, store] = createStore({data:[{prop: ''}]});
-            const index = state.data.indexOf(store().data[0]!);
+            const index = state.data.indexOf(store().data[0]);
             expect(index).toBe(0);
         });
 
@@ -290,9 +299,9 @@ describe('store', () => {
             const subscriber = vi.fn();
             const [state, store] = createStore({data:[{prop: '1'},{prop: '2'}]});
             store(subscriber);
-            const temp = state.data[0] as {prop: string};
-            (state.data[0] as {prop: string}) = state.data[1] as {prop: string};
-            (state.data[1] as {prop: string}) = temp;
+            const temp = state.data[0];
+            state.data[0] = state.data[1];
+            state.data[1] = temp;
             await flushPromises();
             expect(subscriber).toHaveBeenCalledWith({data:[{prop: '2'},{prop: '1'}]});
             expect(store()).toEqual({data:[{prop: '2'},{prop: '1'}]});
@@ -322,8 +331,10 @@ describe('store', () => {
                 // `this` binding for arrow functions since they ignore it entirely.
 
                 it('normal call (object.func notation)', () => {
-                    let receivedArgs: unknown[] = [];
-                    const arrowFunc = (a: number, b: string) => {
+                    /** @type {unknown[]} */
+                    let receivedArgs = [];
+                    /** @type {(a: number, b: string) => string} */
+                    const arrowFunc = (a, b) => {
                         // Arrow functions ignore `this` - they use lexical scope instead
                         receivedArgs = [a, b];
                         return 'arrow-result';
@@ -337,8 +348,10 @@ describe('store', () => {
 
                 it('no this (extracted call)', () => {
                     // Arrow functions ignore `this` regardless of how they're called
-                    let receivedArgs: unknown[] = [];
-                    const arrowFunc = (a: number, b: string) => {
+                    /** @type {unknown[]} */
+                    let receivedArgs = [];
+                    /** @type {(a: number, b: string) => string} */
+                    const arrowFunc = (a, b) => {
                         receivedArgs = [a, b];
                         return 'arrow-result';
                     };
@@ -352,8 +365,10 @@ describe('store', () => {
 
                 it('new this (.call/.apply)', () => {
                     // Arrow functions ignore `this` even when .call/.apply is used
-                    let receivedArgs: unknown[] = [];
-                    const arrowFunc = (a: number, b: string) => {
+                    /** @type {unknown[]} */
+                    let receivedArgs = [];
+                    /** @type {(a: number, b: string) => string} */
+                    const arrowFunc = (a, b) => {
                         receivedArgs = [a, b];
                         return 'arrow-result';
                     };
@@ -368,9 +383,11 @@ describe('store', () => {
 
             describe('own property + classic function', () => {
                 it('normal call (object.func notation)', () => {
-                    let capturedThis: unknown = null;
-                    let receivedArgs: unknown[] = [];
-                    const classicFunc = function(this: unknown, a: number, b: string) {
+                    let capturedThis = null;
+                    /** @type {unknown[]} */
+                    let receivedArgs = [];
+                    /** @type {function(this: unknown, number, string): string} */
+                    const classicFunc = function(a, b) {
                         capturedThis = this;
                         receivedArgs = [a, b];
                         return 'classic-result';
@@ -387,9 +404,11 @@ describe('store', () => {
                 });
 
                 it('no this (extracted call)', () => {
-                    let capturedThis: unknown = null;
-                    let receivedArgs: unknown[] = [];
-                    const classicFunc = function(this: unknown, a: number, b: string) {
+                    let capturedThis = null;
+                    /** @type {unknown[]} */
+                    let receivedArgs = [];
+                    /** @type {function(this: unknown, number, string): string} */
+                    const classicFunc = function(a, b) {
                         capturedThis = this;
                         receivedArgs = [a, b];
                         return 'classic-result';
@@ -407,9 +426,11 @@ describe('store', () => {
                 });
 
                 it('new this (.call/.apply)', () => {
-                    let capturedThis: unknown = null;
-                    let receivedArgs: unknown[] = [];
-                    const classicFunc = function(this: unknown, a: number, b: string) {
+                    let capturedThis = null;
+                    /** @type {unknown[]} */
+                    let receivedArgs = [];
+                    /** @type {function(this: unknown, number, string): string} */
+                    const classicFunc = function(a, b) {
                         capturedThis = this;
                         receivedArgs = [a, b];
                         return 'classic-result';
@@ -435,13 +456,15 @@ describe('store', () => {
 
                 it('normal call (object.func notation)', () => {
                     // Arrow functions ignore `this` regardless of call method
-                    let receivedArgs: unknown[] = [];
-                    const arrowFunc = (a: number, b: string) => {
+                    /** @type {unknown[]} */
+                    let receivedArgs = [];
+                    /** @type {(a: number, b: string) => string} */
+                    const arrowFunc = (a, b) => {
                         receivedArgs = [a, b];
                         return 'proto-arrow-result';
                     };
                     const proto = { func: arrowFunc };
-                    const obj = Object.create(proto) as { func: (a: number, b: string) => string; value: number };
+                    const obj = Object.create(proto);
                     obj.value = 42;
                     const [state] = createStore(obj);
                     const result = state.func(100, 'proto-normal');
@@ -452,13 +475,15 @@ describe('store', () => {
 
                 it('no this (extracted call)', () => {
                     // Arrow functions ignore `this` regardless of call method
-                    let receivedArgs: unknown[] = [];
-                    const arrowFunc = (a: number, b: string) => {
+                    /** @type {unknown[]} */
+                    let receivedArgs = [];
+                    /** @type {(a: number, b: string) => string} */
+                    const arrowFunc = (a, b) => {
                         receivedArgs = [a, b];
                         return 'proto-arrow-result';
                     };
                     const proto = { func: arrowFunc };
-                    const obj = Object.create(proto) as { func: (a: number, b: string) => string; value: number };
+                    const obj = Object.create(proto);
                     obj.value = 42;
                     const [state] = createStore(obj);
                     const extracted = state.func;
@@ -470,13 +495,15 @@ describe('store', () => {
 
                 it('new this (.call/.apply)', () => {
                     // Arrow functions ignore `this` even when .call/.apply is used
-                    let receivedArgs: unknown[] = [];
-                    const arrowFunc = (a: number, b: string) => {
+                    /** @type {unknown[]} */
+                    let receivedArgs = [];
+                    /** @type {(a: number, b: string) => string} */
+                    const arrowFunc = (a, b) => {
                         receivedArgs = [a, b];
                         return 'proto-arrow-result';
                     };
                     const proto = { func: arrowFunc };
-                    const obj = Object.create(proto) as { func: (a: number, b: string) => string; value: number };
+                    const obj = Object.create(proto);
                     obj.value = 42;
                     const [state] = createStore(obj);
                     const newThis = { custom: true };
@@ -489,15 +516,17 @@ describe('store', () => {
 
             describe('prototype + classic function', () => {
                 it('normal call (object.func notation)', () => {
-                    let capturedThis: unknown = null;
-                    let receivedArgs: unknown[] = [];
-                    const classicFunc = function(this: unknown, a: number, b: string) {
+                    let capturedThis = null;
+                    /** @type {unknown[]} */
+                    let receivedArgs = [];
+                    /** @type {function(this: unknown, number, string): string} */
+                    const classicFunc = function(a, b) {
                         capturedThis = this;
                         receivedArgs = [a, b];
                         return 'proto-classic-result';
                     };
                     const proto = { func: classicFunc };
-                    const obj = Object.create(proto) as { func: (a: number, b: string) => string; value: number };
+                    const obj = Object.create(proto);
                     obj.value = 42;
                     const [state] = createStore(obj);
                     const result = state.func(1000, 'proto-classic-normal');
@@ -511,15 +540,17 @@ describe('store', () => {
                 });
 
                 it('no this (extracted call)', () => {
-                    let capturedThis: unknown = null;
-                    let receivedArgs: unknown[] = [];
-                    const classicFunc = function(this: unknown, a: number, b: string) {
+                    let capturedThis = null;
+                    /** @type {unknown[]} */
+                    let receivedArgs = [];
+                    /** @type {function(this: unknown, number, string): string} */
+                    const classicFunc = function(a, b) {
                         capturedThis = this;
                         receivedArgs = [a, b];
                         return 'proto-classic-result';
                     };
                     const proto = { func: classicFunc };
-                    const obj = Object.create(proto) as { func: (a: number, b: string) => string; value: number };
+                    const obj = Object.create(proto);
                     obj.value = 42;
                     const [state] = createStore(obj);
                     const extracted = state.func;
@@ -534,15 +565,17 @@ describe('store', () => {
                 });
 
                 it('new this (.call/.apply)', () => {
-                    let capturedThis: unknown = null;
-                    let receivedArgs: unknown[] = [];
-                    const classicFunc = function(this: unknown, a: number, b: string) {
+                    let capturedThis = null;
+                    /** @type {unknown[]} */
+                    let receivedArgs = [];
+                    /** @type {function(this: unknown, number, string): string} */
+                    const classicFunc = function(a, b) {
                         capturedThis = this;
                         receivedArgs = [a, b];
                         return 'proto-classic-result';
                     };
                     const proto = { func: classicFunc };
-                    const obj = Object.create(proto) as { func: (a: number, b: string) => string; value: number };
+                    const obj = Object.create(proto);
                     obj.value = 42;
                     const [state] = createStore(obj);
                     const newThis = { custom: true };
@@ -560,11 +593,13 @@ describe('store', () => {
 
             describe('class with classic methods', () => {
                 it('normal call (object.method notation)', () => {
-                    let capturedThis: unknown = null;
-                    let receivedArgs: unknown[] = [];
+                    let capturedThis = null;
+                    /** @type {unknown[]} */
+                    let receivedArgs = [];
                     class MyClass {
                         value = 42;
-                        method(a: number, b: string) {
+                        /** @param {number} a @param {string} b @returns {string} */
+                        method(a, b) {
                             capturedThis = this;
                             receivedArgs = [a, b];
                             return 'class-method-result';
@@ -582,11 +617,13 @@ describe('store', () => {
                 });
 
                 it('no this (extracted call)', () => {
-                    let capturedThis: unknown = null;
-                    let receivedArgs: unknown[] = [];
+                    let capturedThis = null;
+                    /** @type {unknown[]} */
+                    let receivedArgs = [];
                     class MyClass {
                         value = 42;
-                        method(a: number, b: string) {
+                        /** @param {number} a @param {string} b @returns {string} */
+                        method(a, b) {
                             capturedThis = this;
                             receivedArgs = [a, b];
                             return 'class-method-result';
@@ -605,11 +642,13 @@ describe('store', () => {
                 });
 
                 it('new this (.call/.apply)', () => {
-                    let capturedThis: unknown = null;
-                    let receivedArgs: unknown[] = [];
+                    let capturedThis = null;
+                    /** @type {unknown[]} */
+                    let receivedArgs = [];
                     class MyClass {
                         value = 42;
-                        method(a: number, b: string) {
+                        /** @param {number} a @param {string} b @returns {string} */
+                        method(a, b) {
                             capturedThis = this;
                             receivedArgs = [a, b];
                             return 'class-method-result';
@@ -631,6 +670,7 @@ describe('store', () => {
                 it('method can access instance properties via this', () => {
                     class MyClass {
                         value = 42;
+                        /** @returns {number} */
                         getValue() {
                             return this.value;
                         }
@@ -650,11 +690,13 @@ describe('store', () => {
                 // they will correctly reference the original instance.
 
                 it('normal call (object.method notation)', () => {
-                    let capturedThis: unknown = null;
-                    let receivedArgs: unknown[] = [];
+                    let capturedThis = null;
+                    /** @type {unknown[]} */
+                    let receivedArgs = [];
                     class MyClass {
                         value = 42;
-                        method = (a: number, b: string) => {
+                        /** @type {(a: number, b: string) => string} */
+                        method = (a, b) => {
                             capturedThis = this;
                             receivedArgs = [a, b];
                             return 'class-arrow-result';
@@ -671,11 +713,13 @@ describe('store', () => {
                 });
 
                 it('no this (extracted call)', () => {
-                    let capturedThis: unknown = null;
-                    let receivedArgs: unknown[] = [];
+                    let capturedThis = null;
+                    /** @type {unknown[]} */
+                    let receivedArgs = [];
                     class MyClass {
                         value = 42;
-                        method = (a: number, b: string) => {
+                        /** @type {(a: number, b: string) => string} */
+                        method = (a, b) => {
                             capturedThis = this;
                             receivedArgs = [a, b];
                             return 'class-arrow-result';
@@ -693,11 +737,13 @@ describe('store', () => {
                 });
 
                 it('new this (.call/.apply)', () => {
-                    let capturedThis: unknown = null;
-                    let receivedArgs: unknown[] = [];
+                    let capturedThis = null;
+                    /** @type {unknown[]} */
+                    let receivedArgs = [];
                     class MyClass {
                         value = 42;
-                        method = (a: number, b: string) => {
+                        /** @type {(a: number, b: string) => string} */
+                        method = (a, b) => {
                             capturedThis = this;
                             receivedArgs = [a, b];
                             return 'class-arrow-result';
@@ -718,6 +764,7 @@ describe('store', () => {
                 it('arrow method can access instance properties via this', () => {
                     class MyClass {
                         value = 42;
+                        /** @type {() => number} */
                         getValue = () => {
                             return this.value;
                         };
@@ -732,8 +779,10 @@ describe('store', () => {
 
             describe('function proxying with arguments', () => {
                 it('passes arguments correctly for own property classic function', () => {
-                    let receivedArgs: unknown[] = [];
-                    const classicFunc = function(this: unknown, a: number, b: string) {
+                    /** @type {unknown[]} */
+                    let receivedArgs = [];
+                    /** @type {function(this: unknown, number, string): string} */
+                    const classicFunc = function(a, b) {
                         receivedArgs = [a, b];
                         return a + b;
                     };
@@ -745,13 +794,15 @@ describe('store', () => {
                 });
 
                 it('passes arguments correctly for prototype classic function', () => {
-                    let receivedArgs: unknown[] = [];
-                    const classicFunc = function(this: unknown, a: number, b: string) {
+                    /** @type {unknown[]} */
+                    let receivedArgs = [];
+                    /** @type {function(this: unknown, number, string): string} */
+                    const classicFunc = function(a, b) {
                         receivedArgs = [a, b];
                         return a + b;
                     };
                     const proto = { func: classicFunc };
-                    const obj = Object.create(proto) as { func: (a: number, b: string) => string };
+                    const obj = Object.create(proto);
                     const [state] = createStore(obj);
                     const result = state.func(42, 'test');
                     expect(result).toBe('42test');
@@ -759,8 +810,9 @@ describe('store', () => {
                 });
 
                 it('unwraps proxy arguments when calling function', async () => {
-                    let receivedArg: unknown = null;
-                    const classicFunc = function(this: unknown, arg: object) {
+                    let receivedArg = null;
+                    /** @type {function(this: unknown, object): void} */
+                    const classicFunc = function(arg) {
                         receivedArg = arg;
                     };
                     const innerObj = { inner: true };
@@ -776,7 +828,8 @@ describe('store', () => {
             describe('function proxying triggers notification', () => {
                 it('calling function through proxy triggers notification', async () => {
                     const subscriber = vi.fn();
-                    const classicFunc = function(this: unknown) {
+                    /** @type {function(this: unknown): string} */
+                    const classicFunc = function() {
                         return 'result';
                     };
                     const obj = { func: classicFunc, value: 42 };
@@ -789,11 +842,12 @@ describe('store', () => {
 
                 it('calling prototype function through proxy triggers notification', async () => {
                     const subscriber = vi.fn();
-                    const classicFunc = function(this: unknown) {
+                    /** @type {function(this: unknown): string} */
+                    const classicFunc = function() {
                         return 'result';
                     };
                     const proto = { func: classicFunc };
-                    const obj = Object.create(proto) as { func: () => string; value: number };
+                    const obj = Object.create(proto);
                     obj.value = 42;
                     const [state, store] = createStore(obj);
                     store(subscriber);
@@ -883,7 +937,8 @@ describe('store', () => {
 
 describe('unwrapValue', () => {
     it('able to unwrap value', async () => {
-        const [state] = createStore({} as {prop?: object});
+        /** @type {[{prop?: object}, any]} */
+        const [state] = createStore({});
         const emptyObject = {};
         state.prop = emptyObject;
         expect(state.prop).not.toBe(emptyObject);

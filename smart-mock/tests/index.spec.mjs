@@ -3,9 +3,12 @@ import createRecordingMockFactory from '../src/index.js';
 
 describe('smart-mock', () => {
 
-    let createMock: ReturnType<typeof createRecordingMockFactory>['createMock'],
-        generate: ReturnType<typeof createRecordingMockFactory>['generate'],
-        generateGlobals: ReturnType<typeof createRecordingMockFactory>['generateGlobals'];
+    /** @type {ReturnType<typeof createRecordingMockFactory>['createMock']} */
+    let createMock;
+    /** @type {ReturnType<typeof createRecordingMockFactory>['generate']} */
+    let generate;
+    /** @type {ReturnType<typeof createRecordingMockFactory>['generateGlobals']} */
+    let generateGlobals;
 
     beforeEach(() => {
         const factory = createRecordingMockFactory();
@@ -21,23 +24,23 @@ describe('smart-mock', () => {
     describe('basics for generate', () => {
 
         it('primitive', () => {
-            expect(generate(createMock({ a: false }, 'test').a as never as object)).toEqual(false);
+            expect(generate(/** @type {never} */(createMock({ a: false }, 'test').a))).toEqual(false);
         });
 
         it('name', () => {
             expect(generate(createMock({}, 'test'))).toEqual('test');
         });
-    
+
         it('property', () => {
             expect(generate(createMock({ ok: {} }, 'test').ok)).toEqual('test.ok');
         });
-    
+
         it('call', () => {
             expect(generate(createMock({ ok: () => ({}) }, 'test').ok())).toEqual('test.ok()');
         });
-    
+
         it('call with parameters', () => {
-            expect(generate(createMock({ ok: (arg: { some: number }) => ({ arg }) }, 'test').ok({ some: 1 }))).toEqual('test.ok({some:1})');
+            expect(generate(createMock({ ok: (/** @type {{ some: number }} */ arg) => ({ arg }) }, 'test').ok({ some: 1 }))).toEqual('test.ok({some:1})');
         });
 
         it('root call', () => {
@@ -56,7 +59,7 @@ describe('smart-mock', () => {
         });
 
         it('with global arguments', () => {
-            const factory = createMock((arg: { test: 1 }) => ({ api: { addInstance: () => ({ arg }) } }), 'test');
+            const factory = createMock((/** @type {{ test: 1 }} */ arg) => ({ api: { addInstance: () => ({ arg }) } }), 'test');
             const instance = factory({ test: 1 });
             const secondInstance = instance.api.addInstance();
             const result = generate([instance, secondInstance]);
@@ -74,14 +77,26 @@ describe('smart-mock', () => {
         });
 
         it('new', () => {
-            const Factory = createMock(class Test { constructor(public name: string) {} }, 'Test');
+            const Factory = createMock(class Test {
+                /** @param {string} name */
+                constructor(name) {
+                    /** @type {string} */
+                    this.name = name;
+                }
+            }, 'Test');
             const instance = new Factory('test123');
             const result = generate(instance);
             expect(result).toEqual('new Test("test123")');
         });
 
         it('new global', () => {
-            const Factory = createMock(class Test { constructor(public name: string) {} }, 'Test');
+            const Factory = createMock(class Test {
+                /** @param {string} name */
+                constructor(name) {
+                    /** @type {string} */
+                    this.name = name;
+                }
+            }, 'Test');
             const instance = new Factory('test123');
             instance.name = 'test2';
             const result = generate(instance);
@@ -91,16 +106,40 @@ describe('smart-mock', () => {
         });
 
         it('Reflect.construct', () => {
-            const Factory = createMock(class Test { constructor(public name: string) {} }, 'Test');
-            const Factory2 = createMock(class Test2 { constructor(public name: string) {} }, 'Test2');
+            const Factory = createMock(class Test {
+                /** @param {string} name */
+                constructor(name) {
+                    /** @type {string} */
+                    this.name = name;
+                }
+            }, 'Test');
+            const Factory2 = createMock(class Test2 {
+                /** @param {string} name */
+                constructor(name) {
+                    /** @type {string} */
+                    this.name = name;
+                }
+            }, 'Test2');
             const instance = Reflect.construct(Factory, ['Tesst'], Factory2);
             const result = generate(instance);
             expect(result).toEqual('Reflect.construct(Test,["Tesst"],Test2)');
         });
 
         it('Reflect.construct global', () => {
-            const Factory = createMock(class Test { constructor(public name: string) {} }, 'Test');
-            const Factory2 = createMock(class Test2 { constructor(public name: string) {} }, 'Test2');
+            const Factory = createMock(class Test {
+                /** @param {string} name */
+                constructor(name) {
+                    /** @type {string} */
+                    this.name = name;
+                }
+            }, 'Test');
+            const Factory2 = createMock(class Test2 {
+                /** @param {string} name */
+                constructor(name) {
+                    /** @type {string} */
+                    this.name = name;
+                }
+            }, 'Test2');
             const instance = Reflect.construct(Factory, ['Tesst'], Factory2);
             instance.name = 'test2';
             const result = generate(instance);
@@ -110,7 +149,7 @@ describe('smart-mock', () => {
         });
 
         it('curry', () => {
-            const curry = createMock((fn: (...args: any[]) => any) => { return (arg: any) => () => undefined; }, 'curry');
+            const curry = createMock((/** @type {(...args: any[]) => any} */ fn) => { return (/** @type {any} */ arg) => () => undefined; }, 'curry');
             const result = generate(curry(() => undefined)('arg'));
             // esbuild may transform `undefined` to `void 0`
             expect(result).toMatch(/^curry\(\(\) => (?:undefined|void 0)\)\("arg"\)$/);
@@ -121,7 +160,7 @@ describe('smart-mock', () => {
         it('set', () => {
             const factory = createMock(() => ({}), 'test');
             const instance = factory();
-            (instance as {value: number}).value = 10;
+            /** @type {any} */(instance).value = 10;
             const result = generate(instance);
             expect(generateGlobals()).toEqual('const tmp_0 = test()\ntmp_0.value = 10');
             expect(result).toEqual('tmp_0');
@@ -142,7 +181,7 @@ describe('smart-mock', () => {
         it('delete', () => {
             const factory = createMock(() => ({}), 'test');
             const instance = factory();
-            delete (instance as any)['property1'];
+            delete /** @type {any} */(instance)['property1'];
             const result = generate(instance);
             expect(generateGlobals()).toEqual('const tmp_0 = test()\ndelete tmp_0["property1"]');
             expect(result).toEqual('tmp_0');
@@ -179,37 +218,37 @@ describe('smart-mock', () => {
 
     describe('stringify', () => {
         it('null', () => {
-            expect(generate(null as never as object)).toEqual(null);
+            expect(generate(/** @type {never} */(null))).toEqual(null);
         });
 
         it('undefined', () => {
-            expect(generate(undefined as never as object)).toEqual(undefined);
+            expect(generate(/** @type {never} */(undefined))).toEqual(undefined);
         });
 
         it('false', () => {
-            expect(generate(false as never as object)).toEqual(false);
+            expect(generate(/** @type {never} */(false))).toEqual(false);
         });
 
         it('true', () => {
-            expect(generate(true as never as object)).toEqual(true);
+            expect(generate(/** @type {never} */(true))).toEqual(true);
         });
 
         it('function', () => {
-            expect(generate((() => ({})) as never as object)).toEqual('() => ({})');
+            expect(generate(/** @type {never} */(() => ({})))).toEqual('() => ({})');
         });
 
         it('RegEx', () => {
-            expect(generate(/abc/ as never as object)).toEqual(/abc/);
+            expect(generate(/** @type {never} */(/abc/))).toEqual(/abc/);
         });
 
         it('string', () => {
-            expect(generate('test' as never as object)).toEqual('"test"');
+            expect(generate(/** @type {never} */('test'))).toEqual('"test"');
         });
     });
 
     describe('unwrapValue', () => {
         it.skip('able to unwrap value', async () => {
-            const mock = createMock({} as {prop?: object}, 'test');
+            const mock = createMock(/** @type {{prop?: object}} */({}), 'test');
             const emptyObject = {};
             mock.prop = emptyObject;
             expect(mock.prop).not.toBe(emptyObject);
@@ -248,6 +287,5 @@ describe('smart-mock', () => {
             expect(globals).toEqual('mock.name = "some name"');
         });
     });
-    
-});
 
+});

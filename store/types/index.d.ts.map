@@ -1,0 +1,15 @@
+{
+	"version": 3,
+	"file": "index.d.ts",
+	"names": [
+		"unwrapValue",
+		"createStoreFactory"
+	],
+	"sources": [
+		"../src/index.js"
+	],
+	"sourcesContent": [
+		null
+	],
+	"mappings": ";iBAqCaA,WAAWA;iBAMXC,kBAAkBA"
+}

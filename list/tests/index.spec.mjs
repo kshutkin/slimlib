@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { append, appendRange, List, ListNode, prepend, prependRange, remove, removeRange } from '../src/index.js';
+import { append, appendRange, List, prepend, prependRange, remove, removeRange } from '../src/index.js';
 
 describe('list', () => {
 
@@ -8,7 +8,7 @@ describe('list', () => {
     });
 
     it('append / iterate', () => {
-        const list = new List<{value: number}>();
+        const list = new List();
         append(list, { value: 1 });
         append(list, { value: 2 });
         append(list, { value: 3 });
@@ -21,7 +21,7 @@ describe('list', () => {
     });
 
     it('append / appendRange / iterate', () => {
-        const temp = new List<{value: number}>();
+        const temp = new List();
         append(temp, { value: 1 });
         append(temp, { value: 2 });
         append(temp, { value: 3 });
@@ -29,7 +29,7 @@ describe('list', () => {
         append(temp, { value: 5 });
         append(temp, { value: 6 });
         append(temp, { value: 7 });
-        const list = new List<{value: number}>();
+        const list = new List();
         append(list, { value: 1 });
         append(list, { value: 2 });
         append(list, { value: 3 });
@@ -43,7 +43,7 @@ describe('list', () => {
     });
 
     it('prepend / iterate', () => {
-        const list = new List<{value: number}>();
+        const list = new List();
         prepend(list, { value: 1 });
         prepend(list, { value: 2 });
         prepend(list, { value: 3 });
@@ -56,7 +56,7 @@ describe('list', () => {
     });
 
     it('append / prependRange / iterate', () => {
-        const temp = new List<{value: number}>();
+        const temp = new List();
         append(temp, { value: 1 });
         append(temp, { value: 2 });
         append(temp, { value: 3 });
@@ -64,7 +64,7 @@ describe('list', () => {
         append(temp, { value: 5 });
         append(temp, { value: 6 });
         append(temp, { value: 7 });
-        const list = new List<{value: number}>();
+        const list = new List();
         append(list, { value: 1 });
         append(list, { value: 2 });
         append(list, { value: 3 });
@@ -78,8 +78,8 @@ describe('list', () => {
     });
 
     it('append / remove / iterate', () => {
-        const list = new List<{value: number}>();
-        let elem: Partial<ListNode> & {value: number};
+        const list = new List();
+        let elem;
         append(list, { value: 1 });
         append(list, { value: 2 });
         append(list, { value: 3 });
@@ -87,13 +87,13 @@ describe('list', () => {
         append(list, { value: 5 });
         append(list, { value: 6 });
         append(list, { value: 7 });
-        remove(elem as ListNode);
+        remove(elem);
         const result = Array.from(list).map(item => item.value);
         expect(result).toEqual([1, 2, 3, 5, 6, 7]);
     });
 
     it('append / removeRange / iterate', () => {
-        const list = new List<{value: number}>();
+        const list = new List();
         append(list, { value: 1 });
         append(list, { value: 2 });
         append(list, { value: 3 });
