@@ -35,21 +35,16 @@ function* matchNexter(string) {
  * @returns {string[]} Array of parameter names
  */
 export default function parse(input) {
-    const gen = matchNexter(input.toString().replace(STRIP_PATTERN, ''));
-
-    const next = gen.next();
-    let segment = next.value;
     let firstVar = true;
     let depthDefaultParams = 0;
     let depthParenthesis = 0;
-
     const vars = [];
-    if (segment?.[1].length) {
-        vars.push(segment[1]);
-    }
-    for (segment of gen) {
+
+    for (const segment of matchNexter(input.toString().replace(STRIP_PATTERN, ''))) {
         const [delimiter, text] = segment;
-        if (delimiter === '=') {
+        if (!delimiter) {
+            if (text.length) vars.push(text);
+        } else if (delimiter === '=') {
             if (text[0] === '>' && depthDefaultParams === 0) break;
             depthDefaultParams++;
         } else if (delimiter === ')') {
