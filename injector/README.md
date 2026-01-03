@@ -2,12 +2,10 @@
 
 Parameter names based dependency injector for nodejs.
 
-*Limitations*
+_Limitations_
 
-- does not work with default parameters
 - minification of code is not supported
 - not typesafe
-- classes not supported
 - slower than a normal function call
 
 [Changelog](./CHANGELOG.md)
@@ -22,8 +20,8 @@ returns a new instance of an injector function to work with.
 
 injects arguments into function and invokes it
 
-`function` - *required*, function to inject parameters and call
-`scope` - *optional*, *default* = `{}`, this argument for the function
+`function` - _required_, function to inject parameters and call
+`scope` - _optional_, _default_ = `{}`, this argument for the function
 
 ### $provide(key, value)
 
@@ -36,28 +34,28 @@ to get it, inject it into the function
 
 ```typescript
 inject(($provide: Provider) => {
-    $provide('service', service);
+  $provide("service", service);
 });
 ```
 
 ## Example
 
 ```typescript
-import createInject from '@slimlib/injector';
+import createInject from "@slimlib/injector";
 
 const inject = createInject();
 
 inject(($provide: Provider) => {
-    $provide('config', {
-        url: 'http://example.com/json',
-        format: 'json'
-    });
+  $provide("config", {
+    url: "http://example.com/json",
+    format: "json",
+  });
 });
 
 inject(async (config: Json) => {
-    const data = await fetch(config.url);
-    const result = config.json ? await data.json() : data;
-    // and so on
+  const data = await fetch(config.url);
+  const result = config.json ? await data.json() : data;
+  // and so on
 });
 ```
 
