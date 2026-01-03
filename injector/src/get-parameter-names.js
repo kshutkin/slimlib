@@ -5,28 +5,28 @@ const STRIP_PATTERN = /(static.*$)|(\/\/.*$)|(\/\*[\s\S]*?\*\/)|^\s*async(?:\s*|
 const nonVarChars = ['=', '(', ')', ','];
 
 /**
- * Generator function that yields substrings between non-variable characters
+ * Generator function that yields segments with delimiter information
  * @param {string} string - The string to parse
- * @returns {Generator<string, void, undefined>}
+ * @returns {Generator<[string|null, string], void, undefined>}
  */
 function* matchNexter(string) {
     const delimiters = new Set(nonVarChars);
     let buffer = '';
-    let firstYield = true;
+    let currentDelimiter = null;
 
     for (let i = 0; i < string.length; i++) {
         const char = /** @type {string} */ (string[i]);
         if (delimiters.has(char)) {
-            yield buffer;
-            buffer = char;
-            firstYield = false;
+            yield [currentDelimiter, buffer];
+            buffer = '';
+            currentDelimiter = char;
         } else {
             buffer += char;
         }
     }
 
-    if (!firstYield && buffer) {
-        yield buffer;
+    if (buffer || currentDelimiter) {
+        yield [currentDelimiter, buffer];
     }
 }
 
@@ -39,42 +39,40 @@ export default function parse(input) {
     const gen = matchNexter(input.toString().replace(STRIP_PATTERN, ''));
 
     const next = gen.next();
-    let value = next.value;
+    let segment = next.value;
     let firstVar = true;
     let depthDefaultParams = 0;
     let depthParenthesis = 0;
 
     const vars = [];
-    if (value?.length) {
-        vars.push(value);
+    if (segment?.[1].length) {
+        vars.push(segment[1]);
     }
-    for (value of gen) {
-        const firstChar = value[0];
-        if (firstChar === '=') {
-            if (value[1] === '>' && depthDefaultParams === 0) {
+    for (segment of gen) {
+        const [delimiter, text] = segment;
+        if (delimiter === '=') {
+            if (text[0] === '>' && depthDefaultParams === 0) {
                 break;
             } else {
                 depthDefaultParams++;
             }
-        } else if (firstChar === '(' && !firstVar && vars.length) {
+        } else if (delimiter === '(' && !firstVar && vars.length) {
             firstVar = true;
             depthParenthesis++;
-        } else if (firstChar === '(' && firstVar) {
+        } else if (delimiter === '(' && firstVar) {
             vars.pop();
-            const newVar = value.slice(1);
-            if (newVar.length) {
-                vars.push(newVar);
+            if (text.length) {
+                vars.push(text);
             }
             firstVar = false;
-        } else if (firstChar === ')' && depthParenthesis > 0) {
+        } else if (delimiter === ')' && depthParenthesis > 0) {
             depthParenthesis--;
-        } else if (firstChar === ')' && depthParenthesis === 0) {
+        } else if (delimiter === ')' && depthParenthesis === 0) {
             break;
-        } else if (firstChar === ',' || (firstChar === '(' && vars.length === 0)) {
-            const newVar = value.slice(1);
+        } else if (delimiter === ',' || (delimiter === '(' && vars.length === 0)) {
             if (depthParenthesis === 0) {
                 depthDefaultParams = 0;
-                vars.push(newVar);
+                vars.push(text);
             }
         }
     }
