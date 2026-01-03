@@ -13,11 +13,11 @@
         "ci:publish": "changeset publish"
     },
     "devDependencies": {
-        "@biomejs/biome": "^2.3.2",
-        "@changesets/cli": "^2.26.2",
+        "@biomejs/biome": "^2.3.11",
+        "@changesets/cli": "^2.26.8",
         "@types/node": "^16.00.0",
-        "@vitest/coverage-v8": "^2.1.8",
-        "dts-buddy": "^0.5.5",
-        "vitest": "^2.1.8"
+        "@vitest/coverage-v8": "^4.0.16",
+        "dts-buddy": "^0.6.2",
+        "vitest": "^4.0.16"
     }
 }
