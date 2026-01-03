@@ -40,8 +40,5 @@
         "build": "dts-buddy",
         "test": "vitest run --coverage --config ../vitest.config.js",
         "lint": "eslint ./src"
-    },
-    "dependencies": {
-        "get-parameter-names": "0.3.0"
     }
 }
