@@ -8,35 +8,29 @@ export default function () {
 
     return newPartitionCandidate => {
         if (newPartitionCandidate) {
-            /** @type {Map<Set<T>, Set<T>>} */
-            const intersections = new Map();
-            for (const element of newPartitionCandidate) {
-                for (const partitionItem of processed) {
-                    if (partitionItem.has(element)) {
-                        /** @type {Set<T> | undefined} */
-                        let intersection = intersections.get(partitionItem);
-                        if (intersection === undefined) {
-                            intersection = new Set();
-                            intersections.set(partitionItem, intersection);
-                        }
-                        intersection.add(element);
-                        partitionItem.delete(element);
-                        if (partitionItem.size === 0) {
-                            processed.delete(partitionItem);
-                        }
+            let remainingElements = new Set(newPartitionCandidate);
+
+            for (const partitionItem of [...processed]) {
+                const intersection = partitionItem.intersection(remainingElements);
+                if (intersection.size > 0) {
+                    // Remove intersection elements from remaining candidate elements
+                    remainingElements = remainingElements.difference(intersection);
+                    // Only modify processed if partition is partially consumed
+                    if (intersection.size < partitionItem.size) {
+                        // Partial overlap - split partition into remainder and intersection
+                        processed.delete(partitionItem);
+                        const remainder = partitionItem.difference(intersection);
+                        processed.add(remainder);
+                        processed.add(intersection);
                     }
+                    // If intersection.size === partitionItem.size, partition is fully consumed
+                    // No need to delete/add since partitionItem already contains all intersection elements
                 }
             }
-            const newPartitionItem = new Set(newPartitionCandidate);
-            for (const intersection of intersections.values()) {
-                processed.add(intersection);
-                for (const element of intersection) {
-                    newPartitionItem.delete(element);
-                }
-            }
-            intersections.clear();
-            if (newPartitionItem.size > 0) {
-                processed.add(newPartitionItem);
+
+            // Add elements that didn't intersect with any existing partition
+            if (remainingElements.size > 0) {
+                processed.add(remainingElements);
             }
         }
         return /** @type {Iterable<Iterable<T>>} */ (processed);
