@@ -4,3 +4,4 @@ packages:
   - "injector"
   - "refine-partition"
   - "smart-mock"
+  - "get-parameter-names"

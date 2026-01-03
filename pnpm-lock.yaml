@@ -27,7 +27,13 @@ importers:
         specifier: ^2.1.8
         version: 2.1.9(@types/node@16.18.20)(jsdom@25.0.1)(terser@5.28.1)
 
-  injector: {}
+  get-parameter-names: {}
+
+  injector:
+    dependencies:
+      '@slimlib/get-parameter-names':
+        specifier: workspace:*
+        version: link:../get-parameter-names
 
   list: {}
 

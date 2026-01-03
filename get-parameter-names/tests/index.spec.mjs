@@ -2,7 +2,7 @@
 /** biome-ignore-all lint/correctness/noUnusedFunctionParameters: tests */
 import { describe, expect, it } from 'vitest';
 
-import getParametersNames from '../src/get-parameter-names.js';
+import getParametersNames from '../src/index.js';
 
 describe('function tests', () => {
     it('test1', () => {
