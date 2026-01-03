@@ -35,6 +35,6 @@
     ],
     "scripts": {
         "build": "dts-buddy",
-        "test": "vitest run --coverage --config ../vitest.config.js"
+        "test": "vitest run --coverage --config ../vitest.config.mjs"
     }
 }
