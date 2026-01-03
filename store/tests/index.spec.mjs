@@ -2,9 +2,7 @@ import util from 'node:util';
 
 import { describe, expect, it, vi } from 'vitest';
 
-import { createStoreFactory, unwrapValue } from '../src/index.js';
-
-const createStore = createStoreFactory();
+import { createStore, unwrapValue } from '../src/index.js';
 
 function flushPromises() {
     return new Promise(resolve => setTimeout(resolve));
@@ -12,7 +10,7 @@ function flushPromises() {
 
 describe('store', () => {
     it('smoke', () => {
-        expect(createStoreFactory).toBeDefined();
+        expect(createStore).toBeDefined();
     });
 
     describe('change detection', () => {
