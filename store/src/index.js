@@ -153,6 +153,42 @@ export const createStore = (object = /** @type {any} */ ({})) => {
     const propertyDeps = new WeakMap();
 
     /**
+     * Notify and clear dependents of a specific property
+     * @param {object} target
+     * @param {string | symbol} property
+     */
+    const notifyPropertyDependents = (target, property) => {
+        const propsMap = propertyDeps.get(target);
+        if (propsMap) {
+            const deps = propsMap.get(property);
+            if (deps) {
+                const depsArray = [...deps];
+                for (const dep of depsArray) {
+                    deps.delete(dep);
+                    markDirty(dep);
+                }
+            }
+        }
+    };
+
+    /**
+     * Notify and clear all dependents of all properties on a target
+     * @param {object} target
+     */
+    const notifyAllPropertyDependents = target => {
+        const propsMap = propertyDeps.get(target);
+        if (propsMap) {
+            for (const [, deps] of propsMap) {
+                const depsArray = [...deps];
+                for (const dep of depsArray) {
+                    deps.delete(dep);
+                    markDirty(dep);
+                }
+            }
+        }
+    };
+
+    /**
      * @template {object} T
      * @param {T} object
      * @returns {T}
@@ -166,19 +202,7 @@ export const createStore = (object = /** @type {any} */ ({})) => {
                     const realValue = unwrapValue(newValue);
                     if (Reflect.get(target, p, receiver) !== realValue) {
                         Reflect.set(target, p, realValue, receiver);
-
-                        // Notify dependents of this specific property
-                        const propsMap = propertyDeps.get(target);
-                        if (propsMap) {
-                            const deps = propsMap.get(p);
-                            if (deps) {
-                                const depsArray = [...deps];
-                                for (const dep of depsArray) {
-                                    deps.delete(dep); // Clear (will re-subscribe on re-run)
-                                    markDirty(dep);
-                                }
-                            }
-                        }
+                        notifyPropertyDependents(target, p);
                     }
                     return true;
                 },
@@ -219,16 +243,7 @@ export const createStore = (object = /** @type {any} */ ({})) => {
                               // Only notify if we're NOT currently inside an effect/computed execution
                               // to avoid infinite loops when reading during effect
                               if (!currentComputing) {
-                                  const propsMap = propertyDeps.get(target);
-                                  if (propsMap) {
-                                      for (const [, deps] of propsMap) {
-                                          const depsArray = [...deps];
-                                          for (const dep of depsArray) {
-                                              deps.delete(dep);
-                                              markDirty(dep);
-                                          }
-                                      }
-                                  }
+                                  notifyAllPropertyDependents(target);
                               }
                               return result;
                           }
@@ -239,36 +254,14 @@ export const createStore = (object = /** @type {any} */ ({})) => {
                 defineProperty(target, property, attributes) {
                     const result = Reflect.defineProperty(target, property, attributes);
                     if (result) {
-                        // Notify dependents of this specific property
-                        const propsMap = propertyDeps.get(target);
-                        if (propsMap) {
-                            const deps = propsMap.get(property);
-                            if (deps) {
-                                const depsArray = [...deps];
-                                for (const dep of depsArray) {
-                                    deps.delete(dep);
-                                    markDirty(dep);
-                                }
-                            }
-                        }
+                        notifyPropertyDependents(target, property);
                     }
                     return result;
                 },
                 deleteProperty(target, p) {
                     const result = Reflect.deleteProperty(target, p);
                     if (result) {
-                        // Notify dependents of this specific property
-                        const propsMap = propertyDeps.get(target);
-                        if (propsMap) {
-                            const deps = propsMap.get(p);
-                            if (deps) {
-                                const depsArray = [...deps];
-                                for (const dep of depsArray) {
-                                    deps.delete(dep);
-                                    markDirty(dep);
-                                }
-                            }
-                        }
+                        notifyPropertyDependents(target, p);
                     }
                     return result;
                 },
