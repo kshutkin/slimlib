@@ -27,11 +27,7 @@ importers:
         specifier: ^2.1.8
         version: 2.1.9(@types/node@16.18.20)(jsdom@25.0.1)(terser@5.28.1)
 
-  injector:
-    dependencies:
-      get-parameter-names:
-        specifier: 0.3.0
-        version: 0.3.0
+  injector: {}
 
   list: {}
 
@@ -812,10 +808,6 @@ packages:
     resolution: {integrity: sha512-5xoDfX+fL7faATnagmWPpbFtwh/R77WmMMqqHGS65C3vvB0YHrgF+B1YmZ3441tMj5n63k0212XNoJwzlhffQw==}
     engines: {node: ^8.16.0 || ^10.6.0 || >=11.0.0}
     os: [darwin]
-
-  get-parameter-names@0.3.0:
-    resolution: {integrity: sha512-KkR1dX7U1TynXFkqveVE/XoRn9qRAsM2q4Eu2WsGTFzoaSdnNQEfxbcK+LMv8DcFoQQT9BFjNL+bf9ZyTLkWpg==}
-    engines: {node: '>= 0.4.0'}
 
   glob-parent@5.1.2:
     resolution: {integrity: sha512-AOIgSQCepiJYwP3ARnGx+5VnTu2HBYdzbGP45eLw1vr3zB3vZLeyed1sC9hnbcOc9/SrMyM5RPQrkGz4aS9Zow==}
@@ -2239,8 +2231,6 @@ snapshots:
 
   fsevents@2.3.3:
     optional: true
-
-  get-parameter-names@0.3.0: {}
 
   glob-parent@5.1.2:
     dependencies:
