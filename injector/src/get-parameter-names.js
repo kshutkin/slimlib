@@ -80,10 +80,8 @@ export default function parse(input) {
     const next = gen.next();
     let value = next.value;
     let firstVar = true;
-    const depth = {
-        defaultParams: 0,
-        parenthesis: 0,
-    };
+    let depthDefaultParams = 0;
+    let depthParenthesis = 0;
 
     const vars = [];
     if (value?.subString?.length) {
@@ -92,14 +90,14 @@ export default function parse(input) {
     for (value of gen) {
         const firstChar = value.subString[0];
         if (firstChar === '=') {
-            if (value.subString[1] === '>' && depth.defaultParams === 0) {
+            if (value.subString[1] === '>' && depthDefaultParams === 0) {
                 break;
             } else {
-                depth.defaultParams++;
+                depthDefaultParams++;
             }
         } else if (firstChar === '(' && !firstVar && vars.length) {
             firstVar = true;
-            depth.parenthesis++;
+            depthParenthesis++;
         } else if (firstChar === '(' && firstVar) {
             vars.pop();
             const newVar = value.subString.slice(1);
@@ -107,14 +105,14 @@ export default function parse(input) {
                 vars.push(newVar);
             }
             firstVar = false;
-        } else if (firstChar === ')' && depth.parenthesis > 0) {
-            depth.parenthesis--;
-        } else if (firstChar === ')' && depth.parenthesis === 0) {
+        } else if (firstChar === ')' && depthParenthesis > 0) {
+            depthParenthesis--;
+        } else if (firstChar === ')' && depthParenthesis === 0) {
             break;
         } else if (firstChar === ',' || (firstChar === '(' && vars.length === 0)) {
             const newVar = value.subString.slice(1);
-            if (depth.parenthesis === 0) {
-                depth.defaultParams = 0;
+            if (depthParenthesis === 0) {
+                depthDefaultParams = 0;
                 vars.push(newVar);
             }
         }
