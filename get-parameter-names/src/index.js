@@ -9,7 +9,7 @@ const DELIMITERS = new Set(['=', '(', ')', ',']);
  * @param {Function | string} input - The function or function string to parse
  * @returns {string[]} Array of parameter names
  */
-export default function (input) {
+export default input => {
     const cleaned = input.toString().replace(STRIP_PATTERN, '');
 
     let firstVar = true;
@@ -58,4 +58,4 @@ export default function (input) {
     }
 
     return vars;
-}
+};
