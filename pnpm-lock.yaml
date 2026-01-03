@@ -32,7 +32,7 @@ importers:
   injector:
     dependencies:
       '@slimlib/get-parameter-names':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../get-parameter-names
 
   list: {}
