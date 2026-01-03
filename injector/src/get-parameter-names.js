@@ -10,26 +10,23 @@ const nonVarChars = ['=', '(', ')', ','];
  * @returns {Generator<string, void, undefined>}
  */
 function* matchNexter(string) {
-    let indexes = nonVarChars.map(c => string.indexOf(c));
-    let index = 0;
+    const delimiters = new Set(nonVarChars);
+    let buffer = '';
+    let firstYield = true;
 
-    while (index !== Infinity) {
-        const nextIndex = Math.min.apply(
-            Math,
-            indexes.filter(i => i > -1)
-        );
-        if (nextIndex !== Infinity) {
-            yield string.slice(index, nextIndex);
-        } else if (string.length) {
-            yield string.slice(index);
+    for (let i = 0; i < string.length; i++) {
+        const char = /** @type {string} */ (string[i]);
+        if (delimiters.has(char)) {
+            yield buffer;
+            buffer = char;
+            firstYield = false;
+        } else {
+            buffer += char;
         }
-        index = nextIndex;
-        indexes = indexes.map((foundAt, i) => {
-            if (foundAt === index) {
-                return string.indexOf(/** @type {string} */ (nonVarChars[i]), foundAt + 1);
-            }
-            return foundAt;
-        });
+    }
+
+    if (!firstYield && buffer) {
+        yield buffer;
     }
 }
 
