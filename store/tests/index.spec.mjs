@@ -309,6 +309,222 @@ describe('store', () => {
             expect(state.test).toBe(2);
         });
 
+        describe('array methods', () => {
+            describe('mutating methods', () => {
+                it('pop', async () => {
+                    const subscriber = vi.fn();
+                    const state = createStore({ items: [1, 2, 3] });
+                    effect(() => subscriber([...state.items]));
+                    await flushPromises();
+                    const popped = state.items.pop();
+                    await flushPromises();
+                    expect(popped).toBe(3);
+                    expect(subscriber).toHaveBeenCalledWith([1, 2, 3]);
+                    expect(subscriber).toHaveBeenCalledWith([1, 2]);
+                });
+
+                it('shift', async () => {
+                    const subscriber = vi.fn();
+                    const state = createStore({ items: [1, 2, 3] });
+                    effect(() => subscriber([...state.items]));
+                    await flushPromises();
+                    const shifted = state.items.shift();
+                    await flushPromises();
+                    expect(shifted).toBe(1);
+                    expect(subscriber).toHaveBeenCalledWith([1, 2, 3]);
+                    expect(subscriber).toHaveBeenCalledWith([2, 3]);
+                });
+
+                it('unshift', async () => {
+                    const subscriber = vi.fn();
+                    const state = createStore({ items: [2, 3] });
+                    effect(() => subscriber([...state.items]));
+                    await flushPromises();
+                    const newLength = state.items.unshift(1);
+                    await flushPromises();
+                    expect(newLength).toBe(3);
+                    expect(subscriber).toHaveBeenCalledWith([2, 3]);
+                    expect(subscriber).toHaveBeenCalledWith([1, 2, 3]);
+                });
+
+                it('splice', async () => {
+                    const subscriber = vi.fn();
+                    const state = createStore({ items: [1, 2, 3, 4, 5] });
+                    effect(() => subscriber([...state.items]));
+                    await flushPromises();
+                    const removed = state.items.splice(1, 2, 10, 20);
+                    await flushPromises();
+                    expect(removed).toEqual([2, 3]);
+                    expect(subscriber).toHaveBeenCalledWith([1, 2, 3, 4, 5]);
+                    expect(subscriber).toHaveBeenCalledWith([1, 10, 20, 4, 5]);
+                });
+
+                it('sort', async () => {
+                    const subscriber = vi.fn();
+                    const state = createStore({ items: [3, 1, 2] });
+                    effect(() => subscriber([...state.items]));
+                    await flushPromises();
+                    const sorted = state.items.sort();
+                    await flushPromises();
+                    expect(sorted).toEqual([1, 2, 3]);
+                    expect(subscriber).toHaveBeenCalledWith([3, 1, 2]);
+                    expect(subscriber).toHaveBeenCalledWith([1, 2, 3]);
+                });
+
+                it('reverse', async () => {
+                    const subscriber = vi.fn();
+                    const state = createStore({ items: [1, 2, 3] });
+                    effect(() => subscriber([...state.items]));
+                    await flushPromises();
+                    const reversed = state.items.reverse();
+                    await flushPromises();
+                    expect(reversed).toEqual([3, 2, 1]);
+                    expect(subscriber).toHaveBeenCalledWith([1, 2, 3]);
+                    expect(subscriber).toHaveBeenCalledWith([3, 2, 1]);
+                });
+            });
+
+            describe('non-mutating methods', () => {
+                it('map', () => {
+                    const state = createStore({ items: [1, 2, 3] });
+                    const mapped = state.items.map(x => x * 2);
+                    expect(mapped).toEqual([2, 4, 6]);
+                    expect(state.items).toEqual([1, 2, 3]); // original unchanged
+                });
+
+                it('filter', () => {
+                    const state = createStore({ items: [1, 2, 3, 4, 5] });
+                    const filtered = state.items.filter(x => x > 2);
+                    expect(filtered).toEqual([3, 4, 5]);
+                    expect(state.items).toEqual([1, 2, 3, 4, 5]); // original unchanged
+                });
+
+                it('slice', () => {
+                    const state = createStore({ items: [1, 2, 3, 4, 5] });
+                    const sliced = state.items.slice(1, 3);
+                    expect(sliced).toEqual([2, 3]);
+                    expect(state.items).toEqual([1, 2, 3, 4, 5]); // original unchanged
+                });
+
+                it('concat', () => {
+                    const state = createStore({ items: [1, 2] });
+                    const concatenated = state.items.concat([3, 4]);
+                    expect(concatenated).toEqual([1, 2, 3, 4]);
+                    expect(state.items).toEqual([1, 2]); // original unchanged
+                });
+
+                it('find', () => {
+                    const state = createStore({ items: [1, 2, 3, 4, 5] });
+                    const found = state.items.find(x => x > 3);
+                    expect(found).toBe(4);
+                });
+
+                it('findIndex', () => {
+                    const state = createStore({ items: [1, 2, 3, 4, 5] });
+                    const index = state.items.findIndex(x => x > 3);
+                    expect(index).toBe(3);
+                });
+
+                it('some', () => {
+                    const state = createStore({ items: [1, 2, 3] });
+                    const hasEven = state.items.some(x => x % 2 === 0);
+                    expect(hasEven).toBe(true);
+                });
+
+                it('every', () => {
+                    const state = createStore({ items: [2, 4, 6] });
+                    const allEven = state.items.every(x => x % 2 === 0);
+                    expect(allEven).toBe(true);
+                });
+
+                it('forEach', () => {
+                    const state = createStore({ items: [1, 2, 3] });
+                    const results = [];
+                    state.items.forEach(x => results.push(x * 2));
+                    expect(results).toEqual([2, 4, 6]);
+                });
+
+                it('includes', () => {
+                    const state = createStore({ items: [1, 2, 3] });
+                    expect(state.items.includes(2)).toBe(true);
+                    expect(state.items.includes(5)).toBe(false);
+                });
+
+                it('indexOf', () => {
+                    const state = createStore({ items: [1, 2, 3, 2] });
+                    expect(state.items.indexOf(2)).toBe(1);
+                    expect(state.items.indexOf(5)).toBe(-1);
+                });
+
+                it('lastIndexOf', () => {
+                    const state = createStore({ items: [1, 2, 3, 2] });
+                    expect(state.items.lastIndexOf(2)).toBe(3);
+                });
+
+                it('join', () => {
+                    const state = createStore({ items: [1, 2, 3] });
+                    const joined = state.items.join('-');
+                    expect(joined).toBe('1-2-3');
+                });
+
+                it('reduce', () => {
+                    const state = createStore({ items: [1, 2, 3, 4] });
+                    const sum = state.items.reduce((acc, x) => acc + x, 0);
+                    expect(sum).toBe(10);
+                });
+
+                it('reduceRight', () => {
+                    const state = createStore({ items: ['a', 'b', 'c'] });
+                    const reversed = state.items.reduceRight((acc, x) => acc + x, '');
+                    expect(reversed).toBe('cba');
+                });
+            });
+
+            describe('methods with proxied objects', () => {
+                it('map returning objects should be proxied', () => {
+                    const state = createStore({ items: [1, 2, 3] });
+                    const mapped = state.items.map(x => ({ value: x }));
+                    // The returned objects should work normally
+                    expect(mapped[0].value).toBe(1);
+                    expect(mapped[1].value).toBe(2);
+                });
+
+                it('filter with object comparisons', () => {
+                    const state = createStore({
+                        items: [{ id: 1 }, { id: 2 }, { id: 3 }],
+                    });
+                    const filtered = state.items.filter(x => x.id > 1);
+                    expect(filtered.length).toBe(2);
+                    expect(filtered[0].id).toBe(2);
+                    expect(filtered[1].id).toBe(3);
+                });
+
+                it('find with nested objects', () => {
+                    const state = createStore({
+                        items: [
+                            { id: 1, nested: { value: 10 } },
+                            { id: 2, nested: { value: 20 } },
+                        ],
+                    });
+                    const found = state.items.find(x => x.nested.value === 20);
+                    expect(found?.id).toBe(2);
+                });
+
+                it('sort with objects', async () => {
+                    const subscriber = vi.fn();
+                    const state = createStore({
+                        items: [{ id: 3 }, { id: 1 }, { id: 2 }],
+                    });
+                    effect(() => subscriber(state.items.map(x => x.id)));
+                    await flushPromises();
+                    state.items.sort((a, b) => a.id - b.id);
+                    await flushPromises();
+                    expect(subscriber).toHaveBeenCalledWith([3, 1, 2]);
+                    expect(subscriber).toHaveBeenCalledWith([1, 2, 3]);
+                });
+            });
+        });
+
         describe('function proxying through proxy', () => {
             // Note: Functions are proxied to trigger notifications
             // When accessing a function property, it's wrapped to call the original
