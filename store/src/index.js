@@ -76,11 +76,7 @@ const clearSources = (node, fromIndex = 0) => {
     for (let i = fromIndex; i < sourcesArray.length; i++) {
         sourcesArray[i].delete(node);
     }
-    if (fromIndex === 0) {
-        sourcesArray.length = 0;
-    } else {
-        sourcesArray.length = fromIndex;
-    }
+    sourcesArray.length = fromIndex === 0 ? 0 : fromIndex;
 };
 
 /**
@@ -110,20 +106,16 @@ const trackDependency = deps => {
     const sourcesArray = currentComputing[sources];
     const skipIndex = currentComputing[skippedDeps];
 
-    if (sourcesArray[skipIndex] === deps) {
-        // Same dependency at same position - reuse it!
-        // Still need to ensure we're in the deps Set (might have been removed)
-        deps.add(currentComputing);
-        currentComputing[skippedDeps]++;
-    } else {
+    if (sourcesArray[skipIndex] !== deps) {
         // Different dependency - clear old ones from this point and rebuild
         if (skipIndex < sourcesArray.length) {
             clearSources(currentComputing, skipIndex);
         }
-        deps.add(currentComputing);
         sourcesArray.push(deps);
-        currentComputing[skippedDeps]++;
     }
+
+    deps.add(currentComputing);
+    currentComputing[skippedDeps]++;
 };
 
 /**
