@@ -144,17 +144,33 @@ export const createStore = (object = /** @type {any} */ ({})) => {
     const propertyDeps = new WeakMap();
 
     /**
-     * Notify dependents of a specific property
+     * Mark all dependents in a Set as dirty
+     * @param {Set<ComputedNode<any>>} deps
+     */
+    const markDepsSetDirty = deps => {
+        for (const dep of cleared(deps)) {
+            markDirty(dep);
+        }
+    };
+
+    /**
+     * Notify dependents of a specific property or all properties
      * @param {object} target
-     * @param {string | symbol} property
+     * @param {string | symbol} [property] - If provided, notifies only this property's dependents. If omitted, notifies all properties' dependents.
      */
     const notifyPropertyDependents = (target, property) => {
         const propsMap = propertyDeps.get(target);
         if (propsMap) {
-            const deps = propsMap.get(property);
-            if (deps) {
-                for (const dep of cleared(deps)) {
-                    markDirty(dep);
+            if (property !== undefined) {
+                // Notify specific property
+                const deps = propsMap.get(property);
+                if (deps) {
+                    markDepsSetDirty(deps);
+                }
+            } else {
+                // Notify all properties
+                for (const deps of propsMap.values()) {
+                    markDepsSetDirty(deps);
                 }
             }
         }
@@ -214,14 +230,7 @@ export const createStore = (object = /** @type {any} */ ({})) => {
                           // Only notify if we're NOT currently inside an effect/computed execution
                           // to avoid infinite loops when reading during effect
                           if (!currentComputing) {
-                              const propsMap = propertyDeps.get(target);
-                              if (propsMap) {
-                                  for (const deps of propsMap.values()) {
-                                      for (const dep of cleared(deps)) {
-                                          markDirty(dep);
-                                      }
-                                  }
-                              }
+                              notifyPropertyDependents(target);
                           }
                           return result;
                       }
