@@ -168,21 +168,6 @@ export const createStore = (object = /** @type {any} */ ({})) => {
     };
 
     /**
-     * Notify all dependents of all properties on a target
-     * @param {object} target
-     */
-    const notifyAllPropertyDependents = target => {
-        const propsMap = propertyDeps.get(target);
-        if (propsMap) {
-            for (const deps of propsMap.values()) {
-                for (const dep of cleared(deps)) {
-                    markDirty(dep);
-                }
-            }
-        }
-    };
-
-    /**
      * @template {object} T
      * @param {T} object
      * @returns {T}
@@ -236,7 +221,14 @@ export const createStore = (object = /** @type {any} */ ({})) => {
                           // Only notify if we're NOT currently inside an effect/computed execution
                           // to avoid infinite loops when reading during effect
                           if (!currentComputing) {
-                              notifyAllPropertyDependents(target);
+                              const propsMap = propertyDeps.get(target);
+                              if (propsMap) {
+                                  for (const deps of propsMap.values()) {
+                                      for (const dep of cleared(deps)) {
+                                          markDirty(dep);
+                                      }
+                                  }
+                              }
                           }
                           return result;
                       }
