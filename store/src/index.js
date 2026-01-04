@@ -29,11 +29,6 @@ const fn = Symbol();
 const value = Symbol();
 
 /**
- * Symbol to distinguish effect from computed
- */
-const isEffect = Symbol();
-
-/**
  * Symbol for cleanup function
  */
 const cleanup = Symbol();
@@ -85,14 +80,8 @@ export const unwrapValue = value => (value != null && /** @type {Unwrappable<T>}
  * @param {EffectNode | ComputedNode<any>} node
  */
 const clearSources = node => {
-    for (const source of cleared(node[sources])) {
-        if (source.deps) {
-            // Property dependency
-            source.deps.delete(node);
-        } else {
-            // Computed dependency
-            source.computed[dependencies].delete(node);
-        }
+    for (const depSet of cleared(node[sources])) {
+        depSet.delete(node);
     }
 };
 
@@ -125,10 +114,8 @@ const markDirty = node => {
             for (const dep of node[dependencies]) {
                 markDirty(dep);
             }
-        }
-
-        // Schedule execution (only for effects)
-        if (node[isEffect]) {
+        } else {
+            // Schedule execution (only for effects - no dependencies means it's an effect)
             batched.add(node);
             scheduleFlush();
         }
@@ -207,7 +194,7 @@ export const createStore = (object = /** @type {any} */ ({})) => {
 
                     // Bidirectional linking
                     deps.add(currentComputing);
-                    currentComputing[sources].add({ target, property: p, deps });
+                    currentComputing[sources].add(deps);
                 }
 
                 // Functions are wrapped to apply with correct `this` (target, not proxy)
@@ -267,7 +254,6 @@ export const effect = callback => {
         [sources]: new Set(),
         [dirty]: false,
         [cleanup]: null,
-        [isEffect]: true,
         [fn]: /** @type {() => void} */ (undefined),
     };
 
@@ -320,13 +306,12 @@ export const computed = getter => {
         [dirty]: true,
         [value]: /** @type {T} */ (/** @type {unknown} */ (undefined)),
         [fn]: getter,
-        [isEffect]: false,
 
         get value() {
             // Track if someone is reading us
             if (tracked && currentComputing) {
                 this[dependencies].add(currentComputing);
-                currentComputing[sources].add({ computed: this });
+                currentComputing[sources].add(this[dependencies]);
             }
 
             // Recompute if dirty
