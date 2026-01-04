@@ -82,6 +82,17 @@ const clearSources = node => {
 };
 
 /**
+ * Run cleanup function for an effect
+ * @param {ComputedNode<any>} comp
+ */
+const runCleanup = comp => {
+    const cleanupFn = comp[value];
+    if (typeof cleanupFn === 'function') {
+        cleanupFn();
+    }
+};
+
+/**
  * Schedule flush via microtask
  */
 const scheduleFlush = () => {
@@ -256,10 +267,7 @@ export const effect = callback => {
     // Return dispose function
     return () => {
         // Run final cleanup
-        const cleanupFn = comp[value];
-        if (typeof cleanupFn === 'function') {
-            cleanupFn();
-        }
+        runCleanup(comp);
         clearSources(comp);
         batched.delete(comp);
     };
@@ -298,10 +306,7 @@ export const computed = getter => {
 
                 // For effects: run previous cleanup
                 if (this[isEffect]) {
-                    const cleanupFn = this[value];
-                    if (typeof cleanupFn === 'function') {
-                        cleanupFn();
-                    }
+                    runCleanup(this);
                 }
 
                 clearSources(this);
