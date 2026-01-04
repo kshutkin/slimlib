@@ -19,11 +19,6 @@ const dependencies = Symbol();
 const dirty = Symbol();
 
 /**
- * Symbol for the function
- */
-const fn = Symbol();
-
-/**
  * Symbol for cached value (computed)
  */
 const value = Symbol();
@@ -337,7 +332,6 @@ export const computed = getter => {
         [dependencies]: new Set(),
         [dirty]: true,
         [value]: /** @type {T} */ (/** @type {unknown} */ (undefined)),
-        [fn]: getter,
         [skippedDeps]: 0,
 
         get value() {
@@ -361,7 +355,7 @@ export const computed = getter => {
                 currentComputing = this;
                 tracked = true; // Computed always tracks its own dependencies
                 try {
-                    this[value] = this[fn]();
+                    this[value] = getter();
                 } catch (e) {
                     // Restore dirty flag on error so it can be retried
                     this[dirty] = true;
