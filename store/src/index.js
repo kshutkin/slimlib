@@ -122,6 +122,32 @@ const scheduleFlush = () => {
 };
 
 /**
+ * Track a dependency between currentComputing and a deps Set
+ * @param {Set<ComputedNode<any>>} deps - The dependency set to track
+ */
+const trackDependency = deps => {
+    if (!tracked || !currentComputing) return;
+
+    const sourcesArray = currentComputing[sources];
+    const skipIndex = currentComputing[skippedDeps];
+
+    if (sourcesArray[skipIndex] === deps) {
+        // Same dependency at same position - reuse it!
+        // Still need to ensure we're in the deps Set (might have been removed)
+        deps.add(currentComputing);
+        currentComputing[skippedDeps]++;
+    } else {
+        // Different dependency - clear old ones from this point and rebuild
+        if (skipIndex < sourcesArray.length) {
+            clearSources(currentComputing, skipIndex);
+        }
+        deps.add(currentComputing);
+        sourcesArray.push(deps);
+        currentComputing[skippedDeps]++;
+    }
+};
+
+/**
  * Mark a node as dirty and propagate to dependents
  * @param {ComputedNode<any>} node
  */
@@ -229,23 +255,7 @@ export const createStore = (object = /** @type {any} */ ({})) => {
                     }
 
                     // Bidirectional linking with optimization
-                    const sourcesArray = currentComputing[sources];
-                    const skipIndex = currentComputing[skippedDeps];
-
-                    if (sourcesArray[skipIndex] === deps) {
-                        // Same dependency at same position - reuse it!
-                        // Still need to ensure we're in the deps Set (might have been removed)
-                        deps.add(currentComputing);
-                        currentComputing[skippedDeps]++;
-                    } else {
-                        // Different dependency - clear old ones from this point and rebuild
-                        if (skipIndex < sourcesArray.length) {
-                            clearSources(currentComputing, skipIndex);
-                        }
-                        deps.add(currentComputing);
-                        sourcesArray.push(deps);
-                        currentComputing[skippedDeps]++;
-                    }
+                    trackDependency(deps);
                 }
 
                 // Functions are wrapped to apply with correct `this` (target, not proxy)
@@ -332,27 +342,7 @@ export const computed = getter => {
 
         get value() {
             // Track if someone is reading us
-            if (tracked && currentComputing) {
-                this[dependencies].add(currentComputing);
-
-                // Apply skippedDeps optimization for computed-to-computed tracking
-                const sourcesArray = currentComputing[sources];
-                const skipIndex = currentComputing[skippedDeps];
-
-                if (sourcesArray[skipIndex] === this[dependencies]) {
-                    // Same dependency at same position - reuse it!
-                    // Still need to ensure we're in the deps Set (might have been removed)
-                    this[dependencies].add(currentComputing);
-                    currentComputing[skippedDeps]++;
-                } else {
-                    // Different dependency - clear old ones from this point and rebuild
-                    if (skipIndex < sourcesArray.length) {
-                        clearSources(currentComputing, skipIndex);
-                    }
-                    sourcesArray.push(this[dependencies]);
-                    currentComputing[skippedDeps]++;
-                }
-            }
+            trackDependency(this[dependencies]);
 
             // Recompute if dirty
             if (this[dirty]) {
