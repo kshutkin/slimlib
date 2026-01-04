@@ -19,6 +19,11 @@ const dependencies = Symbol();
 const dirty = Symbol();
 
 /**
+ * Symbol for needs check flag (lazy propagation)
+ */
+const needsCheck = Symbol();
+
+/**
  * Symbol to mark a node as an effect (eager execution)
  */
 const isEffect = Symbol();
@@ -27,6 +32,16 @@ const isEffect = Symbol();
  * Symbol for skipped dependencies counter (optimization)
  */
 const skippedDeps = Symbol();
+
+/**
+ * Symbol for computed nodes we depend on
+ */
+const sourceNodes = Symbol();
+
+/**
+ * Symbol to indicate a node is currently computing
+ */
+const computing = Symbol();
 
 /**
  * @template T
@@ -77,6 +92,10 @@ const clearSources = (node, fromIndex = 0) => {
         sourcesArray[i].delete(node);
     }
     sourcesArray.length = fromIndex;
+    // Also clear source nodes tracking
+    if (node[sourceNodes]) {
+        node[sourceNodes].length = fromIndex;
+    }
 };
 
 /**
@@ -99,8 +118,9 @@ const scheduleFlush = () => {
 /**
  * Track a dependency between currentComputing and a deps Set
  * @param {Set<ComputedNode<any>>} deps - The dependency set to track
+ * @param {ComputedNode<any>} [sourceNode] - The computed node being accessed (if any)
  */
-const trackDependency = deps => {
+const trackDependency = (deps, sourceNode) => {
     if (!tracked || !currentComputing) return;
 
     const sourcesArray = currentComputing[sources];
@@ -116,26 +136,72 @@ const trackDependency = deps => {
 
     deps.add(currentComputing);
     currentComputing[skippedDeps]++;
+
+    // Track source computed node for lazy propagation check
+    if (sourceNode) {
+        const sourceNodesArray = currentComputing[sourceNodes];
+        if (!sourceNodesArray[skipIndex]) {
+            sourceNodesArray[skipIndex] = sourceNode;
+        }
+    }
 };
 
 /**
- * Mark a node as dirty and propagate to dependents
+ * Mark a node as needing check (lazy propagation)
+ * Only marks the node itself, but recursively finds and marks effect nodes
  * @param {ComputedNode<any>} node
  */
-const markDirty = node => {
-    if (!node[dirty]) {
-        node[dirty] = true;
-
-        // Propagate to dependents
-        for (const dep of node[dependencies]) {
-            markDirty(dep);
-        }
+const markNeedsCheck = node => {
+    // Don't mark nodes that are currently computing - they'll handle their own state
+    if (node[computing]) {
+        return;
+    }
+    if (!node[needsCheck] && !node[dirty]) {
+        node[needsCheck] = true;
 
         // Schedule execution for effects
         if (node[isEffect]) {
             batched.add(node);
             scheduleFlush();
         }
+
+        // Recursively find and mark effect nodes in the dependency tree
+        // but don't mark intermediate computed nodes (they use lazy checking)
+        for (const dep of node[dependencies]) {
+            if (dep[isEffect]) {
+                markNeedsCheck(dep);
+            } else {
+                // For computed nodes, recursively search their dependents for effects
+                markEffectsInTree(dep);
+            }
+        }
+    }
+};
+
+/**
+ * Recursively search for and mark effect nodes without marking intermediate computed nodes
+ * @param {ComputedNode<any>} node
+ */
+const markEffectsInTree = node => {
+    if (node[computing]) {
+        return;
+    }
+    for (const dep of node[dependencies]) {
+        if (dep[isEffect] && !dep[needsCheck] && !dep[dirty]) {
+            markNeedsCheck(dep);
+        } else if (!dep[isEffect]) {
+            markEffectsInTree(dep);
+        }
+    }
+};
+
+/**
+ * Mark dependents as needing check (when value changed after recomputation)
+ * @param {ComputedNode<any>} node
+ */
+const markDependentsCheck = node => {
+    for (const dep of node[dependencies]) {
+        markNeedsCheck(dep);
     }
 };
 
@@ -153,12 +219,12 @@ export const createStore = (object = /** @type {any} */ ({})) => {
     const propertyDeps = new WeakMap();
 
     /**
-     * Mark all dependents in a Set as dirty
+     * Mark all dependents in a Set as needing check
      * @param {Set<ComputedNode<any>>} deps
      */
-    const markDepsSetDirty = deps => {
+    const markDepsSetCheck = deps => {
         for (const dep of cleared(deps)) {
-            markDirty(dep);
+            markNeedsCheck(dep);
         }
     };
 
@@ -174,12 +240,12 @@ export const createStore = (object = /** @type {any} */ ({})) => {
                 // Notify specific property
                 const deps = propsMap.get(property);
                 if (deps) {
-                    markDepsSetDirty(deps);
+                    markDepsSetCheck(deps);
                 }
             } else {
                 // Notify all properties
                 for (const deps of propsMap.values()) {
-                    markDepsSetDirty(deps);
+                    markDepsSetCheck(deps);
                 }
             }
         }
@@ -277,15 +343,19 @@ export const effect = callback => {
     /** @type {void | (() => void)} */
     let cleanup;
 
+    // Effects use a custom equals that always returns false to ensure they always run
     const comp = /** @type {ComputedNode<void | (() => void)>} */ (
-        computed(() => {
-            // Run previous cleanup if it exists
-            if (typeof cleanup === 'function') {
-                cleanup();
-            }
-            // Run the callback and store new cleanup
-            cleanup = callback();
-        })
+        computed(
+            () => {
+                // Run previous cleanup if it exists
+                if (typeof cleanup === 'function') {
+                    cleanup();
+                }
+                // Run the callback and store new cleanup
+                cleanup = callback();
+            },
+            () => false
+        )
     );
     comp[isEffect] = true;
 
@@ -313,26 +383,60 @@ export const effect = callback => {
  * Creates a computed value that caches and updates lazily
  * @template T
  * @param {() => T} getter
+ * @param {(a: T, b: T) => boolean} [equals=Object.is] - Equality comparison function
  * @returns {Computed<T>}
  */
-export const computed = getter => {
+export const computed = (getter, equals = Object.is) => {
     /** @type {T} */
     let cachedValue;
+    let hasValue = false;
 
     /** @type {ComputedNode<T>} */
     const comp = {
         [sources]: [],
+        [sourceNodes]: [],
         [dependencies]: new Set(),
         [dirty]: true,
+        [needsCheck]: false,
+        [computing]: false,
         [skippedDeps]: 0,
 
         get value() {
             // Track if someone is reading us
-            trackDependency(this[dependencies]);
+            trackDependency(this[dependencies], this);
 
-            // Recompute if dirty
-            if (this[dirty]) {
+            // Check if any source computed nodes have changed values
+            // We do this by actually accessing their values, which triggers recomputation
+            // and equality checking. If their values haven't changed, they won't mark us.
+            // We ALWAYS check sources (not just when marked) to enable lazy propagation.
+            if (!this[dirty] && !this[needsCheck] && hasValue) {
+                const sourceNodesArray = this[sourceNodes];
+                const prevTracked = tracked;
+                tracked = false; // Don't track dependencies while checking sources
+                try {
+                    for (let i = 0; i < sourceNodesArray.length; i++) {
+                        const sourceNode = sourceNodesArray[i];
+                        if (sourceNode) {
+                            // Always access the source value to trigger recursive checking
+                            // This allows transitive dependencies to be checked
+                            sourceNode.value;
+                            // Check if we were marked as a result of the source changing
+                            if (this[needsCheck] || this[dirty]) {
+                                break;
+                            }
+                        }
+                    }
+                } finally {
+                    tracked = prevTracked;
+                }
+            }
+
+            // Recompute if dirty or needs check
+            if (this[dirty] || this[needsCheck]) {
+                const wasDirty = this[dirty];
                 this[dirty] = false;
+                this[needsCheck] = false;
+                this[computing] = true; // Mark as currently computing
 
                 // Reset skipped deps counter for this recomputation
                 this[skippedDeps] = 0;
@@ -342,12 +446,28 @@ export const computed = getter => {
                 currentComputing = this;
                 tracked = true; // Computed always tracks its own dependencies
                 try {
-                    cachedValue = getter();
+                    const newValue = getter();
+
+                    // Check if value actually changed
+                    const changed = !hasValue || !equals(cachedValue, newValue);
+
+                    if (changed) {
+                        cachedValue = newValue;
+                        hasValue = true;
+                        // Value changed - mark dependents as needing check
+                        markDependentsCheck(this);
+                    } else if (wasDirty) {
+                        // Was dirty (first computation or error recovery) but value matches
+                        // Still need to mark as having a value
+                        hasValue = true;
+                    }
+                    // If value unchanged and was only checking, don't propagate
                 } catch (e) {
                     // Restore dirty flag on error so it can be retried
                     this[dirty] = true;
                     throw e;
                 } finally {
+                    this[computing] = false; // Clear computing flag
                     currentComputing = prev;
                     tracked = prevTracked;
                     // Clean up any excess sources that weren't reused
