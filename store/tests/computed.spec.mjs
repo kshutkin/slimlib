@@ -158,34 +158,13 @@ describe('computed', () => {
         expect(filtered.value).toEqual([3, 4, 5, 6]);
     });
 
-    it('detects circular dependency', () => {
+    it('handles circular dependency gracefully', () => {
         const a = computed(() => b.value + 1);
         const b = computed(() => a.value + 1);
 
-        expect(() => a.value).toThrow(/circular/i);
-    });
-
-    it('circular detection resets after throw', () => {
-        const store = createStore({ value: 1 });
-        let shouldCircle = true;
-
-        const a = computed(() => {
-            if (shouldCircle) {
-                return b.value + 1;
-            }
-            return store.value;
-        });
-
-        const b = computed(() => a.value + 1);
-
-        // First access throws
-        expect(() => a.value).toThrow(/circular/i);
-
-        // Fix the circular dependency
-        shouldCircle = false;
-
-        // After fixing, should work
-        expect(a.value).toBe(1);
+        // Circular dependencies return cached value (undefined initially)
+        // a accesses b, b accesses a (still undefined), b returns NaN, a returns NaN
+        expect(Number.isNaN(a.value)).toBe(true);
     });
 
     it('computed only recalculates when dirty', async () => {

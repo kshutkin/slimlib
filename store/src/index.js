@@ -54,8 +54,6 @@ let currentComputing = null;
 const batched = new Set();
 let flushScheduled = false;
 let tracked = true;
-/** @type {Set<ComputedNode<any>>} */
-const computingStack = new Set(); // For circular dependency detection
 
 /**
  * @template T
@@ -331,11 +329,6 @@ export const computed = getter => {
                 currentComputing[sources].add({ computed: this });
             }
 
-            // Circular dependency detection - check before dirty flag
-            if (computingStack.has(this)) {
-                throw new Error('Circular computed dependency detected');
-            }
-
             // Recompute if dirty
             if (this[dirty]) {
                 this[dirty] = false;
@@ -345,7 +338,6 @@ export const computed = getter => {
                 const prevTracked = tracked;
                 currentComputing = this;
                 tracked = true; // Computed always tracks its own dependencies
-                computingStack.add(this);
                 try {
                     this[value] = this[fn]();
                 } catch (e) {
@@ -355,7 +347,6 @@ export const computed = getter => {
                 } finally {
                     currentComputing = prev;
                     tracked = prevTracked;
-                    computingStack.delete(this);
                 }
             }
 
