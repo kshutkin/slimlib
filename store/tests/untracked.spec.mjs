@@ -180,8 +180,7 @@ describe('untracked', () => {
         effect(() => {
             runs++;
             // Complex expression: track a, untrack b, then track c
-            const val = store.a + untracked(() => store.b) + store.c;
-            return val;
+            store.a + untracked(() => store.b) + store.c;
         });
 
         await flushPromises();
@@ -208,8 +207,7 @@ describe('untracked', () => {
             runs++;
             // Track multiplier but not items
             const m = store.multiplier;
-            const sum = untracked(() => store.items.reduce((acc, item) => acc + item * m, 0));
-            return sum;
+            untracked(() => store.items.reduce((acc, item) => acc + item * m, 0));
         });
 
         await flushPromises();

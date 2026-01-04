@@ -266,7 +266,7 @@ export const createStore = (object = /** @type {any} */ ({})) => {
  * @returns {() => void} Dispose function
  */
 export const effect = callback => {
-    const comp = computed(callback);
+    const comp = /** @type {ComputedNode<void | (() => void)>} */ (computed(callback));
     comp[isEffect] = true;
 
     // Trigger first run via batched queue (node is already dirty from computed())
