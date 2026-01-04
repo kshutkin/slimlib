@@ -76,7 +76,7 @@ const clearSources = (node, fromIndex = 0) => {
     for (let i = fromIndex; i < sourcesArray.length; i++) {
         sourcesArray[i].delete(node);
     }
-    sourcesArray.length = fromIndex === 0 ? 0 : fromIndex;
+    sourcesArray.length = fromIndex;
 };
 
 /**
