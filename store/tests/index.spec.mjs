@@ -867,3 +867,58 @@ describe('unwrapValue', () => {
         expect(unwrapValue(undefined)).toBe(undefined);
     });
 });
+
+describe('defineProperty edge cases', () => {
+    it('defineProperty returns false for non-configurable property redefinition', async () => {
+        const initialState = {};
+        Object.defineProperty(initialState, 'locked', {
+            configurable: false,
+            writable: false,
+            value: 'original',
+        });
+        const state = createStore(initialState);
+
+        // Trying to redefine a non-configurable property should fail
+        // Use Reflect.defineProperty to get boolean result instead of throw
+        const result = Reflect.defineProperty(state, 'locked', {
+            value: 'new',
+        });
+        expect(result).toBe(false);
+        // The property should still have original value
+        expect(state.locked).toBe('original');
+    });
+
+    it('deleteProperty returns false for non-configurable property', async () => {
+        const subscriber = vi.fn();
+        const initialState = /** @type {{locked?: string, other?: string}} */ ({});
+        Object.defineProperty(initialState, 'locked', {
+            configurable: false,
+            writable: false,
+            value: 'cannot delete',
+        });
+        initialState.other = 'can delete';
+
+        const state = createStore(initialState);
+        effect(() => subscriber(state.other));
+        await flushPromises();
+
+        // Trying to delete a non-configurable property should fail
+        const deleteResult = Reflect.deleteProperty(state, 'locked');
+        expect(deleteResult).toBe(false);
+        expect(state.locked).toBe('cannot delete');
+
+        // Deleting configurable property should work
+        delete state.other;
+        await flushPromises();
+        expect(state.other).toBe(undefined);
+        expect(subscriber).toHaveBeenCalledTimes(2);
+    });
+
+    it('deleteProperty on non-existent property', async () => {
+        const state = createStore(/** @type {{prop?: string}} */ ({}));
+
+        // Deleting non-existent property returns true but no notification needed
+        const result = delete state.prop;
+        expect(result).toBe(true);
+    });
+});

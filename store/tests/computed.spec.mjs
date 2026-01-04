@@ -320,4 +320,300 @@ describe('computed', () => {
         store.value = 'something';
         expect(isNull.value).toBe(false);
     });
+
+    it('computed restores dirty flag on error and can retry', () => {
+        let shouldThrow = true;
+        const store = createStore({ value: 1 });
+
+        const comp = computed(() => {
+            if (shouldThrow) {
+                throw new Error('Computation failed');
+            }
+            return store.value * 2;
+        });
+
+        // First access should throw
+        expect(() => comp.value).toThrow('Computation failed');
+
+        // After error, we can fix the issue and retry
+        shouldThrow = false;
+
+        // Now it should work
+        expect(comp.value).toBe(2);
+
+        // And caching should work normally
+        store.value = 5;
+        expect(comp.value).toBe(10);
+    });
+
+    it('computed error does not corrupt state for subsequent access', () => {
+        let throwCount = 0;
+        const store = createStore({ value: 1 });
+
+        const comp = computed(() => {
+            throwCount++;
+            if (throwCount <= 2) {
+                throw new Error(`Error #${throwCount}`);
+            }
+            return store.value * 2;
+        });
+
+        // First two accesses should throw
+        expect(() => comp.value).toThrow('Error #1');
+        expect(() => comp.value).toThrow('Error #2');
+
+        // Third access should succeed
+        expect(comp.value).toBe(2);
+
+        // After success, it should be cached
+        expect(comp.value).toBe(2);
+        expect(throwCount).toBe(3);
+    });
+
+    it('effect depending on computed clears sources properly on dispose', async () => {
+        const store = createStore({ value: 1 });
+        let effectRuns = 0;
+
+        const doubled = computed(() => store.value * 2);
+
+        const dispose = effect(() => {
+            effectRuns++;
+            doubled.value;
+        });
+
+        await flushPromises();
+        expect(effectRuns).toBe(1);
+
+        // Dispose the effect
+        dispose();
+
+        // Change the store - effect should NOT run
+        store.value = 5;
+        await flushPromises();
+        expect(effectRuns).toBe(1);
+
+        // Computed should still work independently
+        expect(doubled.value).toBe(10);
+    });
+
+    it('computed depending on computed clears sources when dependency changes', () => {
+        const store = createStore({ value: 1 });
+
+        const first = computed(() => store.value * 2);
+        const second = computed(() => first.value + 10);
+
+        // Access to set up dependencies
+        expect(second.value).toBe(12);
+
+        // Change store
+        store.value = 5;
+
+        // Both should update
+        expect(first.value).toBe(10);
+        expect(second.value).toBe(20);
+    });
+
+    it('effect on computed chain properly clears computed dependencies on dispose', async () => {
+        const store = createStore({ value: 1 });
+        let effectRuns = 0;
+
+        const a = computed(() => store.value + 1);
+        const b = computed(() => a.value + 1);
+
+        const dispose = effect(() => {
+            effectRuns++;
+            b.value;
+        });
+
+        await flushPromises();
+        expect(effectRuns).toBe(1);
+
+        dispose();
+
+        // Changes should not trigger effect
+        store.value = 10;
+        await flushPromises();
+        expect(effectRuns).toBe(1);
+    });
+
+    it('disposed effect is not run when flush happens', async () => {
+        const store = createStore({ value: 1 });
+        let effectRuns = 0;
+
+        const dispose = effect(() => {
+            effectRuns++;
+            store.value;
+        });
+
+        await flushPromises();
+        expect(effectRuns).toBe(1);
+
+        // Change store to trigger effect (it gets batched)
+        store.value = 2;
+
+        // Immediately dispose before flush happens
+        dispose();
+
+        await flushPromises();
+        // Effect should NOT have run because it was disposed before flush
+        expect(effectRuns).toBe(1);
+    });
+
+    it('effect marked dirty multiple times only runs once', async () => {
+        const store = createStore({ a: 1, b: 2 });
+        let runs = 0;
+
+        effect(() => {
+            runs++;
+            store.a;
+            store.b;
+        });
+
+        await flushPromises();
+        expect(runs).toBe(1);
+
+        // Change multiple tracked properties
+        store.a = 10;
+        store.b = 20;
+
+        await flushPromises();
+        // Should only run once despite two changes
+        expect(runs).toBe(2);
+    });
+
+    it('computed accessed from multiple effects handles dependency cleanup', async () => {
+        const store = createStore({ value: 1 });
+        let effect1Runs = 0;
+        let effect2Runs = 0;
+
+        const doubled = computed(() => store.value * 2);
+
+        const dispose1 = effect(() => {
+            effect1Runs++;
+            doubled.value;
+        });
+
+        effect(() => {
+            effect2Runs++;
+            doubled.value;
+        });
+
+        await flushPromises();
+        expect(effect1Runs).toBe(1);
+        expect(effect2Runs).toBe(1);
+
+        // Dispose first effect
+        dispose1();
+
+        // Change should only trigger second effect
+        store.value = 5;
+        await flushPromises();
+        expect(effect1Runs).toBe(1);
+        expect(effect2Runs).toBe(2);
+    });
+    it('effect clears computed from sources when re-running (exercises clearSources computed branch)', async () => {
+        const store = createStore({ value: 1 });
+        let effectRuns = 0;
+
+        const doubled = computed(() => store.value * 2);
+
+        // This effect depends on a computed
+        const dispose = effect(() => {
+            effectRuns++;
+            // Access computed - this adds { computed: doubled } to effect's sources
+            return doubled.value;
+        });
+
+        await flushPromises();
+        expect(effectRuns).toBe(1);
+        expect(doubled.value).toBe(2);
+
+        // Change store - triggers effect to re-run
+        // When effect re-runs, clearSources is called which should hit
+        // the `else if (source.computed)` branch
+        store.value = 5;
+        await flushPromises();
+        expect(effectRuns).toBe(2);
+        expect(doubled.value).toBe(10);
+
+        // Dispose to also test cleanup of computed sources
+        dispose();
+    });
+
+    it('disposing effect with computed dependency clears computed sources', async () => {
+        const store = createStore({ value: 1 });
+        let computeRuns = 0;
+
+        const doubled = computed(() => {
+            computeRuns++;
+            return store.value * 2;
+        });
+
+        const dispose = effect(() => {
+            doubled.value;
+        });
+
+        await flushPromises();
+        expect(computeRuns).toBe(1);
+
+        // Dispose effect - this should clear the computed from sources
+        // exercising the `else if (source.computed)` branch in clearSources
+        dispose();
+
+        // Change store - computed should still work but effect shouldn't run
+        store.value = 10;
+        expect(doubled.value).toBe(20);
+        expect(computeRuns).toBe(2);
+    });
+
+    it('effect already not dirty when flush runs (node[dirty] is false)', async () => {
+        const store = createStore({ value: 0 });
+        let effectRuns = 0;
+
+        const dispose = effect(() => {
+            effectRuns++;
+            store.value;
+        });
+
+        await flushPromises();
+        expect(effectRuns).toBe(1);
+
+        // Trigger a change - effect gets batched and marked dirty
+        store.value = 1;
+
+        // Dispose effect - this removes from batched AND clears dirty indirectly
+        // by removing from the batch before it runs
+        dispose();
+
+        await flushPromises();
+        // Effect should NOT have run because it was removed from batch
+        expect(effectRuns).toBe(1);
+    });
+
+    it('computed chain with effect exercises computed source clearing', async () => {
+        const store = createStore({ x: 1 });
+        let effectRuns = 0;
+
+        // Chain of computed values
+        const a = computed(() => store.x + 1);
+        const b = computed(() => a.value + 1);
+        const c = computed(() => b.value + 1);
+
+        // Effect depends on end of chain
+        effect(() => {
+            effectRuns++;
+            c.value;
+        });
+
+        await flushPromises();
+        expect(effectRuns).toBe(1);
+        expect(c.value).toBe(4); // 1 + 1 + 1 + 1
+
+        // Change triggers chain update
+        // Each computed re-evaluates and clears/re-establishes sources
+        store.x = 10;
+        await flushPromises();
+        expect(effectRuns).toBe(2);
+        expect(c.value).toBe(13); // 10 + 1 + 1 + 1
+    });
 });

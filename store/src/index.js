@@ -63,6 +63,18 @@ const computingStack = new Set(); // For circular dependency detection
  */
 
 /**
+ * Atomically copy and clear a Set
+ * @template T
+ * @param {Set<T>} set
+ * @returns {T[]}
+ */
+const cleared = set => {
+    const items = [...set];
+    set.clear();
+    return items;
+};
+
+/**
  * Unwraps a proxied value to get the underlying object
  * @template T
  * @param {T} value
@@ -75,17 +87,15 @@ export const unwrapValue = value => (value != null && /** @type {Unwrappable<T>}
  * @param {EffectNode | ComputedNode<any>} node
  */
 const clearSources = node => {
-    const nodeSources = node[sources];
-    for (const source of nodeSources) {
+    for (const source of cleared(node[sources])) {
         if (source.deps) {
             // Property dependency
             source.deps.delete(node);
-        } else if (source.computed) {
+        } else {
             // Computed dependency
             source.computed[dependencies].delete(node);
         }
     }
-    nodeSources.clear();
 };
 
 /**
@@ -96,16 +106,9 @@ const scheduleFlush = () => {
         flushScheduled = true;
         queueMicrotask(() => {
             flushScheduled = false;
-
-            const toRun = [...batched];
-            batched.clear();
-
-            for (const node of toRun) {
-                // Only run if still dirty (handles diamond problem)
-                if (node[dirty]) {
-                    node[dirty] = false;
-                    node[fn]();
-                }
+            for (const node of cleared(batched)) {
+                node[dirty] = false;
+                node[fn]();
             }
         });
     }
@@ -148,7 +151,7 @@ export const createStore = (object = /** @type {any} */ ({})) => {
     const propertyDeps = new WeakMap();
 
     /**
-     * Notify and clear dependents of a specific property
+     * Notify dependents of a specific property
      * @param {object} target
      * @param {string | symbol} property
      */
@@ -157,9 +160,7 @@ export const createStore = (object = /** @type {any} */ ({})) => {
         if (propsMap) {
             const deps = propsMap.get(property);
             if (deps) {
-                const depsArray = [...deps];
-                for (const dep of depsArray) {
-                    deps.delete(dep);
+                for (const dep of cleared(deps)) {
                     markDirty(dep);
                 }
             }
@@ -167,16 +168,14 @@ export const createStore = (object = /** @type {any} */ ({})) => {
     };
 
     /**
-     * Notify and clear all dependents of all properties on a target
+     * Notify all dependents of all properties on a target
      * @param {object} target
      */
     const notifyAllPropertyDependents = target => {
         const propsMap = propertyDeps.get(target);
         if (propsMap) {
-            for (const [, deps] of propsMap) {
-                const depsArray = [...deps];
-                for (const dep of depsArray) {
-                    deps.delete(dep);
+            for (const deps of propsMap.values()) {
+                for (const dep of cleared(deps)) {
                     markDirty(dep);
                 }
             }
@@ -191,79 +190,77 @@ export const createStore = (object = /** @type {any} */ ({})) => {
     const createProxy = object => {
         if (proxiesCache.has(object)) {
             return /** @type {T} */ (proxiesCache.get(object));
-        } else {
-            const proxy = new Proxy(object, {
-                set(target, p, newValue, receiver) {
-                    const realValue = unwrapValue(newValue);
-                    if (Reflect.get(target, p, receiver) !== realValue) {
-                        Reflect.set(target, p, realValue, receiver);
-                        notifyPropertyDependents(target, p);
-                    }
-                    return true;
-                },
-                get(target, p) {
-                    if (p === unwrap) return target;
-                    const propValue = Reflect.get(target, p);
-                    const valueType = typeof propValue;
-
-                    // Track dependency if we're inside an effect/computed
-                    if (tracked && currentComputing) {
-                        // Get or create the Map for this target
-                        let propsMap = propertyDeps.get(target);
-                        if (!propsMap) {
-                            propsMap = new Map();
-                            propertyDeps.set(target, propsMap);
-                        }
-
-                        // Get or create the Set for this property
-                        let deps = propsMap.get(p);
-                        if (!deps) {
-                            deps = new Set();
-                            propsMap.set(p, deps);
-                        }
-
-                        // Bidirectional linking
-                        deps.add(currentComputing);
-                        currentComputing[sources].add({ target, property: p, deps });
-                    }
-
-                    // https://jsbench.me/p6mjxatbz4/1 - without function cache is faster in all major browsers
-                    // probably because of an extra unwrapValue required with cache and extra cache lookup
-                    // Functions are wrapped to apply with correct `this` (target, not proxy)
-                    // After function call, mark deps dirty (function may have mutated internal state)
-                    return valueType === 'function'
-                        ? /** @param {...any} args */ (...args) => {
-                              const result = /** @type {Function} */ (propValue).apply(target, args.map(unwrapValue));
-                              // Notify after function call (function may have mutated state)
-                              // Only notify if we're NOT currently inside an effect/computed execution
-                              // to avoid infinite loops when reading during effect
-                              if (!currentComputing) {
-                                  notifyAllPropertyDependents(target);
-                              }
-                              return result;
-                          }
-                        : propValue !== null && valueType === 'object'
-                          ? createProxy(/** @type {any} */ (propValue))
-                          : propValue;
-                },
-                defineProperty(target, property, attributes) {
-                    const result = Reflect.defineProperty(target, property, attributes);
-                    if (result) {
-                        notifyPropertyDependents(target, property);
-                    }
-                    return result;
-                },
-                deleteProperty(target, p) {
-                    const result = Reflect.deleteProperty(target, p);
-                    if (result) {
-                        notifyPropertyDependents(target, p);
-                    }
-                    return result;
-                },
-            });
-            proxiesCache.set(object, proxy);
-            return /** @type {T} */ (proxy);
         }
+
+        const proxy = new Proxy(object, {
+            set(target, p, newValue, receiver) {
+                const realValue = unwrapValue(newValue);
+                if (!Object.is(Reflect.get(target, p, receiver), realValue)) {
+                    Reflect.set(target, p, realValue, receiver);
+                    notifyPropertyDependents(target, p);
+                }
+                return true;
+            },
+            get(target, p) {
+                if (p === unwrap) return target;
+                const propValue = Reflect.get(target, p);
+                const valueType = typeof propValue;
+
+                // Track dependency if we're inside an effect/computed
+                if (tracked && currentComputing) {
+                    // Get or create the Map for this target
+                    let propsMap = propertyDeps.get(target);
+                    if (!propsMap) {
+                        propsMap = new Map();
+                        propertyDeps.set(target, propsMap);
+                    }
+
+                    // Get or create the Set for this property
+                    let deps = propsMap.get(p);
+                    if (!deps) {
+                        deps = new Set();
+                        propsMap.set(p, deps);
+                    }
+
+                    // Bidirectional linking
+                    deps.add(currentComputing);
+                    currentComputing[sources].add({ target, property: p, deps });
+                }
+
+                // Functions are wrapped to apply with correct `this` (target, not proxy)
+                // After function call, mark deps dirty (function may have mutated internal state)
+                return valueType === 'function'
+                    ? /** @param {...any} args */ (...args) => {
+                          const result = /** @type {Function} */ (propValue).apply(target, args.map(unwrapValue));
+                          // Notify after function call (function may have mutated state)
+                          // Only notify if we're NOT currently inside an effect/computed execution
+                          // to avoid infinite loops when reading during effect
+                          if (!currentComputing) {
+                              notifyAllPropertyDependents(target);
+                          }
+                          return result;
+                      }
+                    : propValue !== null && valueType === 'object'
+                      ? createProxy(/** @type {any} */ (propValue))
+                      : propValue;
+            },
+            defineProperty(target, property, attributes) {
+                const result = Reflect.defineProperty(target, property, attributes);
+                if (result) {
+                    notifyPropertyDependents(target, property);
+                }
+                return result;
+            },
+            deleteProperty(target, p) {
+                const result = Reflect.deleteProperty(target, p);
+                if (result) {
+                    notifyPropertyDependents(target, p);
+                }
+                return result;
+            },
+        });
+        proxiesCache.set(object, proxy);
+        return /** @type {T} */ (proxy);
     };
 
     return createProxy(object);
@@ -281,12 +278,12 @@ export const effect = callback => {
         [dirty]: false,
         [cleanup]: null,
         [isEffect]: true,
-        [fn]: () => {},
+        [fn]: /** @type {() => void} */ (undefined),
     };
 
     fx[fn] = () => {
         // Run cleanup from previous execution
-        if (typeof fx[cleanup] === 'function') fx[cleanup]();
+        fx[cleanup]?.();
 
         // Clear old dependencies
         clearSources(fx);
@@ -296,7 +293,7 @@ export const effect = callback => {
         currentComputing = fx;
         try {
             const result = callback();
-            fx[cleanup] = result === undefined ? null : result;
+            fx[cleanup] = typeof result === 'function' ? result : null;
         } finally {
             currentComputing = prev;
         }
@@ -307,7 +304,7 @@ export const effect = callback => {
 
     // Return dispose function
     return () => {
-        if (typeof fx[cleanup] === 'function') fx[cleanup]();
+        fx[cleanup]?.();
         clearSources(fx);
         // Remove from batched if scheduled
         batched.delete(fx);
