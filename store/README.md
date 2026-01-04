@@ -4,7 +4,7 @@ Proxy-based reactive store with signals-like API for SPAs.
 
 1. Simple - automatic dependency tracking
 2. Fast - fine-grained updates, only re-run what depends on changed values
-3. Small - less than 1.3KB minified (core < 1KB)
+3. Small
 4. TypeScript support
 
 [Changelog](./CHANGELOG.md)
