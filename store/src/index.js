@@ -94,25 +94,20 @@ const clearSources = node => {
 const scheduleFlush = () => {
     if (!flushScheduled) {
         flushScheduled = true;
-        queueMicrotask(flush);
-    }
-};
+        queueMicrotask(() => {
+            flushScheduled = false;
 
-/**
- * Execute batched effects
- */
-const flush = () => {
-    flushScheduled = false;
+            const toRun = [...batched];
+            batched.clear();
 
-    const toRun = [...batched];
-    batched.clear();
-
-    for (const node of toRun) {
-        // Only run if still dirty (handles diamond problem)
-        if (node[dirty]) {
-            node[dirty] = false;
-            node[fn]();
-        }
+            for (const node of toRun) {
+                // Only run if still dirty (handles diamond problem)
+                if (node[dirty]) {
+                    node[dirty] = false;
+                    node[fn]();
+                }
+            }
+        });
     }
 };
 
