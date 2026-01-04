@@ -19,11 +19,6 @@ const dependencies = Symbol();
 const dirty = Symbol();
 
 /**
- * Symbol for cached value (computed)
- */
-const value = Symbol();
-
-/**
  * Symbol to mark a node as an effect (eager execution)
  */
 const isEffect = Symbol();
@@ -85,17 +80,6 @@ const clearSources = (node, fromIndex = 0) => {
         sourcesArray.length = 0;
     } else {
         sourcesArray.length = fromIndex;
-    }
-};
-
-/**
- * Run cleanup function for an effect
- * @param {ComputedNode<any>} comp
- */
-const runCleanup = comp => {
-    const cleanupFn = comp[value];
-    if (typeof cleanupFn === 'function') {
-        cleanupFn();
     }
 };
 
@@ -298,7 +282,19 @@ export const createStore = (object = /** @type {any} */ ({})) => {
  * @returns {() => void} Dispose function
  */
 export const effect = callback => {
-    const comp = /** @type {ComputedNode<void | (() => void)>} */ (computed(callback));
+    /** @type {void | (() => void)} */
+    let cleanup;
+
+    const comp = /** @type {ComputedNode<void | (() => void)>} */ (
+        computed(() => {
+            // Run previous cleanup if it exists
+            if (typeof cleanup === 'function') {
+                cleanup();
+            }
+            // Run the callback and store new cleanup
+            cleanup = callback();
+        })
+    );
     comp[isEffect] = true;
 
     // Trigger first run via batched queue (node is already dirty from computed())
@@ -308,7 +304,9 @@ export const effect = callback => {
     // Return dispose function
     return () => {
         // Run final cleanup
-        runCleanup(comp);
+        if (typeof cleanup === 'function') {
+            cleanup();
+        }
         clearSources(comp);
         batched.delete(comp);
     };
@@ -326,12 +324,14 @@ export const effect = callback => {
  * @returns {Computed<T>}
  */
 export const computed = getter => {
+    /** @type {T} */
+    let cachedValue;
+
     /** @type {ComputedNode<T>} */
     const comp = {
         [sources]: [],
         [dependencies]: new Set(),
         [dirty]: true,
-        [value]: /** @type {T} */ (/** @type {unknown} */ (undefined)),
         [skippedDeps]: 0,
 
         get value() {
@@ -342,11 +342,6 @@ export const computed = getter => {
             if (this[dirty]) {
                 this[dirty] = false;
 
-                // For effects: run previous cleanup
-                if (this[isEffect]) {
-                    runCleanup(this);
-                }
-
                 // Reset skipped deps counter for this recomputation
                 this[skippedDeps] = 0;
 
@@ -355,7 +350,7 @@ export const computed = getter => {
                 currentComputing = this;
                 tracked = true; // Computed always tracks its own dependencies
                 try {
-                    this[value] = getter();
+                    cachedValue = getter();
                 } catch (e) {
                     // Restore dirty flag on error so it can be retried
                     this[dirty] = true;
@@ -370,7 +365,7 @@ export const computed = getter => {
                 }
             }
 
-            return /** @type {T} */ (this[value]);
+            return cachedValue;
         },
     };
 
