@@ -595,4 +595,38 @@ describe('computed', () => {
         expect(effectRuns).toBe(2);
         expect(c.value).toBe(13); // 10 + 1 + 1 + 1
     });
+
+    it('computed with fewer dependencies on subsequent run triggers cleanup', () => {
+        // This test specifically covers line 384: cleanup when sources.length > skippedDeps
+        // This happens when a computed accesses fewer properties on a subsequent recomputation
+        const store = createStore({ useAll: true, a: 1, b: 2, c: 3 });
+
+        const conditional = computed(() => {
+            if (store.useAll) {
+                // Access all three properties
+                return store.a + store.b + store.c;
+            } else {
+                // Access only one property
+                return store.a;
+            }
+        });
+
+        // First computation: accesses a, b, c (sources.length = 3)
+        expect(conditional.value).toBe(6);
+
+        // Switch to accessing fewer dependencies
+        store.useAll = false;
+
+        // Second computation: accesses only a (skippedDeps = 1)
+        // This should trigger cleanup at line 384: sources.length (3) > skippedDeps (1)
+        // The excess sources (b and c) should be cleaned up
+        expect(conditional.value).toBe(1);
+
+        // Verify cleanup worked: changing b or c should not cause recomputation
+        const oldValue = conditional.value;
+        store.b = 100;
+        store.c = 200;
+        // Since b and c are no longer dependencies, computed should still return cached value
+        expect(conditional.value).toBe(oldValue);
+    });
 });

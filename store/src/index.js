@@ -34,6 +34,11 @@ const value = Symbol();
 const isEffect = Symbol();
 
 /**
+ * Symbol for skipped dependencies counter (optimization)
+ */
+const skippedDeps = Symbol();
+
+/**
  * @template T
  * @typedef {Record<symbol, any> & { readonly value: T }} ComputedNode
  */
@@ -72,12 +77,19 @@ const cleared = set => {
 export const unwrapValue = value => (value != null && /** @type {Unwrappable<T>} */ (value)[unwrap]) || value;
 
 /**
- * Clear all sources for a node
+ * Clear sources for a node starting from a specific index
  * @param {ComputedNode<any>} node
+ * @param {number} fromIndex - Index to start clearing from (default 0 clears all)
  */
-const clearSources = node => {
-    for (const depSet of cleared(node[sources])) {
-        depSet.delete(node);
+const clearSources = (node, fromIndex = 0) => {
+    const sourcesArray = node[sources];
+    for (let i = fromIndex; i < sourcesArray.length; i++) {
+        sourcesArray[i].delete(node);
+    }
+    if (fromIndex === 0) {
+        sourcesArray.length = 0;
+    } else {
+        sourcesArray.length = fromIndex;
     }
 };
 
@@ -216,9 +228,24 @@ export const createStore = (object = /** @type {any} */ ({})) => {
                         propsMap.set(p, deps);
                     }
 
-                    // Bidirectional linking
-                    deps.add(currentComputing);
-                    currentComputing[sources].add(deps);
+                    // Bidirectional linking with optimization
+                    const sourcesArray = currentComputing[sources];
+                    const skipIndex = currentComputing[skippedDeps];
+
+                    if (sourcesArray[skipIndex] === deps) {
+                        // Same dependency at same position - reuse it!
+                        // Still need to ensure we're in the deps Set (might have been removed)
+                        deps.add(currentComputing);
+                        currentComputing[skippedDeps]++;
+                    } else {
+                        // Different dependency - clear old ones from this point and rebuild
+                        if (skipIndex < sourcesArray.length) {
+                            clearSources(currentComputing, skipIndex);
+                        }
+                        deps.add(currentComputing);
+                        sourcesArray.push(deps);
+                        currentComputing[skippedDeps]++;
+                    }
                 }
 
                 // Functions are wrapped to apply with correct `this` (target, not proxy)
@@ -296,17 +323,35 @@ export const effect = callback => {
 export const computed = getter => {
     /** @type {ComputedNode<T>} */
     const comp = {
-        [sources]: new Set(),
+        [sources]: [],
         [dependencies]: new Set(),
         [dirty]: true,
         [value]: /** @type {T} */ (/** @type {unknown} */ (undefined)),
         [fn]: getter,
+        [skippedDeps]: 0,
 
         get value() {
             // Track if someone is reading us
             if (tracked && currentComputing) {
                 this[dependencies].add(currentComputing);
-                currentComputing[sources].add(this[dependencies]);
+
+                // Apply skippedDeps optimization for computed-to-computed tracking
+                const sourcesArray = currentComputing[sources];
+                const skipIndex = currentComputing[skippedDeps];
+
+                if (sourcesArray[skipIndex] === this[dependencies]) {
+                    // Same dependency at same position - reuse it!
+                    // Still need to ensure we're in the deps Set (might have been removed)
+                    this[dependencies].add(currentComputing);
+                    currentComputing[skippedDeps]++;
+                } else {
+                    // Different dependency - clear old ones from this point and rebuild
+                    if (skipIndex < sourcesArray.length) {
+                        clearSources(currentComputing, skipIndex);
+                    }
+                    sourcesArray.push(this[dependencies]);
+                    currentComputing[skippedDeps]++;
+                }
             }
 
             // Recompute if dirty
@@ -318,7 +363,8 @@ export const computed = getter => {
                     runCleanup(this);
                 }
 
-                clearSources(this);
+                // Reset skipped deps counter for this recomputation
+                this[skippedDeps] = 0;
 
                 const prev = currentComputing;
                 const prevTracked = tracked;
@@ -333,6 +379,10 @@ export const computed = getter => {
                 } finally {
                     currentComputing = prev;
                     tracked = prevTracked;
+                    // Clean up any excess sources that weren't reused
+                    if (this[sources].length > this[skippedDeps]) {
+                        clearSources(this, this[skippedDeps]);
+                    }
                 }
             }
 
