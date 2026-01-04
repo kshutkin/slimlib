@@ -29,23 +29,19 @@ const fn = Symbol();
 const value = Symbol();
 
 /**
- * Symbol for cleanup function
+ * Symbol to mark a node as an effect (eager execution)
  */
-const cleanup = Symbol();
-
-/**
- * @typedef {Record<symbol, any>} EffectNode
- */
+const isEffect = Symbol();
 
 /**
  * @template T
- * @typedef {Record<symbol, any>} ComputedNode
+ * @typedef {Record<symbol, any> & { readonly value: T }} ComputedNode
  */
 
 // Global state
-/** @type {EffectNode | ComputedNode<any> | null} */
+/** @type {ComputedNode<any> | null} */
 let currentComputing = null;
-/** @type {Set<EffectNode>} */
+/** @type {Set<ComputedNode<any>>} */
 const batched = new Set();
 let flushScheduled = false;
 let tracked = true;
@@ -76,8 +72,8 @@ const cleared = set => {
 export const unwrapValue = value => (value != null && /** @type {Unwrappable<T>} */ (value)[unwrap]) || value;
 
 /**
- * Clear all sources for a node (effect/computed)
- * @param {EffectNode | ComputedNode<any>} node
+ * Clear all sources for a node
+ * @param {ComputedNode<any>} node
  */
 const clearSources = node => {
     for (const depSet of cleared(node[sources])) {
@@ -94,8 +90,9 @@ const scheduleFlush = () => {
         queueMicrotask(() => {
             flushScheduled = false;
             for (const node of cleared(batched)) {
-                node[dirty] = false;
-                node[fn]();
+                // Access .value to trigger recomputation for effects
+                // The value getter will clear dirty flag
+                node.value;
             }
         });
     }
@@ -103,19 +100,19 @@ const scheduleFlush = () => {
 
 /**
  * Mark a node as dirty and propagate to dependents
- * @param {EffectNode | ComputedNode<any>} node
+ * @param {ComputedNode<any>} node
  */
 const markDirty = node => {
     if (!node[dirty]) {
         node[dirty] = true;
 
-        // Propagate to dependents (for computed values)
-        if (node[dependencies]) {
-            for (const dep of node[dependencies]) {
-                markDirty(dep);
-            }
-        } else {
-            // Schedule execution (only for effects - no dependencies means it's an effect)
+        // Propagate to dependents
+        for (const dep of node[dependencies]) {
+            markDirty(dep);
+        }
+
+        // Schedule execution for effects
+        if (node[isEffect]) {
             batched.add(node);
             scheduleFlush();
         }
@@ -249,41 +246,22 @@ export const createStore = (object = /** @type {any} */ ({})) => {
  * @returns {() => void} Dispose function
  */
 export const effect = callback => {
-    /** @type {EffectNode} */
-    const fx = {
-        [sources]: new Set(),
-        [dirty]: false,
-        [cleanup]: null,
-        [fn]: /** @type {() => void} */ (undefined),
-    };
+    const comp = computed(callback);
+    comp[isEffect] = true;
 
-    fx[fn] = () => {
-        // Run cleanup from previous execution
-        fx[cleanup]?.();
-
-        // Clear old dependencies
-        clearSources(fx);
-
-        // Track new dependencies
-        const prev = currentComputing;
-        currentComputing = fx;
-        try {
-            const result = callback();
-            fx[cleanup] = typeof result === 'function' ? result : null;
-        } finally {
-            currentComputing = prev;
-        }
-    };
-
-    // Mark dirty to trigger first run on next microtask
-    markDirty(fx);
+    // Trigger first run via batched queue (node is already dirty from computed())
+    batched.add(comp);
+    scheduleFlush();
 
     // Return dispose function
     return () => {
-        fx[cleanup]?.();
-        clearSources(fx);
-        // Remove from batched if scheduled
-        batched.delete(fx);
+        // Run final cleanup
+        const cleanupFn = comp[value];
+        if (typeof cleanupFn === 'function') {
+            cleanupFn();
+        }
+        clearSources(comp);
+        batched.delete(comp);
     };
 };
 
@@ -299,7 +277,7 @@ export const effect = callback => {
  * @returns {Computed<T>}
  */
 export const computed = getter => {
-    /** @type {ComputedNode<T> & { get value(): T }} */
+    /** @type {ComputedNode<T>} */
     const comp = {
         [sources]: new Set(),
         [dependencies]: new Set(),
@@ -317,6 +295,15 @@ export const computed = getter => {
             // Recompute if dirty
             if (this[dirty]) {
                 this[dirty] = false;
+
+                // For effects: run previous cleanup
+                if (this[isEffect]) {
+                    const cleanupFn = this[value];
+                    if (typeof cleanupFn === 'function') {
+                        cleanupFn();
+                    }
+                }
+
                 clearSources(this);
 
                 const prev = currentComputing;
