@@ -35,5 +35,11 @@
         "build": "dts-buddy",
         "test": "vitest run --coverage --config ../vitest.config.mjs",
         "bench": "node tests/benchmark.mjs"
+    },
+    "devDependencies": {
+        "@preact/signals-core": "^1.8.0",
+        "@reactively/core": "^0.0.8",
+        "alien-signals": "^1.0.13",
+        "solid-js": "^1.9.5"
     }
 }

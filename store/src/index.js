@@ -39,27 +39,20 @@ const dependencies = Symbol();
 const propertyDeps = new WeakMap();
 
 /**
- * Symbol for computation state (discriminated union)
- * Values:
- * - 0: clean (no action needed)
- * - 1: check (might need recomputation, check sources first)
- * - 2: dirty (definitely needs recomputation)
- * - 3: computing (currently executing)
- * - 4: computingDirty (computing but marked for re-run after)
+ * Symbol for computation state (bit flags)
  */
-const nodeStateSymbol = Symbol();
+const flagsSymbol = Symbol();
 
-// State constants
-const STATE_CLEAN = 0;
-const STATE_CHECK = 1;
-const STATE_DIRTY = 2;
-const STATE_COMPUTING = 3;
-const STATE_COMPUTING_DIRTY = 4;
+// Bit flags for node state
+const FLAG_DIRTY = 1 << 0; // 1 - definitely needs recomputation
+const FLAG_CHECK = 1 << 1; // 2 - might need recomputation, check sources first
+const FLAG_COMPUTING = 1 << 2; // 4 - currently executing
+const FLAG_EFFECT = 1 << 3; // 8 - is an effect (eager execution)
 
-/**
- * Symbol to mark a node as an effect (eager execution)
- */
-const isEffect = Symbol();
+// Pre-combined flags for faster checks
+const FLAG_NEEDS_WORK = FLAG_DIRTY | FLAG_CHECK; // 3 - needs recomputation
+const FLAG_COMPUTING_EFFECT = FLAG_COMPUTING | FLAG_EFFECT; // 12 - computing effect
+const FLAG_CHECK_ONLY = FLAG_CHECK | FLAG_DIRTY | FLAG_EFFECT; // 11 - for checking if only CHECK is set
 
 /**
  * Symbol for skipped dependencies counter (optimization)
@@ -175,20 +168,6 @@ const trackDependency = (deps, sourceNode) => {
 };
 
 /**
- * Check if node is in a computing state
- * @param {ComputedNode<any>} node
- * @returns {boolean}
- */
-const isComputing = node => node[nodeStateSymbol] === STATE_COMPUTING || node[nodeStateSymbol] === STATE_COMPUTING_DIRTY;
-
-/**
- * Check if node needs work (check, dirty, or computing-dirty)
- * @param {ComputedNode<any>} node
- * @returns {boolean}
- */
-const needsWork = node => node[nodeStateSymbol] >= STATE_CHECK;
-
-/**
  * Schedule an effect for execution
  * @param {ComputedNode<any>} node
  */
@@ -203,22 +182,28 @@ const scheduleEffect = node => {
  * @param {ComputedNode<any>} node
  */
 const markNeedsCheck = node => {
+    const flags = node[flagsSymbol];
+
     // Don't mark nodes that are currently computing - they'll handle their own state
     // Exception: effects that have store changes during execution should still be scheduled for re-run
-    if (isComputing(node)) {
-        if (node[isEffect]) {
-            // Store changed during effect execution - schedule re-run
-            node[nodeStateSymbol] = STATE_COMPUTING_DIRTY;
-            scheduleEffect(node);
-        }
+    if ((flags & FLAG_COMPUTING_EFFECT) === FLAG_COMPUTING_EFFECT) {
+        // Computing effect with store change - schedule re-run
+        node[flagsSymbol] = flags | FLAG_DIRTY;
+        scheduleEffect(node);
         return;
     }
 
-    if (node[nodeStateSymbol] === STATE_CLEAN) {
-        node[nodeStateSymbol] = STATE_CHECK;
+    if (flags & FLAG_COMPUTING) {
+        // Computing but not an effect - just return
+        return;
+    }
+
+    // Only propagate if node is clean (no dirty or check flags set)
+    if (!(flags & FLAG_NEEDS_WORK)) {
+        node[flagsSymbol] = flags | FLAG_CHECK;
 
         // Schedule execution for effects
-        if (node[isEffect]) {
+        if (flags & FLAG_EFFECT) {
             scheduleEffect(node);
         }
 
@@ -395,7 +380,7 @@ export const effect = callback => {
             () => false
         )
     );
-    comp[isEffect] = true;
+    comp[flagsSymbol] |= FLAG_EFFECT;
 
     // Trigger first run via batched queue (node is already dirty from computed())
     scheduleEffect(comp);
@@ -433,11 +418,13 @@ export const computed = (getter, equals = Object.is) => {
                     // Track if someone is reading us
                     trackDependency(context[dependencies], context);
 
+                    let flags = context[flagsSymbol];
+
                     // For CHECK state, verify if sources actually changed before recomputing
                     // This preserves the equality cutoff optimization with eager marking
                     // Only do this for non-effects that ONLY have computed sources (with nodes)
                     // Effects should always run when marked, and state deps have no node to check
-                    if (context[nodeStateSymbol] === STATE_CHECK && hasValue && !context[isEffect]) {
+                    if ((flags & FLAG_CHECK_ONLY) === FLAG_CHECK && hasValue) {
                         const sourcesArray = context[sources];
                         // Check if we have any computed sources to verify
                         let hasComputedSources = false;
@@ -462,16 +449,18 @@ export const computed = (getter, equals = Object.is) => {
                             });
                             // If we're still CHECK after checking all sources, no source changed value
                             // We can safely mark as clean and skip recomputation
-                            if (context[nodeStateSymbol] === STATE_CHECK) {
-                                context[nodeStateSymbol] = STATE_CLEAN;
+                            flags = context[flagsSymbol];
+                            if ((flags & FLAG_NEEDS_WORK) === FLAG_CHECK) {
+                                context[flagsSymbol] = flags & ~FLAG_CHECK;
                             }
                         }
                     }
 
-                    // Recompute if dirty (sources actually changed)
-                    if (needsWork(context) && !isComputing(context)) {
-                        const wasDirty = context[nodeStateSymbol] === STATE_DIRTY;
-                        context[nodeStateSymbol] = STATE_COMPUTING;
+                    // Recompute if dirty or check (sources actually changed)
+                    flags = context[flagsSymbol];
+                    if (flags & FLAG_NEEDS_WORK && !(flags & FLAG_COMPUTING)) {
+                        const wasDirty = (flags & FLAG_DIRTY) !== 0;
+                        context[flagsSymbol] = (flags & ~FLAG_NEEDS_WORK) | FLAG_COMPUTING;
 
                         // Reset skipped deps counter for this recomputation
                         context[skippedDeps] = 0;
@@ -492,8 +481,9 @@ export const computed = (getter, equals = Object.is) => {
                                 // Value changed - mark dependents as DIRTY (not just CHECK)
                                 // so they know they definitely need to recompute
                                 forEachDep(context[dependencies], dep => {
-                                    if (!isComputing(dep) && dep[nodeStateSymbol] === STATE_CHECK) {
-                                        dep[nodeStateSymbol] = STATE_DIRTY;
+                                    const depFlags = dep[flagsSymbol];
+                                    if ((depFlags & (FLAG_COMPUTING | FLAG_NEEDS_WORK)) === FLAG_CHECK) {
+                                        dep[flagsSymbol] = depFlags | FLAG_DIRTY;
                                     }
                                 });
                             } else if (wasDirty) {
@@ -503,12 +493,13 @@ export const computed = (getter, equals = Object.is) => {
                             }
                             // If value unchanged and was only checking, don't propagate
 
-                            // Check if we were marked dirty during computation (computingDirty state)
-                            // If so, transition to dirty instead of clean
-                            context[nodeStateSymbol] = context[nodeStateSymbol] === STATE_COMPUTING_DIRTY ? STATE_DIRTY : STATE_CLEAN;
+                            // Check if we were marked dirty during computation
+                            // If so, keep dirty flag, otherwise clear computing
+                            const endFlags = context[flagsSymbol];
+                            context[flagsSymbol] = endFlags & ~FLAG_COMPUTING;
                         } catch (e) {
                             // Restore dirty flag on error so it can be retried
-                            context[nodeStateSymbol] = STATE_DIRTY;
+                            context[flagsSymbol] = (context[flagsSymbol] & ~FLAG_COMPUTING) | FLAG_DIRTY;
                             throw e;
                         } finally {
                             currentComputing = prev;
@@ -525,7 +516,7 @@ export const computed = (getter, equals = Object.is) => {
                 {
                     [sources]: [],
                     [dependencies]: new Set(),
-                    [nodeStateSymbol]: STATE_DIRTY,
+                    [flagsSymbol]: FLAG_DIRTY,
                     [skippedDeps]: 0,
                 }
             )

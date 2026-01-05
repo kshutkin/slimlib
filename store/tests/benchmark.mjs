@@ -1,62 +1,197 @@
 /**
- * Benchmark runner based on https://github.com/milomg/js-reactivity-benchmark
+ * Multi-framework Reactivity Benchmark
+ * Based on https://github.com/milomg/js-reactivity-benchmark
+ *
  * Run with: node tests/benchmark.mjs
  */
 
-import { computed, effect, flush, signal } from '../src/index.js';
+// ============================================================================
+// Framework Adapters
+// ============================================================================
 
-// Helper class for counting
+// @slimlib/store
+import { computed as slimlibComputed, effect as slimlibEffect, flush as slimlibFlush, signal as slimlibSignal } from '../src/index.js';
+
+const slimlibFramework = {
+    name: '@slimlib/store',
+    signal: initial => {
+        const s = slimlibSignal(initial);
+        return { read: () => s(), write: v => s.set(v) };
+    },
+    computed: fn => {
+        const c = slimlibComputed(fn);
+        return { read: () => c() };
+    },
+    effect: fn => slimlibEffect(fn),
+    withBatch: fn => {
+        fn();
+        slimlibFlush();
+    },
+    withBuild: fn => {
+        const r = fn();
+        slimlibFlush();
+        return r;
+    },
+    cleanup: () => {},
+};
+
+// @preact/signals-core
+import { batch as preactBatch, computed as preactComputed, effect as preactEffect, signal as preactSignal } from '@preact/signals-core';
+
+let preactCleanups = [];
+const preactFramework = {
+    name: '@preact/signals-core',
+    signal: initial => {
+        const s = preactSignal(initial);
+        return { read: () => s.value, write: v => (s.value = v) };
+    },
+    computed: fn => {
+        const c = preactComputed(fn);
+        return { read: () => c.value };
+    },
+    effect: fn => preactCleanups.push(preactEffect(fn)),
+    withBatch: fn => preactBatch(fn),
+    withBuild: fn => fn(),
+    cleanup: () => {
+        preactCleanups.forEach(c => c());
+        preactCleanups = [];
+    },
+};
+
+// alien-signals
+import { computed as alienComputed, effect as alienEffect, signal as alienSignal, effectScope, endBatch, startBatch } from 'alien-signals';
+
+let alienScope = null;
+const alienFramework = {
+    name: 'alien-signals',
+    signal: initial => {
+        const s = alienSignal(initial);
+        return { read: () => s(), write: v => s(v) };
+    },
+    computed: fn => {
+        const c = alienComputed(fn);
+        return { read: () => c() };
+    },
+    effect: fn => alienEffect(fn),
+    withBatch: fn => {
+        startBatch();
+        fn();
+        endBatch();
+    },
+    withBuild: fn => {
+        let out;
+        alienScope = effectScope(() => {
+            out = fn();
+        });
+        return out;
+    },
+    cleanup: () => {
+        if (alienScope) {
+            alienScope();
+            alienScope = null;
+        }
+    },
+};
+
+// @reactively/core
+import { Reactive, stabilize } from '@reactively/core';
+
+const reactivelyFramework = {
+    name: '@reactively/core',
+    signal: initial => {
+        const r = new Reactive(initial);
+        return { read: () => r.get(), write: v => r.set(v) };
+    },
+    computed: fn => {
+        const r = new Reactive(fn);
+        return { read: () => r.get() };
+    },
+    effect: fn => new Reactive(fn, true),
+    withBatch: fn => {
+        fn();
+        stabilize();
+    },
+    withBuild: fn => fn(),
+    cleanup: () => {},
+};
+
+// solid-js
+import { createEffect, createMemo, createRoot, createSignal, batch as solidBatch } from 'solid-js/dist/solid.cjs';
+
+let solidDispose = null;
+const solidFramework = {
+    name: 'solid-js',
+    signal: initial => {
+        const [get, set] = createSignal(initial);
+        return { read: () => get(), write: v => set(v) };
+    },
+    computed: fn => {
+        const memo = createMemo(fn);
+        return { read: () => memo() };
+    },
+    effect: fn => createEffect(fn),
+    withBatch: fn => solidBatch(fn),
+    withBuild: fn =>
+        createRoot(dispose => {
+            solidDispose = dispose;
+            return fn();
+        }),
+    cleanup: () => {
+        if (solidDispose) {
+            solidDispose();
+            solidDispose = null;
+        }
+    },
+};
+
+// ============================================================================
+// All Frameworks
+// ============================================================================
+
+const frameworks = [slimlibFramework, preactFramework, alienFramework, reactivelyFramework, solidFramework];
+
+// ============================================================================
+// Helpers
+// ============================================================================
+
 class Counter {
     count = 0;
 }
 
-// Helper function for simulating heavy computation
 function busy() {
     let a = 0;
-    for (let i = 0; i < 100; i++) {
-        a++;
-    }
+    for (let i = 0; i < 100; i++) a++;
 }
 
-// Pseudo-random number generator for reproducible tests
-function pseudoRandom(seed = 0) {
-    return () => {
-        seed = (seed * 16807 + 0) % 2147483647;
-        return (seed - 1) / 2147483646;
-    };
-}
-
-// Fibonacci for mol bench
 function fib(n) {
     if (n < 2) return 1;
     return fib(n - 1) + fib(n - 2);
 }
 
-function hard(n, _log) {
+function hard(n) {
     return n + fib(16);
+}
+
+function pseudoRandom(seed = 0) {
+    return () => {
+        seed = (seed * 16807) % 2147483647;
+        return (seed - 1) / 2147483646;
+    };
 }
 
 // ============================================================================
 // Benchmark Runner
 // ============================================================================
 
-const results = [];
+const results = new Map();
 
-function logResult(name, time) {
-    results.push({ name, time });
-    console.log(`${name}: ${time.toFixed(2)}ms`);
-}
-
-async function runBenchmark(name, setup, run, iterations = 1) {
+async function runBenchmark(framework, name, setup, run, iterations = 1) {
     // Warmup
-    const cleanup = setup();
-    flush();
-    for (let i = 0; i < 3; i++) {
-        run();
-    }
-    if (cleanup) cleanup();
+    let cleanup = framework.withBuild(() => setup(framework));
+    for (let i = 0; i < 3; i++) run();
+    if (typeof cleanup === 'function') cleanup();
+    framework.cleanup();
 
-    // GC if available
     if (globalThis.gc) {
         gc();
         gc();
@@ -65,16 +200,14 @@ async function runBenchmark(name, setup, run, iterations = 1) {
     // Run benchmark
     let fastestTime = Infinity;
     for (let attempt = 0; attempt < 5; attempt++) {
-        const cleanup = setup();
-        flush();
+        cleanup = framework.withBuild(() => setup(framework));
 
         const start = performance.now();
-        for (let i = 0; i < iterations; i++) {
-            run();
-        }
+        for (let i = 0; i < iterations; i++) run();
         const end = performance.now();
 
-        if (cleanup) cleanup();
+        if (typeof cleanup === 'function') cleanup();
+        framework.cleanup();
 
         if (globalThis.gc) {
             gc();
@@ -82,264 +215,252 @@ async function runBenchmark(name, setup, run, iterations = 1) {
         }
 
         const time = end - start;
-        if (time < fastestTime) {
-            fastestTime = time;
-        }
+        if (time < fastestTime) fastestTime = time;
     }
 
-    logResult(name, fastestTime);
-    return fastestTime;
+    if (!results.has(name)) results.set(name, new Map());
+    results.get(name).set(framework.name, fastestTime);
 }
 
 // ============================================================================
 // Kairo Benchmarks
 // ============================================================================
 
-async function deepPropagation() {
-    const len = 50;
-    const iter = 50;
-
-    let head, current;
+async function deepPropagation(framework) {
+    const len = 50,
+        iter = 50;
+    let head, current, dispose;
 
     await runBenchmark(
+        framework,
         'deepPropagation',
-        () => {
-            head = signal(0);
+        fw => {
+            head = fw.signal(0);
             current = head;
             for (let i = 0; i < len; i++) {
                 const c = current;
-                current = computed(() => c() + 1);
+                current = fw.computed(() => c.read() + 1);
             }
-            const dispose = effect(() => current());
+            dispose = fw.effect(() => current.read());
             return dispose;
         },
         () => {
             for (let i = 0; i < iter; i++) {
-                head.set(i);
-                flush();
+                framework.withBatch(() => head.write(i));
             }
         }
     );
 }
 
-async function broadPropagation() {
-    let head;
-    const disposers = [];
+async function broadPropagation(framework) {
+    let head,
+        disposers = [];
 
     await runBenchmark(
+        framework,
         'broadPropagation',
-        () => {
-            head = signal(0);
-            disposers.length = 0;
+        fw => {
+            head = fw.signal(0);
+            disposers = [];
             for (let i = 0; i < 50; i++) {
                 const idx = i;
-                const current = computed(() => head() + idx);
-                const current2 = computed(() => current() + 1);
-                disposers.push(effect(() => current2()));
+                const c = fw.computed(() => head.read() + idx);
+                const c2 = fw.computed(() => c.read() + 1);
+                disposers.push(fw.effect(() => c2.read()));
             }
-            return () => disposers.forEach(d => d());
+            return () => disposers.forEach(d => typeof d === 'function' && d());
         },
         () => {
             for (let i = 0; i < 50; i++) {
-                head.set(i);
-                flush();
+                framework.withBatch(() => head.write(i));
             }
         }
     );
 }
 
-async function avoidablePropagation() {
-    let head;
+async function avoidablePropagation(framework) {
+    let head, dispose;
 
     await runBenchmark(
+        framework,
         'avoidablePropagation',
-        () => {
-            head = signal(0);
-            const computed1 = computed(() => head());
-            const computed2 = computed(() => (computed1(), 0));
-            const computed3 = computed(() => (busy(), computed2() + 1));
-            const computed4 = computed(() => computed3() + 2);
-            const computed5 = computed(() => computed4() + 3);
-            return effect(() => {
-                computed5();
+        fw => {
+            head = fw.signal(0);
+            const c1 = fw.computed(() => head.read());
+            const c2 = fw.computed(() => (c1.read(), 0));
+            const c3 = fw.computed(() => (busy(), c2.read() + 1));
+            const c4 = fw.computed(() => c3.read() + 2);
+            const c5 = fw.computed(() => c4.read() + 3);
+            dispose = fw.effect(() => {
+                c5.read();
                 busy();
             });
+            return dispose;
         },
         () => {
             for (let i = 0; i < 1000; i++) {
-                head.set(i);
-                flush();
+                framework.withBatch(() => head.write(i));
             }
         }
     );
 }
 
-async function diamond() {
+async function diamond(framework) {
     const width = 5;
-    let head;
+    let head, dispose;
 
     await runBenchmark(
+        framework,
         'diamond',
-        () => {
-            head = signal(0);
+        fw => {
+            head = fw.signal(0);
             const nodes = [];
             for (let i = 0; i < width; i++) {
-                nodes.push(computed(() => head() + 1));
+                nodes.push(fw.computed(() => head.read() + 1));
             }
-            const sum = computed(() => nodes.reduce((a, n) => a + n(), 0));
-            return effect(() => sum());
+            const sum = fw.computed(() => nodes.reduce((a, n) => a + n.read(), 0));
+            dispose = fw.effect(() => sum.read());
+            return dispose;
         },
         () => {
             for (let i = 0; i < 500; i++) {
-                head.set(i);
-                flush();
+                framework.withBatch(() => head.write(i));
             }
         }
     );
 }
 
-async function triangle() {
+async function triangle(framework) {
     const width = 10;
-    let head;
+    let head, dispose;
 
     await runBenchmark(
+        framework,
         'triangle',
-        () => {
-            head = signal(0);
+        fw => {
+            head = fw.signal(0);
             let current = head;
             const list = [];
             for (let i = 0; i < width; i++) {
                 const c = current;
                 list.push(current);
-                current = computed(() => c() + 1);
+                current = fw.computed(() => c.read() + 1);
             }
-            const sum = computed(() => list.reduce((a, n) => a + n(), 0));
-            return effect(() => sum());
+            const sum = fw.computed(() => list.reduce((a, n) => a + n.read(), 0));
+            dispose = fw.effect(() => sum.read());
+            return dispose;
         },
         () => {
             for (let i = 0; i < 100; i++) {
-                head.set(i);
-                flush();
+                framework.withBatch(() => head.write(i));
             }
         }
     );
 }
 
-async function mux() {
-    const heads = [];
+async function mux(framework) {
+    let heads, disposers;
 
     await runBenchmark(
+        framework,
         'mux',
-        () => {
-            heads.length = 0;
-            for (let i = 0; i < 100; i++) {
-                heads.push(signal(0));
-            }
-            const mux = computed(() => Object.fromEntries(heads.map((h, i) => [i, h()])));
-            const splited = heads.map((_, i) => computed(() => mux()[i])).map(x => computed(() => x() + 1));
-            const disposers = splited.map(x => effect(() => x()));
-            return () => disposers.forEach(d => d());
+        fw => {
+            heads = [];
+            for (let i = 0; i < 100; i++) heads.push(fw.signal(0));
+            const mux = fw.computed(() => Object.fromEntries(heads.map((h, i) => [i, h.read()])));
+            const split = heads.map((_, i) => fw.computed(() => mux.read()[i]));
+            const mapped = split.map(x => fw.computed(() => x.read() + 1));
+            disposers = mapped.map(x => fw.effect(() => x.read()));
+            return () => disposers.forEach(d => typeof d === 'function' && d());
         },
         () => {
-            for (let i = 0; i < 10; i++) {
-                heads[i].set(i);
-                flush();
-            }
-            for (let i = 0; i < 10; i++) {
-                heads[i].set(i * 2);
-                flush();
-            }
+            for (let i = 0; i < 10; i++) framework.withBatch(() => heads[i].write(i));
+            for (let i = 0; i < 10; i++) framework.withBatch(() => heads[i].write(i * 2));
         }
     );
 }
 
-async function repeatedObservers() {
+async function repeatedObservers(framework) {
     const size = 30;
-    let head;
+    let head, dispose;
 
     await runBenchmark(
+        framework,
         'repeatedObservers',
-        () => {
-            head = signal(0);
-            const current = computed(() => {
+        fw => {
+            head = fw.signal(0);
+            const current = fw.computed(() => {
                 let result = 0;
-                for (let i = 0; i < size; i++) {
-                    result += head();
-                }
+                for (let i = 0; i < size; i++) result += head.read();
                 return result;
             });
-            return effect(() => current());
+            dispose = fw.effect(() => current.read());
+            return dispose;
         },
         () => {
             for (let i = 0; i < 100; i++) {
-                head.set(i);
-                flush();
+                framework.withBatch(() => head.write(i));
             }
         }
     );
 }
 
-async function unstable() {
-    let head;
+async function unstable(framework) {
+    let head, dispose;
 
     await runBenchmark(
+        framework,
         'unstable',
-        () => {
-            head = signal(0);
-            const double = computed(() => head() * 2);
-            const inverse = computed(() => -head());
-            const current = computed(() => {
+        fw => {
+            head = fw.signal(0);
+            const double = fw.computed(() => head.read() * 2);
+            const inverse = fw.computed(() => -head.read());
+            const current = fw.computed(() => {
                 let result = 0;
                 for (let i = 0; i < 20; i++) {
-                    result += head() % 2 ? double() : inverse();
+                    result += head.read() % 2 ? double.read() : inverse.read();
                 }
                 return result;
             });
-            return effect(() => current());
+            dispose = fw.effect(() => current.read());
+            return dispose;
         },
         () => {
             for (let i = 0; i < 100; i++) {
-                head.set(i);
-                flush();
+                framework.withBatch(() => head.write(i));
             }
         }
     );
 }
 
-async function molBench() {
-    let A, B;
+async function molBench(framework) {
+    let A, B, disposers;
 
     await runBenchmark(
+        framework,
         'molBench',
-        () => {
+        fw => {
             const numbers = [0, 1, 2, 3, 4];
             const res = [];
-            A = signal(0);
-            B = signal(0);
-            const C = computed(() => (A() % 2) + (B() % 2));
-            const D = computed(() => numbers.map(i => ({ x: i + (A() % 2) - (B() % 2) })));
-            const E = computed(() => hard(C() + A() + D()[0].x, 'E'));
-            const F = computed(() => hard(D()[2].x || B(), 'F'));
-            const G = computed(() => C() + (C() || E() % 2) + D()[4].x + F());
-            const d1 = effect(() => res.push(hard(G(), 'H')));
-            const d2 = effect(() => res.push(G()));
-            const d3 = effect(() => res.push(hard(F(), 'J')));
-            return () => {
-                d1();
-                d2();
-                d3();
-            };
+            A = fw.signal(0);
+            B = fw.signal(0);
+            const C = fw.computed(() => (A.read() % 2) + (B.read() % 2));
+            const D = fw.computed(() => numbers.map(i => ({ x: i + (A.read() % 2) - (B.read() % 2) })));
+            const E = fw.computed(() => hard(C.read() + A.read() + D.read()[0].x));
+            const F = fw.computed(() => hard(D.read()[2].x || B.read()));
+            const G = fw.computed(() => C.read() + (C.read() || E.read() % 2) + D.read()[4].x + F.read());
+            const d1 = fw.effect(() => res.push(hard(G.read())));
+            const d2 = fw.effect(() => res.push(G.read()));
+            const d3 = fw.effect(() => res.push(hard(F.read())));
+            disposers = [d1, d2, d3];
+            return () => disposers.forEach(d => typeof d === 'function' && d());
         },
         () => {
             for (let i = 1; i <= 100; i++) {
-                B.set(1);
-                flush();
-                A.set(1 + i * 2);
-                flush();
-                A.set(2 + i * 2);
-                flush();
-                B.set(2);
-                flush();
+                framework.withBatch(() => B.write(1));
+                framework.withBatch(() => A.write(1 + i * 2));
+                framework.withBatch(() => A.write(2 + i * 2));
+                framework.withBatch(() => B.write(2));
             }
         }
     );
@@ -349,59 +470,52 @@ async function molBench() {
 // S.js Benchmarks
 // ============================================================================
 
-async function createSignals() {
+async function createSignals(framework) {
     const COUNT = 100000;
 
     await runBenchmark(
+        framework,
         'createSignals',
         () => null,
         () => {
-            for (let i = 0; i < COUNT; i++) {
-                signal(i);
-            }
+            for (let i = 0; i < COUNT; i++) framework.signal(i);
         }
     );
 }
 
-async function createComputations() {
+async function createComputations(framework) {
     const COUNT = 10000;
 
     await runBenchmark(
+        framework,
         'createComputations',
-        () => {
-            return null;
-        },
+        () => null,
         () => {
             const sources = [];
-            for (let i = 0; i < COUNT; i++) {
-                sources[i] = signal(i);
-            }
-            // 1 to 1
+            for (let i = 0; i < COUNT; i++) sources[i] = framework.signal(i);
             for (let i = 0; i < COUNT; i++) {
                 const s = sources[i];
-                computed(() => s());
+                framework.computed(() => s.read());
             }
         }
     );
 }
 
-async function updateSignals() {
+async function updateSignals(framework) {
     let s, disposers;
 
     await runBenchmark(
+        framework,
         'updateSignals',
-        () => {
-            s = signal(0);
+        fw => {
+            s = fw.signal(0);
             disposers = [];
-            for (let j = 0; j < 4; j++) {
-                disposers.push(effect(() => s()));
-            }
-            return () => disposers.forEach(d => d());
+            for (let j = 0; j < 4; j++) disposers.push(fw.effect(() => s.read()));
+            return () => disposers.forEach(d => typeof d === 'function' && d());
         },
         () => {
             for (let i = 0; i < 10000; i++) {
-                s.set(i);
-                flush();
+                framework.withBatch(() => s.write(i));
             }
         }
     );
@@ -411,44 +525,45 @@ async function updateSignals() {
 // CellX Benchmark
 // ============================================================================
 
-async function cellx1000() {
+async function cellx1000(framework) {
     const layers = 1000;
     let start;
 
     await runBenchmark(
+        framework,
         'cellx1000',
-        () => {
+        fw => {
             start = {
-                prop1: signal(1),
-                prop2: signal(2),
-                prop3: signal(3),
-                prop4: signal(4),
+                prop1: fw.signal(1),
+                prop2: fw.signal(2),
+                prop3: fw.signal(3),
+                prop4: fw.signal(4),
             };
             let layer = start;
             const disposers = [];
-
             for (let i = layers; i > 0; i--) {
                 const m = layer;
                 const s = {
-                    prop1: computed(() => m.prop2()),
-                    prop2: computed(() => m.prop1() - m.prop3()),
-                    prop3: computed(() => m.prop2() + m.prop4()),
-                    prop4: computed(() => m.prop3()),
+                    prop1: fw.computed(() => m.prop2.read()),
+                    prop2: fw.computed(() => m.prop1.read() - m.prop3.read()),
+                    prop3: fw.computed(() => m.prop2.read() + m.prop4.read()),
+                    prop4: fw.computed(() => m.prop3.read()),
                 };
-                disposers.push(effect(() => s.prop1()));
-                disposers.push(effect(() => s.prop2()));
-                disposers.push(effect(() => s.prop3()));
-                disposers.push(effect(() => s.prop4()));
+                disposers.push(fw.effect(() => s.prop1.read()));
+                disposers.push(fw.effect(() => s.prop2.read()));
+                disposers.push(fw.effect(() => s.prop3.read()));
+                disposers.push(fw.effect(() => s.prop4.read()));
                 layer = s;
             }
-            return () => disposers.forEach(d => d());
+            return () => disposers.forEach(d => typeof d === 'function' && d());
         },
         () => {
-            start.prop1.set(4);
-            start.prop2.set(3);
-            start.prop3.set(2);
-            start.prop4.set(1);
-            flush();
+            framework.withBatch(() => {
+                start.prop1.write(4);
+                start.prop2.write(3);
+                start.prop3.write(2);
+                start.prop4.write(1);
+            });
         },
         10
     );
@@ -458,39 +573,37 @@ async function cellx1000() {
 // Dynamic Graph Benchmarks
 // ============================================================================
 
-function makeGraph(width, totalLayers, staticFraction, nSources, readFraction) {
-    const sources = new Array(width).fill(0).map((_, i) => signal(i));
+function makeGraph(framework, width, totalLayers, staticFraction, nSources, readFraction) {
+    const sources = [];
+    for (let i = 0; i < width; i++) sources.push(framework.signal(i));
     const counter = new Counter();
     const disposers = [];
 
     function makeRow(srcRow, random) {
         return srcRow.map((_, myDex) => {
             const mySources = [];
-            for (let sourceDex = 0; sourceDex < nSources; sourceDex++) {
-                mySources.push(srcRow[(myDex + sourceDex) % srcRow.length]);
+            for (let k = 0; k < nSources; k++) {
+                mySources.push(srcRow[(myDex + k) % srcRow.length]);
             }
-
             const staticNode = random() < staticFraction;
             if (staticNode) {
-                return computed(() => {
+                return framework.computed(() => {
                     counter.count++;
                     let sum = 0;
-                    for (const src of mySources) {
-                        sum += src();
-                    }
+                    for (const src of mySources) sum += src.read();
                     return sum;
                 });
             } else {
                 const first = mySources[0];
                 const tail = mySources.slice(1);
-                return computed(() => {
+                return framework.computed(() => {
                     counter.count++;
-                    let sum = first();
+                    let sum = first.read();
                     const shouldDrop = sum & 0x1;
                     const dropDex = sum % tail.length;
                     for (let i = 0; i < tail.length; i++) {
                         if (shouldDrop && i === dropDex) continue;
-                        sum += tail[i]();
+                        sum += tail[i].read();
                     }
                     return sum;
                 });
@@ -518,92 +631,143 @@ function makeGraph(width, totalLayers, staticFraction, nSources, readFraction) {
     const readLeaves = copy;
 
     disposers.push(
-        effect(() => {
-            for (const leaf of readLeaves) {
-                leaf();
-            }
+        framework.effect(() => {
+            for (const leaf of readLeaves) leaf.read();
         })
     );
 
-    return { sources, readLeaves, counter, dispose: () => disposers.forEach(d => d()) };
+    return {
+        sources,
+        readLeaves,
+        counter,
+        dispose: () => disposers.forEach(d => typeof d === 'function' && d()),
+    };
 }
 
-function runGraph(graph, iterations) {
+function runGraph(framework, graph, iterations) {
     const { sources, readLeaves } = graph;
     for (let i = 0; i < iterations; i++) {
         const sourceDex = i % sources.length;
-        sources[sourceDex].set(i + sourceDex);
-        flush();
-        for (const leaf of readLeaves) {
-            leaf();
-        }
+        framework.withBatch(() => sources[sourceDex].write(i + sourceDex));
+        for (const leaf of readLeaves) leaf.read();
     }
-    return readLeaves.reduce((total, leaf) => leaf() + total, 0);
 }
 
-async function dynamicGraph(name, width, totalLayers, staticFraction, nSources, readFraction, iterations) {
+async function dynamicGraph(framework, name, width, totalLayers, staticFraction, nSources, readFraction, iterations) {
     let graph;
 
     await runBenchmark(
+        framework,
         name,
-        () => {
-            graph = makeGraph(width, totalLayers, staticFraction, nSources, readFraction);
+        fw => {
+            graph = makeGraph(fw, width, totalLayers, staticFraction, nSources, readFraction);
             return graph.dispose;
         },
         () => {
             graph.counter.count = 0;
-            runGraph(graph, iterations);
+            runGraph(framework, graph, iterations);
         }
     );
 }
 
 // ============================================================================
-// Main
+// Run All Benchmarks
 // ============================================================================
 
+const benchmarks = [
+    // Kairo
+    deepPropagation,
+    broadPropagation,
+    avoidablePropagation,
+    diamond,
+    triangle,
+    mux,
+    repeatedObservers,
+    unstable,
+    molBench,
+    // S.js
+    createSignals,
+    createComputations,
+    updateSignals,
+    // CellX
+    cellx1000,
+];
+
+const dynamicGraphConfigs = [
+    ['2-10x5 - lazy80%', 10, 5, 1, 2, 0.2, 6000],
+    ['6-10x10 - dyn25% - lazy80%', 10, 10, 0.75, 6, 0.2, 150],
+    ['4-1000x12 - dyn5%', 1000, 12, 0.95, 4, 1, 70],
+    ['25-1000x5', 1000, 5, 1, 25, 1, 30],
+    ['3-5x500', 5, 500, 1, 3, 1, 5],
+    ['6-100x15 - dyn50%', 100, 15, 0.5, 6, 1, 20],
+];
+
 async function main() {
-    console.log('='.repeat(60));
-    console.log('@slimlib/store Reactivity Benchmark');
-    console.log('='.repeat(60));
+    console.log('='.repeat(70));
+    console.log('Multi-Framework Reactivity Benchmark');
+    console.log('='.repeat(70));
+    console.log('');
+    console.log('Frameworks:', frameworks.map(f => f.name).join(', '));
     console.log('');
 
-    console.log('--- Kairo Benchmarks ---');
-    await deepPropagation();
-    await broadPropagation();
-    await avoidablePropagation();
-    await diamond();
-    await triangle();
-    await mux();
-    await repeatedObservers();
-    await unstable();
-    await molBench();
+    for (const benchmark of benchmarks) {
+        process.stdout.write(`Running ${benchmark.name}...`);
+        for (const framework of frameworks) {
+            try {
+                await benchmark(framework);
+            } catch (e) {
+                console.error(`\n  Error in ${framework.name}: ${e.message}`);
+            }
+        }
+        console.log(' done');
+    }
+
+    for (const [name, ...args] of dynamicGraphConfigs) {
+        process.stdout.write(`Running ${name}...`);
+        for (const framework of frameworks) {
+            try {
+                await dynamicGraph(framework, name, ...args);
+            } catch (e) {
+                console.error(`\n  Error in ${framework.name}: ${e.message}`);
+            }
+        }
+        console.log(' done');
+    }
 
     console.log('');
-    console.log('--- S.js Benchmarks ---');
-    await createSignals();
-    await createComputations();
-    await updateSignals();
+    console.log('='.repeat(70));
+    console.log('Results (time in ms, lower is better)');
+    console.log('='.repeat(70));
+    console.log('');
+
+    // Print header
+    const fwNames = frameworks.map(f => f.name);
+    const colWidth = Math.max(30, ...fwNames.map(n => n.length + 2));
+    console.log('Test'.padEnd(colWidth) + fwNames.map(n => n.padStart(18)).join(''));
+    console.log('-'.repeat(colWidth + fwNames.length * 18));
+
+    // Print results
+    for (const [testName, testResults] of results) {
+        let row = testName.padEnd(colWidth);
+        for (const fwName of fwNames) {
+            const time = testResults.get(fwName);
+            row += (time !== undefined ? time.toFixed(2) : 'N/A').padStart(18);
+        }
+        console.log(row);
+    }
 
     console.log('');
-    console.log('--- CellX Benchmark ---');
-    await cellx1000();
-
+    console.log('='.repeat(70));
+    console.log('CSV Output');
+    console.log('='.repeat(70));
     console.log('');
-    console.log('--- Dynamic Graph Benchmarks ---');
-    await dynamicGraph('2-10x5 - lazy80%', 10, 5, 1, 2, 0.2, 6000);
-    await dynamicGraph('6-10x10 - dyn25% - lazy80%', 10, 10, 0.75, 6, 0.2, 150);
-    await dynamicGraph('4-1000x12 - dyn5%', 1000, 12, 0.95, 4, 1, 70);
-    await dynamicGraph('25-1000x5', 1000, 5, 1, 25, 1, 30);
-    await dynamicGraph('3-5x500', 5, 500, 1, 3, 1, 5);
-    await dynamicGraph('6-100x15 - dyn50%', 100, 15, 0.5, 6, 1, 20);
-
-    console.log('');
-    console.log('='.repeat(60));
-    console.log('Summary (CSV format):');
-    console.log('='.repeat(60));
-    console.log('test,time_ms');
-    for (const { name, time } of results) {
-        console.log(`${name},${time.toFixed(2)}`);
+    console.log(['test', ...fwNames].join(','));
+    for (const [testName, testResults] of results) {
+        const values = fwNames.map(n => {
+            const t = testResults.get(n);
+            return t !== undefined ? t.toFixed(2) : '';
+        });
+        console.log([testName, ...values].join(','));
     }
 }
 
