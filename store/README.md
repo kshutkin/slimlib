@@ -18,10 +18,10 @@ npm install @slimlib/store
 ## Quick Start
 
 ```js
-import { createStore, effect, computed } from "@slimlib/store";
+import { state, effect, computed } from "@slimlib/store";
 
 // Create a reactive store
-const store = createStore({ count: 0, name: "test" });
+const store = state({ count: 0, name: "test" });
 
 // Effects automatically track dependencies and re-run when they change
 effect(() => {
@@ -36,17 +36,17 @@ const doubled = computed(() => store.count * 2);
 store.count = 5;
 // Logs: "Count: 5" (on next microtask)
 
-console.log(doubled.value); // 10
+console.log(doubled()); // 10
 ```
 
 ## API
 
-### `createStore<T>(object?: T): T`
+### `state<T>(object?: T): T`
 
 Creates a reactive store from an object. Returns a proxy that tracks property access for dependency tracking.
 
 ```js
-const store = createStore({ user: { name: "John" }, items: [] });
+const store = state({ user: { name: "John" }, items: [] });
 
 store.user.name = "Jane"; // Triggers effects that depend on user.name
 store.items.push("item"); // Triggers effects that depend on items
@@ -56,12 +56,12 @@ store.items.push("item"); // Triggers effects that depend on items
 
 Creates a reactive effect that runs when its dependencies change. Returns a dispose function.
 
-- Effects run on the next microtask (not synchronously)
+- Effects run on the next microtask (not synchronously) by default
 - Multiple synchronous changes are automatically batched
 - Callback can return a cleanup function
 
 ```js
-const store = createStore({ count: 0 });
+const store = state({ count: 0 });
 
 const dispose = effect(() => {
   console.log(store.count);
@@ -77,20 +77,71 @@ store.count = 1; // Effect runs after microtask
 dispose(); // Stop the effect, run cleanup
 ```
 
-### `computed<T>(getter: () => T): Computed<T>`
+### `computed<T>(getter: () => T): () => T`
 
-Creates a computed value that is lazily evaluated and cached until dependencies change.
+Creates a computed value that is lazily evaluated and cached until dependencies change. Returns a function that retrieves the computed value.
 
 ```js
-const store = createStore({ items: [1, 2, 3] });
+const store = state({ items: [1, 2, 3] });
 
 const sum = computed(() => store.items.reduce((a, b) => a + b, 0));
-const doubled = computed(() => sum.value * 2);
+const doubled = computed(() => sum() * 2);
 
-console.log(doubled.value); // 12
+console.log(doubled()); // 12
 
 store.items.push(4);
-console.log(doubled.value); // 20
+console.log(doubled()); // 20
+```
+
+### `signal<T>(initialValue?: T): (() => T) & { set: (value: T) => void }`
+
+Creates a simple reactive signal. Returns a function to read the value with a `set` method to update it.
+
+```js
+import { signal, effect } from "@slimlib/store";
+
+const count = signal(0);
+
+effect(() => {
+  console.log("Count:", count());
+});
+
+count.set(5); // Effect runs after microtask
+console.log(count()); // 5
+```
+
+### `flush(): void`
+
+Immediately executes all pending effects without waiting for the next microtask. Useful for testing or when you need synchronous effect execution.
+
+```js
+const store = state({ count: 0 });
+
+let runs = 0;
+effect(() => {
+  store.count;
+  runs++;
+});
+
+flush(); // runs = 1 (initial run)
+
+store.count = 1;
+store.count = 2;
+flush(); // runs = 2 (batched update executed immediately)
+```
+
+### `setScheduler(fn: (callback: () => void) => void): void`
+
+Sets a custom scheduler function for effect execution. By default, effects are scheduled using `queueMicrotask`. You can replace it with any function that accepts a callback.
+
+```js
+import { setScheduler } from "@slimlib/store";
+
+// Use setTimeout instead of queueMicrotask
+setScheduler((callback) => setTimeout(callback, 0));
+
+// Or use requestAnimationFrame for UI updates
+setScheduler((callback) => requestAnimationFrame(callback));
 ```
 
 ### `untracked<T>(callback: () => T): T`
@@ -98,7 +149,7 @@ console.log(doubled.value); // 20
 Execute a callback without tracking dependencies.
 
 ```js
-const store = createStore({ a: 1, b: 2 });
+const store = state({ a: 1, b: 2 });
 
 effect(() => {
   console.log(store.a); // Tracked - effect re-runs when a changes
@@ -116,7 +167,7 @@ store.a = 5; // Effect re-runs
 Gets the underlying raw object from a proxy.
 
 ```js
-const store = createStore({ data: { x: 1 } });
+const store = state({ data: { x: 1 } });
 const raw = unwrapValue(store); // Returns the original object
 ```
 
@@ -127,7 +178,7 @@ const raw = unwrapValue(store); // Returns the original object
 Multiple synchronous updates are automatically batched:
 
 ```js
-const store = createStore({ a: 0, b: 0 });
+const store = state({ a: 0, b: 0 });
 
 let runs = 0;
 effect(() => {
@@ -136,13 +187,13 @@ effect(() => {
   runs++;
 });
 
-await flushPromises(); // runs = 1 (initial)
+flush(); // runs = 1 (initial)
 
 store.a = 1;
 store.b = 2;
 store.a = 3;
 
-await flushPromises(); // runs = 2 (single batched update)
+flush(); // runs = 2 (single batched update)
 ```
 
 ### Fine-Grained Tracking
@@ -150,7 +201,7 @@ await flushPromises(); // runs = 2 (single batched update)
 Effects only re-run when their specific dependencies change:
 
 ```js
-const store = createStore({ name: "John", age: 30 });
+const store = state({ name: "John", age: 30 });
 
 effect(() => console.log("Name:", store.name));
 effect(() => console.log("Age:", store.age));
@@ -164,7 +215,7 @@ store.age = 31; // Only second effect runs
 Dependencies are tracked dynamically based on execution path:
 
 ```js
-const store = createStore({ flag: true, a: 1, b: 2 });
+const store = state({ flag: true, a: 1, b: 2 });
 
 effect(() => {
   console.log(store.flag ? store.a : store.b);
@@ -181,32 +232,32 @@ store.a = 5; // Effect does NOT run (a not tracked when flag is false)
 Effects run only once even when multiple dependencies change:
 
 ```js
-const store = createStore({ value: 1 });
+const store = state({ value: 1 });
 const a = computed(() => store.value + 1);
 const b = computed(() => store.value + 2);
 
 let runs = 0;
 effect(() => {
-  a.value + b.value;
+  a() + b();
   runs++;
 });
 
-await flushPromises(); // runs = 1
+flush(); // runs = 1
 
 store.value = 10;
-await flushPromises(); // runs = 2 (not 3!)
+flush(); // runs = 2 (not 3!)
 ```
 
 ## Migration from v1.x
 
 v2.0 is a breaking change. Key differences:
 
-| v1.x                                             | v2.x                            |
-| ------------------------------------------------ | ------------------------------- |
-| `const [proxy, store, notify] = createStore({})` | `const store = createStore({})` |
-| `store(callback)` for subscription               | `effect(() => { ... })`         |
-| `store()` to get raw value                       | `unwrapValue(store)`            |
-| `notify()` for manual notification               | Automatic (no manual notify)    |
+| v1.x                                             | v2.x                         |
+| ------------------------------------------------ | ---------------------------- |
+| `const [proxy, store, notify] = createStore({})` | `const store = state({})`    |
+| `store(callback)` for subscription               | `effect(() => { ... })`      |
+| `store()` to get raw value                       | `unwrapValue(store)`         |
+| `notify()` for manual notification               | Automatic (no manual notify) |
 
 ### Before (v1.x)
 
@@ -219,7 +270,9 @@ state.count = 1;
 ### After (v2.x)
 
 ```js
-const store = createStore({ count: 0 });
+import { state, effect } from "@slimlib/store";
+
+const store = state({ count: 0 });
 const dispose = effect(() => console.log(store.count));
 store.count = 1;
 ```
@@ -227,7 +280,7 @@ store.count = 1;
 ## Limitations
 
 - Mixing proxied values and values from an underlying object can fail for equality checks
-- Effects run on microtask, not synchronously
+- Effects run on microtask by default, not synchronously (use `flush()` for immediate execution)
 
 ## Similar Projects
 

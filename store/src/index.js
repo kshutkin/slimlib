@@ -80,6 +80,21 @@ let flushScheduled = false;
 let tracked = true;
 
 /**
+ * Scheduler function used to schedule effect execution
+ * Defaults to queueMicrotask, can be replaced with setScheduler
+ * @type {(callback: () => void) => void}
+ */
+let scheduler = queueMicrotask;
+
+/**
+ * Set a custom scheduler function for effect execution
+ * @param {(callback: () => void) => void} newScheduler - The new scheduler function
+ */
+export const setScheduler = newScheduler => {
+    scheduler = newScheduler;
+};
+
+/**
  * @template T
  * @typedef {T & {[unwrap]: T}} Unwrappable
  */
@@ -107,21 +122,28 @@ const clearSources = (node, fromIndex = 0) => {
 };
 
 /**
- * Schedule flush via microtask
+ * Execute all pending effects immediately
+ * This function can be called to manually trigger all scheduled effects
+ * before the next microtask
+ */
+export const flush = () => {
+    flushScheduled = false;
+    const nodes = [...batched];
+    batched.clear();
+    for (const node of nodes) {
+        // Access node to trigger recomputation for effects
+        // This will also clear the dirty flag
+        node();
+    }
+};
+
+/**
+ * Schedule flush via scheduler (default: microtask)
  */
 const scheduleFlush = () => {
     if (!flushScheduled) {
         flushScheduled = true;
-        queueMicrotask(() => {
-            flushScheduled = false;
-            const nodes = [...batched];
-            batched.clear();
-            for (const node of nodes) {
-                // Access node to trigger recomputation for effects
-                // This will also clear the dirty flag
-                node();
-            }
-        });
+        scheduler(flush);
     }
 };
 
