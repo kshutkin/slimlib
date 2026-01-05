@@ -10,7 +10,16 @@
 // ============================================================================
 
 // @slimlib/store
-import { computed as slimlibComputed, effect as slimlibEffect, flush as slimlibFlush, signal as slimlibSignal } from '../src/index.js';
+import {
+    setScheduler,
+    computed as slimlibComputed,
+    effect as slimlibEffect,
+    flush as slimlibFlush,
+    signal as slimlibSignal,
+} from '../src/index.js';
+
+// Use no-op scheduler since we call flush() manually in withBatch/withBuild
+setScheduler(() => {});
 
 const slimlibFramework = {
     name: '@slimlib/store',

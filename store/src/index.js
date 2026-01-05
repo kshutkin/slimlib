@@ -48,6 +48,7 @@ const FLAG_DIRTY = 1 << 0; // 1 - definitely needs recomputation
 const FLAG_CHECK = 1 << 1; // 2 - might need recomputation, check sources first
 const FLAG_COMPUTING = 1 << 2; // 4 - currently executing
 const FLAG_EFFECT = 1 << 3; // 8 - is an effect (eager execution)
+const FLAG_HAS_VALUE = 1 << 4; // 16 - has a cached value
 
 // Pre-combined flags for faster checks
 const FLAG_NEEDS_WORK = FLAG_DIRTY | FLAG_CHECK; // 3 - needs recomputation
@@ -65,9 +66,30 @@ const skippedDeps = Symbol();
 const weakRefSymbol = Symbol();
 
 /**
+ * Symbol for storing the last seen global version on a computed node
+ */
+const lastGlobalVersionSymbol = Symbol();
+
+/**
  * @template T
  * @typedef {(() => T) & { [key: symbol]: any }} ComputedNode
  */
+
+/**
+ * Prototype for computed nodes - contains the read logic
+ * Using a prototype allows V8 to optimize property access
+ */
+const ComputedProto = {
+    [sources]: [],
+    [dependencies]: null,
+    [flagsSymbol]: FLAG_DIRTY,
+    [skippedDeps]: 0,
+    [weakRefSymbol]: undefined,
+    [lastGlobalVersionSymbol]: 0,
+    _g: null, // getter
+    _e: null, // equals
+    _v: undefined, // cached value
+};
 
 // Global state
 /** @type {ComputedNode<any> | null} */
@@ -82,11 +104,6 @@ let tracked = true;
  * Used for fast-path: if globalVersion hasn't changed since last read, skip all checks
  */
 let globalVersion = 0;
-
-/**
- * Symbol for storing the last seen global version on a computed node
- */
-const lastGlobalVersionSymbol = Symbol();
 
 /**
  * Scheduler function used to schedule effect execution
@@ -422,6 +439,119 @@ export const effect = callback => {
  */
 
 /**
+ * Read function for computed nodes - extracted for prototype-based approach
+ * @this {ComputedNode<any>}
+ * @returns {any}
+ */
+function computedRead() {
+    // Track if someone is reading us
+    trackDependency(this[dependencies], this);
+
+    let flags = this[flagsSymbol];
+
+    // Fast-path: if node is clean and nothing has changed globally since last read, return cached value
+    if ((flags & (FLAG_HAS_VALUE | FLAG_NEEDS_WORK)) === FLAG_HAS_VALUE && this[lastGlobalVersionSymbol] === globalVersion) {
+        return this._v;
+    }
+
+    // For CHECK state, verify if sources actually changed before recomputing
+    // This preserves the equality cutoff optimization with eager marking
+    // Only do this for non-effects that ONLY have computed sources (with nodes)
+    // Effects should always run when marked, and state deps have no node to check
+    if ((flags & (FLAG_CHECK_ONLY | FLAG_HAS_VALUE)) === (FLAG_CHECK | FLAG_HAS_VALUE)) {
+        const sourcesArray = this[sources];
+        // Check if we have any computed sources to verify
+        let hasComputedSources = false;
+        let hasStateSources = false;
+        for (const source of sourcesArray) {
+            if (source.node) {
+                hasComputedSources = true;
+            } else {
+                hasStateSources = true;
+            }
+        }
+
+        // Only do source checking if we ONLY have computed sources
+        // If we have state sources, we can't verify them - must recompute
+        if (hasComputedSources && !hasStateSources) {
+            untracked(() => {
+                for (const source of sourcesArray) {
+                    // Access source to trigger its recomputation if needed
+                    // We know all sources have nodes (hasComputedSources && !hasStateSources)
+                    source.node();
+                }
+            });
+            // If we're still CHECK after checking all sources, no source changed value
+            // We can safely mark as clean and skip recomputation
+            flags = this[flagsSymbol];
+            if ((flags & FLAG_NEEDS_WORK) === FLAG_CHECK) {
+                this[flagsSymbol] = flags & ~FLAG_CHECK;
+            }
+        }
+    }
+
+    // Recompute if dirty or check (sources actually changed)
+    flags = this[flagsSymbol];
+    if (flags & FLAG_NEEDS_WORK && !(flags & FLAG_COMPUTING)) {
+        const wasDirty = (flags & FLAG_DIRTY) !== 0;
+        this[flagsSymbol] = (flags & ~FLAG_NEEDS_WORK) | FLAG_COMPUTING;
+
+        // Reset skipped deps counter for this recomputation
+        this[skippedDeps] = 0;
+
+        const prev = currentComputing;
+        const prevTracked = tracked;
+        currentComputing = this;
+        tracked = true; // Computed always tracks its own dependencies
+        try {
+            const newValue = this._g();
+
+            // Check if value actually changed
+            const changed = !(flags & FLAG_HAS_VALUE) || !this._e(this._v, newValue);
+
+            if (changed) {
+                this._v = newValue;
+                this[flagsSymbol] |= FLAG_HAS_VALUE;
+                // Value changed - mark dependents as DIRTY (not just CHECK)
+                // so they know they definitely need to recompute
+                forEachDep(this[dependencies], dep => {
+                    const depFlags = dep[flagsSymbol];
+                    if ((depFlags & (FLAG_COMPUTING | FLAG_NEEDS_WORK)) === FLAG_CHECK) {
+                        dep[flagsSymbol] = depFlags | FLAG_DIRTY;
+                    }
+                });
+            } else if (wasDirty) {
+                // Was dirty (first computation or error recovery) but value matches
+                // Still need to mark as having a value
+                this[flagsSymbol] |= FLAG_HAS_VALUE;
+            }
+            // If value unchanged and was only checking, don't propagate
+
+            // Check if we were marked dirty during computation
+            // If so, keep dirty flag, otherwise clear computing
+            const endFlags = this[flagsSymbol];
+            this[flagsSymbol] = endFlags & ~FLAG_COMPUTING;
+
+            // Update last seen global version
+            this[lastGlobalVersionSymbol] = globalVersion;
+        } catch (e) {
+            // Restore dirty flag on error so it can be retried
+            this[flagsSymbol] = (this[flagsSymbol] & ~FLAG_COMPUTING) | FLAG_DIRTY;
+            throw e;
+        } finally {
+            currentComputing = prev;
+            tracked = prevTracked;
+            // Clean up any excess sources that weren't reused
+            if (this[sources].length > this[skippedDeps]) {
+                clearSources(this, this[skippedDeps]);
+            }
+        }
+    }
+
+    return this._v;
+}
+
+/**
  * Creates a computed value that automatically tracks dependencies and caches results
  * @template T
  * @param {() => T} getter
@@ -429,129 +559,19 @@ export const effect = callback => {
  * @returns {ComputedNode<T>}
  */
 export const computed = (getter, equals = Object.is) => {
-    /** @type {T} */
-    let cachedValue;
-    let hasValue = false;
+    // Create a callable function that delegates to computedRead
+    const context = /** @type {ComputedNode<T>} */ (() => computedRead.call(context));
 
-    const context = /** @type {ComputedNode<T>} */ (
-        /** @type {unknown} */ (
-            Object.assign(
-                () => {
-                    // Track if someone is reading us
-                    trackDependency(context[dependencies], context);
+    // Set prototype for optimized property access
+    Object.setPrototypeOf(context, ComputedProto);
 
-                    let flags = context[flagsSymbol];
-
-                    // Fast-path: if node is clean and nothing has changed globally since last read, return cached value
-                    if (hasValue && !(flags & FLAG_NEEDS_WORK) && context[lastGlobalVersionSymbol] === globalVersion) {
-                        return cachedValue;
-                    }
-
-                    // For CHECK state, verify if sources actually changed before recomputing
-                    // This preserves the equality cutoff optimization with eager marking
-                    // Only do this for non-effects that ONLY have computed sources (with nodes)
-                    // Effects should always run when marked, and state deps have no node to check
-                    if ((flags & FLAG_CHECK_ONLY) === FLAG_CHECK && hasValue) {
-                        const sourcesArray = context[sources];
-                        // Check if we have any computed sources to verify
-                        let hasComputedSources = false;
-                        let hasStateSources = false;
-                        for (const source of sourcesArray) {
-                            if (source.node) {
-                                hasComputedSources = true;
-                            } else {
-                                hasStateSources = true;
-                            }
-                        }
-
-                        // Only do source checking if we ONLY have computed sources
-                        // If we have state sources, we can't verify them - must recompute
-                        if (hasComputedSources && !hasStateSources) {
-                            untracked(() => {
-                                for (const source of sourcesArray) {
-                                    // Access source to trigger its recomputation if needed
-                                    // We know all sources have nodes (hasComputedSources && !hasStateSources)
-                                    source.node();
-                                }
-                            });
-                            // If we're still CHECK after checking all sources, no source changed value
-                            // We can safely mark as clean and skip recomputation
-                            flags = context[flagsSymbol];
-                            if ((flags & FLAG_NEEDS_WORK) === FLAG_CHECK) {
-                                context[flagsSymbol] = flags & ~FLAG_CHECK;
-                            }
-                        }
-                    }
-
-                    // Recompute if dirty or check (sources actually changed)
-                    flags = context[flagsSymbol];
-                    if (flags & FLAG_NEEDS_WORK && !(flags & FLAG_COMPUTING)) {
-                        const wasDirty = (flags & FLAG_DIRTY) !== 0;
-                        context[flagsSymbol] = (flags & ~FLAG_NEEDS_WORK) | FLAG_COMPUTING;
-
-                        // Reset skipped deps counter for this recomputation
-                        context[skippedDeps] = 0;
-
-                        const prev = currentComputing;
-                        const prevTracked = tracked;
-                        currentComputing = context;
-                        tracked = true; // Computed always tracks its own dependencies
-                        try {
-                            const newValue = getter();
-
-                            // Check if value actually changed
-                            const changed = !hasValue || !equals(cachedValue, newValue);
-
-                            if (changed) {
-                                cachedValue = newValue;
-                                hasValue = true;
-                                // Value changed - mark dependents as DIRTY (not just CHECK)
-                                // so they know they definitely need to recompute
-                                forEachDep(context[dependencies], dep => {
-                                    const depFlags = dep[flagsSymbol];
-                                    if ((depFlags & (FLAG_COMPUTING | FLAG_NEEDS_WORK)) === FLAG_CHECK) {
-                                        dep[flagsSymbol] = depFlags | FLAG_DIRTY;
-                                    }
-                                });
-                            } else if (wasDirty) {
-                                // Was dirty (first computation or error recovery) but value matches
-                                // Still need to mark as having a value
-                                hasValue = true;
-                            }
-                            // If value unchanged and was only checking, don't propagate
-
-                            // Check if we were marked dirty during computation
-                            // If so, keep dirty flag, otherwise clear computing
-                            const endFlags = context[flagsSymbol];
-                            context[flagsSymbol] = endFlags & ~FLAG_COMPUTING;
-
-                            // Update last seen global version
-                            context[lastGlobalVersionSymbol] = globalVersion;
-                        } catch (e) {
-                            // Restore dirty flag on error so it can be retried
-                            context[flagsSymbol] = (context[flagsSymbol] & ~FLAG_COMPUTING) | FLAG_DIRTY;
-                            throw e;
-                        } finally {
-                            currentComputing = prev;
-                            tracked = prevTracked;
-                            // Clean up any excess sources that weren't reused
-                            if (context[sources].length > context[skippedDeps]) {
-                                clearSources(context, context[skippedDeps]);
-                            }
-                        }
-                    }
-
-                    return cachedValue;
-                },
-                {
-                    [sources]: [],
-                    [dependencies]: new Set(),
-                    [flagsSymbol]: FLAG_DIRTY,
-                    [skippedDeps]: 0,
-                }
-            )
-        )
-    );
+    // Initialize instance-specific properties
+    context[sources] = [];
+    context[dependencies] = new Set();
+    context[flagsSymbol] = FLAG_DIRTY;
+    context[skippedDeps] = 0;
+    context._g = getter;
+    context._e = equals;
 
     return context;
 };
