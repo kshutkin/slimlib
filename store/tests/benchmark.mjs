@@ -1,3 +1,5 @@
+//@ts-nocheck
+
 /**
  * Multi-framework Reactivity Benchmark
  * Based on https://github.com/milomg/js-reactivity-benchmark
@@ -52,7 +54,12 @@ const preactFramework = {
     name: '@preact/signals-core',
     signal: initial => {
         const s = preactSignal(initial);
-        return { read: () => s.value, write: v => (s.value = v) };
+        return {
+            read: () => s.value,
+            write: v => {
+                s.value = v;
+            },
+        };
     },
     computed: fn => {
         const c = preactComputed(fn);
@@ -62,7 +69,9 @@ const preactFramework = {
     withBatch: fn => preactBatch(fn),
     withBuild: fn => fn(),
     cleanup: () => {
-        preactCleanups.forEach(c => c());
+        preactCleanups.forEach(c => {
+            c();
+        });
         preactCleanups = [];
     },
 };
@@ -168,8 +177,8 @@ class Counter {
 }
 
 function busy() {
-    let a = 0;
-    for (let i = 0; i < 100; i++) a++;
+    let _a = 0;
+    for (let i = 0; i < 100; i++) _a++;
 }
 
 function fib(n) {
@@ -198,7 +207,7 @@ async function runBenchmark(framework, name, setup, run, iterations = 1) {
     // Warmup
     let cleanup = framework.withBuild(() => setup(framework));
     for (let i = 0; i < 3; i++) run();
-    if (typeof cleanup === 'function') cleanup();
+    if (cleanup && typeof cleanup === 'function') cleanup();
     framework.cleanup();
 
     if (globalThis.gc) {
@@ -215,7 +224,7 @@ async function runBenchmark(framework, name, setup, run, iterations = 1) {
         for (let i = 0; i < iterations; i++) run();
         const end = performance.now();
 
-        if (typeof cleanup === 'function') cleanup();
+        if (cleanup && typeof cleanup === 'function') cleanup();
         framework.cleanup();
 
         if (globalThis.gc) {
@@ -238,7 +247,9 @@ async function runBenchmark(framework, name, setup, run, iterations = 1) {
 async function deepPropagation(framework) {
     const len = 50,
         iter = 50;
-    let head, current, dispose;
+    let head;
+    let current;
+    let dispose;
 
     await runBenchmark(
         framework,
@@ -262,8 +273,8 @@ async function deepPropagation(framework) {
 }
 
 async function broadPropagation(framework) {
-    let head,
-        disposers = [];
+    let head;
+    let disposers = [];
 
     await runBenchmark(
         framework,
@@ -277,7 +288,11 @@ async function broadPropagation(framework) {
                 const c2 = fw.computed(() => c.read() + 1);
                 disposers.push(fw.effect(() => c2.read()));
             }
-            return () => disposers.forEach(d => typeof d === 'function' && d());
+            return () => {
+                disposers.forEach(d => {
+                    if (typeof d === 'function') d();
+                });
+            };
         },
         () => {
             for (let i = 0; i < 50; i++) {
@@ -288,7 +303,8 @@ async function broadPropagation(framework) {
 }
 
 async function avoidablePropagation(framework) {
-    let head, dispose;
+    let head;
+    let dispose;
 
     await runBenchmark(
         framework,
@@ -296,8 +312,14 @@ async function avoidablePropagation(framework) {
         fw => {
             head = fw.signal(0);
             const c1 = fw.computed(() => head.read());
-            const c2 = fw.computed(() => (c1.read(), 0));
-            const c3 = fw.computed(() => (busy(), c2.read() + 1));
+            const c2 = fw.computed(() => {
+                c1.read();
+                return 0;
+            });
+            const c3 = fw.computed(() => {
+                busy();
+                return c2.read() + 1;
+            });
             const c4 = fw.computed(() => c3.read() + 2);
             const c5 = fw.computed(() => c4.read() + 3);
             dispose = fw.effect(() => {
@@ -316,7 +338,8 @@ async function avoidablePropagation(framework) {
 
 async function diamond(framework) {
     const width = 5;
-    let head, dispose;
+    let head;
+    let dispose;
 
     await runBenchmark(
         framework,
@@ -341,7 +364,8 @@ async function diamond(framework) {
 
 async function triangle(framework) {
     const width = 10;
-    let head, dispose;
+    let head;
+    let dispose;
 
     await runBenchmark(
         framework,
@@ -368,7 +392,8 @@ async function triangle(framework) {
 }
 
 async function mux(framework) {
-    let heads, disposers;
+    let heads;
+    let disposers;
 
     await runBenchmark(
         framework,
@@ -380,7 +405,11 @@ async function mux(framework) {
             const split = heads.map((_, i) => fw.computed(() => mux.read()[i]));
             const mapped = split.map(x => fw.computed(() => x.read() + 1));
             disposers = mapped.map(x => fw.effect(() => x.read()));
-            return () => disposers.forEach(d => typeof d === 'function' && d());
+            return () => {
+                disposers.forEach(d => {
+                    if (typeof d === 'function') d();
+                });
+            };
         },
         () => {
             for (let i = 0; i < 10; i++) framework.withBatch(() => heads[i].write(i));
@@ -391,7 +420,8 @@ async function mux(framework) {
 
 async function repeatedObservers(framework) {
     const size = 30;
-    let head, dispose;
+    let head;
+    let dispose;
 
     await runBenchmark(
         framework,
@@ -415,7 +445,8 @@ async function repeatedObservers(framework) {
 }
 
 async function unstable(framework) {
-    let head, dispose;
+    let head;
+    let dispose;
 
     await runBenchmark(
         framework,
@@ -443,7 +474,9 @@ async function unstable(framework) {
 }
 
 async function molBench(framework) {
-    let A, B, disposers;
+    let A;
+    let B;
+    let disposers;
 
     await runBenchmark(
         framework,
@@ -462,7 +495,11 @@ async function molBench(framework) {
             const d2 = fw.effect(() => res.push(G.read()));
             const d3 = fw.effect(() => res.push(hard(F.read())));
             disposers = [d1, d2, d3];
-            return () => disposers.forEach(d => typeof d === 'function' && d());
+            return () => {
+                disposers.forEach(d => {
+                    if (typeof d === 'function') d();
+                });
+            };
         },
         () => {
             for (let i = 1; i <= 100; i++) {
@@ -511,7 +548,8 @@ async function createComputations(framework) {
 }
 
 async function updateSignals(framework) {
-    let s, disposers;
+    let s;
+    let disposers;
 
     await runBenchmark(
         framework,
@@ -520,7 +558,11 @@ async function updateSignals(framework) {
             s = fw.signal(0);
             disposers = [];
             for (let j = 0; j < 4; j++) disposers.push(fw.effect(() => s.read()));
-            return () => disposers.forEach(d => typeof d === 'function' && d());
+            return () => {
+                disposers.forEach(d => {
+                    if (typeof d === 'function') d();
+                });
+            };
         },
         () => {
             for (let i = 0; i < 10000; i++) {
@@ -564,7 +606,11 @@ async function cellx1000(framework) {
                 disposers.push(fw.effect(() => s.prop4.read()));
                 layer = s;
             }
-            return () => disposers.forEach(d => typeof d === 'function' && d());
+            return () => {
+                disposers.forEach(d => {
+                    if (typeof d === 'function') d();
+                });
+            };
         },
         () => {
             framework.withBatch(() => {
@@ -641,7 +687,9 @@ function makeGraph(framework, width, totalLayers, staticFraction, nSources, read
 
     disposers.push(
         framework.effect(() => {
-            for (const leaf of readLeaves) leaf.read();
+            readLeaves.forEach(leaf => {
+                leaf.read();
+            });
         })
     );
 
@@ -649,7 +697,11 @@ function makeGraph(framework, width, totalLayers, staticFraction, nSources, read
         sources,
         readLeaves,
         counter,
-        dispose: () => disposers.forEach(d => typeof d === 'function' && d()),
+        dispose: () => {
+            disposers.forEach(d => {
+                if (typeof d === 'function') d();
+            });
+        },
     };
 }
 

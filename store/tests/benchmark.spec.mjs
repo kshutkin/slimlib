@@ -10,11 +10,13 @@ import { computed, effect, flush, signal } from '../src/index.js';
 describe('Benchmark Scenario Correctness', () => {
     it('deepPropagation', () => {
         const head = signal(0);
+        /** @type {any} */
         let current = head;
         for (let i = 0; i < 50; i++) {
             const c = current;
             current = computed(() => c() + 1);
         }
+        /** @type {number | undefined} */
         let lastValue;
         const dispose = effect(() => {
             lastValue = current();
@@ -30,7 +32,9 @@ describe('Benchmark Scenario Correctness', () => {
 
     it('broadPropagation', () => {
         const head = signal(0);
+        /** @type {number[]} */
         const values = [];
+        /** @type {Array<() => void>} */
         const disposers = [];
         for (let i = 0; i < 50; i++) {
             const idx = i;
@@ -48,13 +52,21 @@ describe('Benchmark Scenario Correctness', () => {
         flush();
         expect(values[0]).toBe(1);
         expect(values[49]).toBe(50);
-        disposers.forEach(d => d());
+        disposers.forEach(d => {
+            d();
+        });
     });
 
     it('diamond', () => {
         const head = signal(0);
         const nodes = [computed(() => head() + 1), computed(() => head() + 1)];
-        const sum = computed(() => nodes[0]() + nodes[1]());
+        const sum = computed(() => {
+            const node0 = nodes[0];
+            const node1 = nodes[1];
+            if (!node0 || !node1) throw new Error('Missing nodes');
+            return node0() + node1();
+        });
+        /** @type {number | undefined} */
         let lastValue;
         const dispose = effect(() => {
             lastValue = sum();
@@ -73,6 +85,7 @@ describe('Benchmark Scenario Correctness', () => {
         const a = computed(() => head() * 2);
         const b = computed(() => -head());
         const c = computed(() => (head() % 2 ? a() : b()));
+        /** @type {number | undefined} */
         let lastValue;
         const dispose = effect(() => {
             lastValue = c();
@@ -93,6 +106,7 @@ describe('Benchmark Scenario Correctness', () => {
     it('cellx layers', () => {
         const s = { p1: signal(1), p2: signal(2) };
         const layer = { p1: computed(() => s.p2()), p2: computed(() => s.p1() - s.p2()) };
+        /** @type {number | undefined} */
         let lastP1;
         const dispose = effect(() => {
             lastP1 = layer.p1();

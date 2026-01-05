@@ -1,31 +1,40 @@
 /**
- * Symbol to unwrap proxy to get underlying object
+ * Symbols used throughout the store:
+ * - unwrap: to unwrap proxy to get underlying object
+ * - sources: what this effect/computed depends on
+ *   Each entry is { deps: Set<WeakRef<ComputedNode>>, node?: ComputedNode, weakRef: WeakRef<ComputedNode> }
+ *   The `node` field is a STRONG reference to the source computed - this is semantically
+ *   necessary because a computed needs its sources to exist to compute its value.
+ *   The `weakRef` field stores our own WeakRef so we can properly remove it from the deps Set
+ *   during cleanup (clearSources).
+ * - dependencies: effects/computed depending on this
+ *   Dependencies are stored as WeakRefs to allow automatic garbage collection of unused computeds.
+ *   When a computed is no longer referenced by user code and has no dependents, it can be GC'd
+ *   even if its sources (state or other computeds) are still alive.
+ *   This enables memory-efficient patterns in long-running applications where computeds are
+ *   dynamically created and discarded.
+ * - flagsSymbol: computation state (bit flags)
+ * - skippedDeps: skipped dependencies counter (optimization)
+ * - weakRefSymbol: cached WeakRef of a computed node (avoids creating new WeakRef per dependency)
+ * - lastGlobalVersionSymbol: storing the last seen global version on a computed node
+ * - getterSymbol: getter function for computed
+ * - equalsSymbol: equality function for computed
+ * - valueSymbol: cached value for computed
  */
-const unwrap = Symbol();
-
-/**
- * Symbol for sources - what this effect/computed depends on
- * Each entry is { deps: Set<WeakRef<ComputedNode>>, node?: ComputedNode, weakRef: WeakRef<ComputedNode> }
- *
- * The `node` field is a STRONG reference to the source computed - this is semantically
- * necessary because a computed needs its sources to exist to compute its value.
- *
- * The `weakRef` field stores our own WeakRef so we can properly remove it from the deps Set
- * during cleanup (clearSources).
- */
-const sources = Symbol();
-
-/**
- * Symbol for dependencies - effects/computed depending on this
- *
- * Dependencies are stored as WeakRefs to allow automatic garbage collection of unused computeds.
- * When a computed is no longer referenced by user code and has no dependents, it can be GC'd
- * even if its sources (state or other computeds) are still alive.
- *
- * This enables memory-efficient patterns in long-running applications where computeds are
- * dynamically created and discarded.
- */
-const dependencies = Symbol();
+const [
+    unwrap,
+    sources,
+    dependencies,
+    flagsSymbol,
+    skippedDeps,
+    weakRefSymbol,
+    lastGlobalVersionSymbol,
+    getterSymbol,
+    equalsSymbol,
+    valueSymbol,
+] = /** @type {[Symbol, Symbol, Symbol, Symbol, Symbol, Symbol, Symbol, Symbol, Symbol, Symbol]}*/ (
+    /** @type {unknown}*/ (Array.from({ length: 10 }, () => Symbol()))
+);
 
 /**
  * Module-level WeakMap for property-level dependencies on state objects
@@ -38,11 +47,6 @@ const dependencies = Symbol();
  */
 const propertyDeps = new WeakMap();
 
-/**
- * Symbol for computation state (bit flags)
- */
-const flagsSymbol = Symbol();
-
 // Bit flags for node state
 const FLAG_DIRTY = 1 << 0; // 1 - definitely needs recomputation
 const FLAG_CHECK = 1 << 1; // 2 - might need recomputation, check sources first
@@ -54,21 +58,6 @@ const FLAG_HAS_VALUE = 1 << 4; // 16 - has a cached value
 const FLAG_NEEDS_WORK = FLAG_DIRTY | FLAG_CHECK; // 3 - needs recomputation
 const FLAG_COMPUTING_EFFECT = FLAG_COMPUTING | FLAG_EFFECT; // 12 - computing effect
 const FLAG_CHECK_ONLY = FLAG_CHECK | FLAG_DIRTY | FLAG_EFFECT; // 11 - for checking if only CHECK is set
-
-/**
- * Symbol for skipped dependencies counter (optimization)
- */
-const skippedDeps = Symbol();
-
-/**
- * Symbol for cached WeakRef of a computed node (avoids creating new WeakRef per dependency)
- */
-const weakRefSymbol = Symbol();
-
-/**
- * Symbol for storing the last seen global version on a computed node
- */
-const lastGlobalVersionSymbol = Symbol();
 
 /**
  * @template T
@@ -86,9 +75,9 @@ const ComputedProto = {
     [skippedDeps]: 0,
     [weakRefSymbol]: undefined,
     [lastGlobalVersionSymbol]: 0,
-    _g: null, // getter
-    _e: null, // equals
-    _v: undefined, // cached value
+    [getterSymbol]: null, // getter
+    [equalsSymbol]: null, // equals
+    [valueSymbol]: undefined, // cached value
 };
 
 // Global state
@@ -451,7 +440,7 @@ function computedRead() {
 
     // Fast-path: if node is clean and nothing has changed globally since last read, return cached value
     if ((flags & (FLAG_HAS_VALUE | FLAG_NEEDS_WORK)) === FLAG_HAS_VALUE && this[lastGlobalVersionSymbol] === globalVersion) {
-        return this._v;
+        return this[valueSymbol];
     }
 
     // For CHECK state, verify if sources actually changed before recomputing
@@ -504,13 +493,13 @@ function computedRead() {
         currentComputing = this;
         tracked = true; // Computed always tracks its own dependencies
         try {
-            const newValue = this._g();
+            const newValue = this[getterSymbol]();
 
             // Check if value actually changed
-            const changed = !(flags & FLAG_HAS_VALUE) || !this._e(this._v, newValue);
+            const changed = !(flags & FLAG_HAS_VALUE) || !this[equalsSymbol](this[valueSymbol], newValue);
 
             if (changed) {
-                this._v = newValue;
+                this[valueSymbol] = newValue;
                 this[flagsSymbol] |= FLAG_HAS_VALUE;
                 // Value changed - mark dependents as DIRTY (not just CHECK)
                 // so they know they definitely need to recompute
@@ -548,7 +537,7 @@ function computedRead() {
         }
     }
 
-    return this._v;
+    return this[valueSymbol];
 }
 
 /**
@@ -570,8 +559,8 @@ export const computed = (getter, equals = Object.is) => {
     context[dependencies] = new Set();
     context[flagsSymbol] = FLAG_DIRTY;
     context[skippedDeps] = 0;
-    context._g = getter;
-    context._e = equals;
+    context[getterSymbol] = getter;
+    context[equalsSymbol] = equals;
 
     return context;
 };
