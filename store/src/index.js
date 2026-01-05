@@ -60,6 +60,11 @@ const FLAG_CHECK_ONLY = FLAG_CHECK | FLAG_DIRTY | FLAG_EFFECT; // 11 - for check
 const skippedDeps = Symbol();
 
 /**
+ * Symbol for cached WeakRef of a computed node (avoids creating new WeakRef per dependency)
+ */
+const weakRefSymbol = Symbol();
+
+/**
  * @template T
  * @typedef {(() => T) & { [key: symbol]: any }} ComputedNode
  */
@@ -107,9 +112,10 @@ export const unwrapValue = value => (value != null && /** @type {Unwrappable<T>}
  */
 const clearSources = (node, fromIndex = 0) => {
     const sourcesArray = node[sources];
+    const weakRef = node[weakRefSymbol];
     for (let i = fromIndex; i < sourcesArray.length; i++) {
-        // Delete our specific WeakRef from the deps Set
-        sourcesArray[i].deps.delete(sourcesArray[i].weakRef);
+        // Delete our cached WeakRef from the deps Set
+        sourcesArray[i].deps.delete(weakRef);
     }
     sourcesArray.length = fromIndex;
 };
@@ -157,9 +163,13 @@ const trackDependency = (deps, sourceNode) => {
         if (skipIndex < sourcesArray.length) {
             clearSources(currentComputing, skipIndex);
         }
-        // Create WeakRef and store it for later cleanup
-        const weakRef = new WeakRef(currentComputing);
-        sourcesArray.push({ deps, node: sourceNode, weakRef });
+        // Use cached WeakRef from the node (create lazily on first use)
+        let weakRef = currentComputing[weakRefSymbol];
+        if (!weakRef) {
+            weakRef = new WeakRef(currentComputing);
+            currentComputing[weakRefSymbol] = weakRef;
+        }
+        sourcesArray.push({ deps, node: sourceNode });
         deps.add(weakRef);
     }
     // If reusing existing entry, weakRef is already in deps
