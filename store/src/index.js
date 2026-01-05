@@ -1,17 +1,4 @@
 /**
- * @typedef {import('./symbols').unwrap} unwrap
- * @typedef {import('./symbols').sources} sources
- * @typedef {import('./symbols').dependencies} dependencies
- * @typedef {import('./symbols').flagsSymbol} flagsSymbol
- * @typedef {import('./symbols').skippedDeps} skippedDeps
- * @typedef {import('./symbols').weakRefSymbol} weakRefSymbol
- * @typedef {import('./symbols').lastGlobalVersionSymbol} lastGlobalVersionSymbol
- * @typedef {import('./symbols').getterSymbol} getterSymbol
- * @typedef {import('./symbols').equalsSymbol} equalsSymbol
- * @typedef {import('./symbols').valueSymbol} valueSymbol
- */
-
-/**
  * Symbols used throughout the store:
  * - unwrap: to unwrap proxy to get underlying object
  * - sources: what this effect/computed depends on
@@ -46,7 +33,7 @@ const [
     equalsSymbol,
     valueSymbol,
 ] =
-    /** @type {[unwrap, sources, dependencies, flagsSymbol, skippedDeps, weakRefSymbol, lastGlobalVersionSymbol, getterSymbol, equalsSymbol, valueSymbol]}*/ (
+    /** @type {[import('./symbols').unwrap, import('./symbols').sources, import('./symbols').dependencies, import('./symbols').flagsSymbol, import('./symbols').skippedDeps, import('./symbols').weakRefSymbol, import('./symbols').lastGlobalVersionSymbol, import('./symbols').getterSymbol, import('./symbols').equalsSymbol, import('./symbols').valueSymbol]}*/ (
         /** @type {unknown}*/ (Array.from({ length: 10 }, () => Symbol()))
     );
 
@@ -99,6 +86,12 @@ const ComputedProto = {
 let currentComputing = null;
 /** @type {Set<ComputedNode<any>>} */
 const batched = new Set();
+/**
+ * Set holding strong references to active effects
+ * Effects are added when created and removed when disposed
+ * This prevents effects from being garbage collected while still active
+ */
+const activeEffects = new Set();
 let flushScheduled = false;
 let tracked = true;
 
@@ -446,6 +439,9 @@ export const effect = callback => {
     );
     comp[flagsSymbol] |= FLAG_EFFECT;
 
+    // Keep effect alive until disposed
+    activeEffects.add(comp);
+
     // Trigger first run via batched queue (node is already dirty from computed())
     scheduleEffect(comp);
 
@@ -455,6 +451,7 @@ export const effect = callback => {
         runCleanup();
         clearSources(comp);
         batched.delete(comp);
+        activeEffects.delete(comp);
     };
 };
 
