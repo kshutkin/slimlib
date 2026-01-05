@@ -524,6 +524,40 @@ export const computed = (getter, equals = Object.is) => {
 };
 
 /**
+ * Create a simple signal
+ * @template T
+ * @param {T} [initialValue] - Optional initial value
+ * @returns {(() => T) & { set: (value: T) => void }}
+ */
+export const signal = initialValue => {
+    let value = initialValue;
+    /** @type {Set<WeakRef<ComputedNode<any>>>} */
+    const deps = new Set();
+
+    /**
+     * Read the signal value and track dependency
+     * @returns {T}
+     */
+    const read = () => {
+        trackDependency(deps);
+        return value;
+    };
+
+    /**
+     * Set a new value and notify dependents
+     * @param {T} newValue
+     */
+    read.set = newValue => {
+        if (value !== newValue) {
+            value = newValue;
+            markDependents(deps, true);
+        }
+    };
+
+    return read;
+};
+
+/**
  * Execute without tracking dependencies
  * @template T
  * @param {() => T} callback
