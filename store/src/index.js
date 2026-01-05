@@ -184,10 +184,8 @@ const scheduleFlush = () => {
  * @param {ComputedNode<any>} [sourceNode] - The computed node being accessed (if any)
  */
 const trackDependency = (deps, sourceNode) => {
-    // Caller should check tracked && currentComputing for hot paths
-    // but we still need to check here for safety
-    const node = currentComputing;
-    if (!tracked || !node) return;
+    // Callers guarantee tracked && currentComputing are true
+    const node = /** @type {ComputedNode<any>} */ (currentComputing);
 
     const sourcesArray = node[sources];
     const skipIndex = node[skippedDeps];

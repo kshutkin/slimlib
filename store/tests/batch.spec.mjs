@@ -1,9 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
-import { computed, effect, state } from '../src/index.js';
+import { computed, effect, flush, state } from '../src/index.js';
 
 function flushPromises() {
     return new Promise(resolve => setTimeout(resolve));
+}
+
+async function flushAll() {
+    await flushPromises();
+    flush();
 }
 
 describe('automatic batching', () => {
@@ -16,7 +21,7 @@ describe('automatic batching', () => {
             runs++;
         });
 
-        await flushPromises();
+        await flushAll();
         expect(runs).toBe(1); // Initial run
 
         // Multiple synchronous updates
@@ -24,7 +29,7 @@ describe('automatic batching', () => {
         store.count = 2;
         store.count = 3;
 
-        await flushPromises();
+        await flushAll();
         expect(runs).toBe(2); // Only one additional run
         expect(store.count).toBe(3); // Final value is correct
     });
@@ -37,14 +42,14 @@ describe('automatic batching', () => {
             result = { a: store.a, b: store.b, c: store.c };
         });
 
-        await flushPromises();
+        await flushAll();
         expect(result).toEqual({ a: 0, b: 0, c: 0 });
 
         store.a = 1;
         store.b = 2;
         store.c = 3;
 
-        await flushPromises();
+        await flushAll();
         // Effect should see all final values
         expect(result).toEqual({ a: 1, b: 2, c: 3 });
     });
@@ -60,14 +65,14 @@ describe('automatic batching', () => {
             runs++;
         });
 
-        await flushPromises();
+        await flushAll();
         expect(runs).toBe(1);
 
         store.name = 'Jane';
         store.age = 25;
         store.city = 'LA';
 
-        await flushPromises();
+        await flushAll();
         expect(runs).toBe(2); // Single batched run
     });
 
@@ -81,13 +86,13 @@ describe('automatic batching', () => {
             runs++;
         });
 
-        await flushPromises();
+        await flushAll();
         expect(runs).toBe(1);
 
         store.user.profile.name = 'Jane';
         store.user.profile.email = 'jane@example.com';
 
-        await flushPromises();
+        await flushAll();
         expect(runs).toBe(2); // Batched
     });
 
@@ -102,7 +107,7 @@ describe('automatic batching', () => {
             lastItems = [...store.items];
         });
 
-        await flushPromises();
+        await flushAll();
         expect(runs).toBe(1);
         expect(lastItems).toEqual([1, 2, 3]);
 
@@ -110,7 +115,7 @@ describe('automatic batching', () => {
         store.items.push(5);
         store.items.push(6);
 
-        await flushPromises();
+        await flushAll();
         expect(runs).toBe(2); // Batched
         expect(lastItems).toEqual([1, 2, 3, 4, 5, 6]);
     });
@@ -128,7 +133,7 @@ describe('automatic batching', () => {
             sum();
         });
 
-        await flushPromises();
+        await flushAll();
         expect(computeCount).toBe(1);
 
         store.a = 10;
@@ -138,7 +143,7 @@ describe('automatic batching', () => {
         expect(sum()).toBe(30);
         expect(computeCount).toBe(2);
 
-        await flushPromises();
+        await flushAll();
         // Effect ran once, computed was already fresh
         expect(computeCount).toBe(2);
     });
@@ -152,7 +157,7 @@ describe('automatic batching', () => {
             runs++;
         });
 
-        await flushPromises();
+        await flushAll();
         expect(runs).toBe(1);
 
         // Set same value multiple times
@@ -160,7 +165,7 @@ describe('automatic batching', () => {
         store.value = 0;
         store.value = 0;
 
-        await flushPromises();
+        await flushAll();
         expect(runs).toBe(1); // No additional runs
     });
 
@@ -173,7 +178,7 @@ describe('automatic batching', () => {
             runs++;
         });
 
-        await flushPromises();
+        await flushAll();
         expect(runs).toBe(1);
 
         // Change and revert
@@ -181,7 +186,7 @@ describe('automatic batching', () => {
         store.value = 30;
         store.value = 10; // Back to original
 
-        await flushPromises();
+        await flushAll();
         // Still triggers because we track that a change happened
         // Even if the final value is the same as the starting value
         expect(runs).toBe(2);
@@ -204,13 +209,13 @@ describe('automatic batching', () => {
             calls.push(`effect3:${store.value}`);
         });
 
-        await flushPromises();
+        await flushAll();
         expect(calls).toEqual(['effect1:0', 'effect2:0', 'effect3:0']);
 
         calls.length = 0;
         store.value = 1;
 
-        await flushPromises();
+        await flushAll();
         expect(calls).toEqual(['effect1:1', 'effect2:1', 'effect3:1']);
     });
 
@@ -225,7 +230,7 @@ describe('automatic batching', () => {
             runs++;
         });
 
-        await flushPromises();
+        await flushAll();
         expect(runs).toBe(1);
 
         store1.a = 1;

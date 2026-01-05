@@ -1,9 +1,14 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { computed, effect, signal } from '../src/index.js';
+import { computed, effect, flush, signal } from '../src/index.js';
 
 function flushPromises() {
     return new Promise(resolve => setTimeout(resolve));
+}
+
+async function flushAll() {
+    await flushPromises();
+    flush();
 }
 
 describe('signal', () => {
@@ -47,12 +52,12 @@ describe('signal', () => {
                 subscriber(s());
             });
 
-            await flushPromises();
+            await flushAll();
             expect(subscriber).toHaveBeenCalledTimes(1);
             expect(subscriber).toHaveBeenCalledWith(0);
 
             s.set(1);
-            await flushPromises();
+            await flushAll();
             expect(subscriber).toHaveBeenCalledTimes(2);
             expect(subscriber).toHaveBeenCalledWith(1);
         });
@@ -65,11 +70,11 @@ describe('signal', () => {
                 subscriber(s());
             });
 
-            await flushPromises();
+            await flushAll();
             expect(subscriber).toHaveBeenCalledTimes(1);
 
             s.set(5);
-            await flushPromises();
+            await flushAll();
             expect(subscriber).toHaveBeenCalledTimes(1);
         });
 
@@ -82,17 +87,17 @@ describe('signal', () => {
                 subscriber(a() + b());
             });
 
-            await flushPromises();
+            await flushAll();
             expect(subscriber).toHaveBeenCalledTimes(1);
             expect(subscriber).toHaveBeenCalledWith(3);
 
             a.set(10);
-            await flushPromises();
+            await flushAll();
             expect(subscriber).toHaveBeenCalledTimes(2);
             expect(subscriber).toHaveBeenCalledWith(12);
 
             b.set(20);
-            await flushPromises();
+            await flushAll();
             expect(subscriber).toHaveBeenCalledTimes(3);
             expect(subscriber).toHaveBeenCalledWith(30);
         });
@@ -110,12 +115,12 @@ describe('signal', () => {
                 subscriber2(s() * 2);
             });
 
-            await flushPromises();
+            await flushAll();
             expect(subscriber1).toHaveBeenCalledWith(0);
             expect(subscriber2).toHaveBeenCalledWith(0);
 
             s.set(5);
-            await flushPromises();
+            await flushAll();
             expect(subscriber1).toHaveBeenCalledWith(5);
             expect(subscriber2).toHaveBeenCalledWith(10);
         });
@@ -128,13 +133,13 @@ describe('signal', () => {
                 subscriber(s());
             });
 
-            await flushPromises();
+            await flushAll();
             expect(subscriber).toHaveBeenCalledTimes(1);
 
             dispose();
 
             s.set(1);
-            await flushPromises();
+            await flushAll();
             expect(subscriber).toHaveBeenCalledTimes(1);
         });
     });
@@ -193,11 +198,11 @@ describe('signal', () => {
                 subscriber(s());
             });
 
-            await flushPromises();
+            await flushAll();
             expect(subscriber).toHaveBeenCalledWith('initial');
 
             s.set('changed');
-            await flushPromises();
+            await flushAll();
             expect(subscriber).toHaveBeenCalledWith('changed');
         });
     });
@@ -222,11 +227,11 @@ describe('signal', () => {
                 subscriber(s().value);
             });
 
-            await flushPromises();
+            await flushAll();
             expect(subscriber).toHaveBeenCalledWith(1);
 
             s.set({ value: 2 });
-            await flushPromises();
+            await flushAll();
             expect(subscriber).toHaveBeenCalledWith(2);
         });
 
@@ -239,13 +244,13 @@ describe('signal', () => {
                 subscriber(s().value);
             });
 
-            await flushPromises();
+            await flushAll();
             expect(subscriber).toHaveBeenCalledTimes(1);
 
             // Mutate the object but set same reference
             obj.value = 2;
             s.set(obj);
-            await flushPromises();
+            await flushAll();
             // Should not trigger because reference is the same
             expect(subscriber).toHaveBeenCalledTimes(1);
         });
@@ -273,11 +278,11 @@ describe('signal', () => {
                 }
             });
 
-            await flushPromises();
+            await flushAll();
             expect(subscriber).toHaveBeenCalledWith('active');
 
             flag.set(false);
-            await flushPromises();
+            await flushAll();
             expect(subscriber).toHaveBeenCalledWith('inactive');
         });
     });

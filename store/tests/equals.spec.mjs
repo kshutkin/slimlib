@@ -1,9 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
-import { computed, effect, state } from '../src/index.js';
+import { computed, effect, flush, state } from '../src/index.js';
 
 function flushPromises() {
     return new Promise(resolve => setTimeout(resolve));
+}
+
+async function flushAll() {
+    await flushPromises();
+    flush();
 }
 
 describe('computed with equality comparison', () => {
@@ -22,13 +27,13 @@ describe('computed with equality comparison', () => {
 
         // Change to different value
         store.count = 5;
-        await flushPromises();
+        await flushAll();
         expect(doubled()).toBe(10);
         expect(computeCount).toBe(2);
 
         // Change to produce same result (5 * 2 = 10)
         store.count = 5;
-        await flushPromises();
+        await flushAll();
         expect(doubled()).toBe(10);
         expect(computeCount).toBe(2); // Should not recompute when value unchanged
     });
@@ -62,7 +67,7 @@ describe('computed with equality comparison', () => {
 
         // Change count: 0 → 2 (doubled: 0 → 4, isEven: true → true, message: 'Even' → 'Even')
         store.count = 2;
-        await flushPromises();
+        await flushAll();
 
         expect(message()).toBe('Even');
         expect(compute1Count).toBe(2); // doubled recomputes
@@ -100,7 +105,7 @@ describe('computed with equality comparison', () => {
 
         // Change to same content
         store.items = [1, 2, 3];
-        await flushPromises();
+        await flushAll();
 
         // Access length
         expect(length()).toBe(3);
@@ -131,7 +136,7 @@ describe('computed with equality comparison', () => {
         // Change a: 1 → 2, b: 2 → 1 (sum stays 3)
         store.a = 2;
         store.b = 1;
-        await flushPromises();
+        await flushAll();
 
         expect(doubled()).toBe(6);
         expect(computeCount).toBe(2); // sum recomputes
@@ -175,14 +180,14 @@ describe('computed with equality comparison', () => {
 
         // Cause error
         store.value = 0;
-        await flushPromises();
+        await flushAll();
 
         expect(() => throwOnZero()).toThrow('Zero not allowed');
         expect(computeCount).toBe(2);
 
         // Recover
         store.value = 1;
-        await flushPromises();
+        await flushAll();
 
         expect(throwOnZero()).toBe(2);
         expect(computeCount).toBe(3);
@@ -219,7 +224,7 @@ describe('computed with equality comparison', () => {
         // Change x: 1 → 2, y: 2 → 1 (a stays 3)
         store.x = 2;
         store.y = 1;
-        await flushPromises();
+        await flushAll();
 
         expect(d()).toBe('6 is small');
         expect(counters.a).toBe(2); // a recomputes
@@ -253,7 +258,7 @@ describe('computed with equality comparison', () => {
 
         // Set to different value (but would compute to same result if equals worked normally)
         store.value = 2;
-        await flushPromises();
+        await flushAll();
 
         expect(downstream()).toBe(4);
         expect(compute1Count).toBe(2); // alwaysNew recomputes
@@ -285,7 +290,7 @@ describe('computed with equality comparison', () => {
 
         // Change value
         store.value = 100;
-        await flushPromises();
+        await flushAll();
 
         // Access downstream
         const currentValue = downstream();
@@ -329,7 +334,7 @@ describe('computed with equality comparison', () => {
 
         // Change to same values
         store.user = { name: 'John', age: 30 };
-        await flushPromises();
+        await flushAll();
 
         expect(userName()).toBe('John');
         expect(computeCount).toBe(2); // userCopy recomputes
@@ -351,13 +356,13 @@ describe('computed with equality comparison', () => {
             isEven();
         });
 
-        await flushPromises();
+        await flushAll();
         expect(effectRunCount).toBe(1);
         expect(computeCount).toBe(1);
 
         // Change 0 → 2 (both even, isEven value doesn't change)
         store.count = 2;
-        await flushPromises();
+        await flushAll();
 
         // Effects are eagerly propagated to (they must run), but computed values
         // use lazy propagation with equality checking
@@ -366,7 +371,7 @@ describe('computed with equality comparison', () => {
 
         // Change to odd value
         store.count = 3;
-        await flushPromises();
+        await flushAll();
 
         expect(effectRunCount).toBe(3); // Effect runs again
         expect(computeCount).toBe(3); // isEven recomputes
@@ -383,7 +388,7 @@ describe('computed with equality comparison', () => {
 
         // Change to another odd value - isEven value doesn't change
         store.count = 5;
-        await flushPromises();
+        await flushAll();
 
         // Effect runs (eager), but message doesn't recompute (lazy)
         expect(effectRunCount).toBe(4);
@@ -425,7 +430,7 @@ describe('computed with equality comparison', () => {
         // Change values
         store.x = 2;
         store.y = 3;
-        await flushPromises();
+        await flushAll();
 
         expect(message()).toBe('Value is 4'); // Old value because doubled never propagates
         expect(counters.sum).toBe(2); // sum recomputes

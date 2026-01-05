@@ -1,9 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
-import { computed, effect, state } from '../src/index.js';
+import { computed, effect, flush, state } from '../src/index.js';
 
 function flushPromises() {
     return new Promise(resolve => setTimeout(resolve));
+}
+
+async function flushAll() {
+    await flushPromises();
+    flush();
 }
 
 describe('diamond problem', () => {
@@ -32,11 +37,11 @@ describe('diamond problem', () => {
             runCount++;
         });
 
-        await flushPromises();
+        await flushAll();
         expect(runCount).toBe(1); // Initial run
 
         store.a = 1;
-        await flushPromises();
+        await flushAll();
         expect(runCount).toBe(2); // One update, not 3!
     });
 
@@ -55,12 +60,12 @@ describe('diamond problem', () => {
             result = doubled() + tripled() + quadrupled();
         });
 
-        await flushPromises();
+        await flushAll();
         expect(runCount).toBe(1);
         expect(result).toBe(2 + 3 + 4); // 9
 
         store.value = 2;
-        await flushPromises();
+        await flushAll();
         expect(runCount).toBe(2); // Only one additional run
         expect(result).toBe(4 + 6 + 8); // 18
     });
@@ -92,7 +97,7 @@ describe('diamond problem', () => {
             result = e() + f();
         });
 
-        await flushPromises();
+        await flushAll();
         expect(runCount).toBe(1);
         // e = (1+1) + (1+2) = 5
         // f = (1+2) + (1+3) = 7
@@ -100,7 +105,7 @@ describe('diamond problem', () => {
         expect(result).toBe(12);
 
         store.a = 10;
-        await flushPromises();
+        await flushAll();
         expect(runCount).toBe(2); // Still only one update
         // e = (10+1) + (10+2) = 23
         // f = (10+2) + (10+3) = 25
@@ -128,12 +133,12 @@ describe('diamond problem', () => {
             result = store.a + b() + c();
         });
 
-        await flushPromises();
+        await flushAll();
         expect(runCount).toBe(1);
         expect(result).toBe(1 + 2 + 3);
 
         store.a = 5;
-        await flushPromises();
+        await flushAll();
         expect(runCount).toBe(2); // One update
         expect(result).toBe(5 + 10 + 15);
     });
@@ -156,12 +161,12 @@ describe('diamond problem', () => {
             b() + c();
         });
 
-        await flushPromises();
+        await flushAll();
         expect(effect1Runs).toBe(1);
         expect(effect2Runs).toBe(1);
 
         store.value = 2;
-        await flushPromises();
+        await flushAll();
         expect(effect1Runs).toBe(2);
         expect(effect2Runs).toBe(2);
     });
@@ -180,18 +185,18 @@ describe('diamond problem', () => {
             result = store.flag ? doubled() : tripled();
         });
 
-        await flushPromises();
+        await flushAll();
         expect(runCount).toBe(1);
         expect(result).toBe(2);
 
         store.value = 5;
-        await flushPromises();
+        await flushAll();
         expect(runCount).toBe(2);
         expect(result).toBe(10);
 
         // Switch branch
         store.flag = false;
-        await flushPromises();
+        await flushAll();
         expect(runCount).toBe(3);
         expect(result).toBe(15);
     });
@@ -219,14 +224,14 @@ describe('diamond problem', () => {
             result = merge();
         });
 
-        await flushPromises();
+        await flushAll();
         expect(runCount).toBe(1);
         // a3 = 1 + 1 + 1 + 1 = 4
         // b3 = 1 + 10 + 10 + 10 = 31
         expect(result).toBe(4 + 31);
 
         store.value = 100;
-        await flushPromises();
+        await flushAll();
         expect(runCount).toBe(2); // Still only one update
         // a3 = 100 + 1 + 1 + 1 = 103
         // b3 = 100 + 10 + 10 + 10 = 130
@@ -248,19 +253,19 @@ describe('diamond problem', () => {
             result = sum() + product();
         });
 
-        await flushPromises();
+        await flushAll();
         expect(runCount).toBe(1);
         expect(result).toBe(3 + 2); // sum=3, product=2
 
         // Change store1
         store1.x = 5;
-        await flushPromises();
+        await flushAll();
         expect(runCount).toBe(2);
         expect(result).toBe(7 + 10); // sum=7, product=10
 
         // Change store2
         store2.y = 3;
-        await flushPromises();
+        await flushAll();
         expect(runCount).toBe(3);
         expect(result).toBe(8 + 15); // sum=8, product=15
     });
@@ -277,12 +282,12 @@ describe('diamond problem', () => {
             effectC = c();
         });
 
-        await flushPromises();
+        await flushAll();
         expect(effectB).toBe(11);
         expect(effectC).toBe(21);
 
         store.a = 5;
-        await flushPromises();
+        await flushAll();
         // Both should be updated correctly
         expect(effectB).toBe(15);
         expect(effectC).toBe(25);

@@ -1,9 +1,14 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { computed, effect, state } from '../src/index.js';
+import { computed, effect, flush, state } from '../src/index.js';
 
 function flushPromises() {
     return new Promise(resolve => setTimeout(resolve));
+}
+
+async function flushAll() {
+    await flushPromises();
+    flush();
 }
 
 describe('effect', () => {

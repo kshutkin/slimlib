@@ -1,9 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
-import { computed, effect, state, untracked } from '../src/index.js';
+import { computed, effect, flush, state, untracked } from '../src/index.js';
 
 function flushPromises() {
     return new Promise(resolve => setTimeout(resolve));
+}
+
+async function flushAll() {
+    await flushPromises();
+    flush();
 }
 
 describe('untracked', () => {
@@ -17,17 +22,17 @@ describe('untracked', () => {
             untracked(() => store.b); // Not tracked
         });
 
-        await flushPromises();
+        await flushAll();
         expect(runs).toBe(1);
 
         // Changing b should NOT trigger effect
         store.b = 10;
-        await flushPromises();
+        await flushAll();
         expect(runs).toBe(1);
 
         // Changing a SHOULD trigger effect
         store.a = 5;
-        await flushPromises();
+        await flushAll();
         expect(runs).toBe(2);
     });
 
@@ -48,11 +53,11 @@ describe('untracked', () => {
             untracked(() => store.user.name);
         });
 
-        await flushPromises();
+        await flushAll();
         expect(runs).toBe(1);
 
         store.user.name = 'Jane';
-        await flushPromises();
+        await flushAll();
         expect(runs).toBe(1); // Should not trigger
     });
 
@@ -94,13 +99,13 @@ describe('untracked', () => {
             });
         });
 
-        await flushPromises();
+        await flushAll();
         expect(runs).toBe(1);
 
         store.a = 10;
         store.b = 20;
         store.c = 30;
-        await flushPromises();
+        await flushAll();
         expect(runs).toBe(1); // All were untracked
     });
 
@@ -115,22 +120,22 @@ describe('untracked', () => {
             store.c; // Tracked again
         });
 
-        await flushPromises();
+        await flushAll();
         expect(runs).toBe(1);
 
         // Changing a should trigger
         store.a = 10;
-        await flushPromises();
+        await flushAll();
         expect(runs).toBe(2);
 
         // Changing b should NOT trigger
         store.b = 20;
-        await flushPromises();
+        await flushAll();
         expect(runs).toBe(2);
 
         // Changing c should trigger
         store.c = 30;
-        await flushPromises();
+        await flushAll();
         expect(runs).toBe(3);
     });
 
@@ -151,17 +156,17 @@ describe('untracked', () => {
             }
         });
 
-        await flushPromises();
+        await flushAll();
         expect(runs).toBe(1);
 
         // Tracking should still work after exception
         store.a = 10;
-        await flushPromises();
+        await flushAll();
         expect(runs).toBe(2);
 
         // b was still untracked despite exception
         store.b = 20;
-        await flushPromises();
+        await flushAll();
         expect(runs).toBe(2);
     });
 
@@ -183,19 +188,19 @@ describe('untracked', () => {
             store.a + untracked(() => store.b) + store.c;
         });
 
-        await flushPromises();
+        await flushAll();
         expect(runs).toBe(1);
 
         store.b = 100; // Not tracked
-        await flushPromises();
+        await flushAll();
         expect(runs).toBe(1);
 
         store.a = 10; // Tracked
-        await flushPromises();
+        await flushAll();
         expect(runs).toBe(2);
 
         store.c = 30; // Tracked
-        await flushPromises();
+        await flushAll();
         expect(runs).toBe(3);
     });
 
@@ -210,17 +215,17 @@ describe('untracked', () => {
             untracked(() => store.items.reduce((acc, item) => acc + item * m, 0));
         });
 
-        await flushPromises();
+        await flushAll();
         expect(runs).toBe(1);
 
         // Changing items should NOT trigger
         store.items.push(4);
-        await flushPromises();
+        await flushAll();
         expect(runs).toBe(1);
 
         // Changing multiplier SHOULD trigger
         store.multiplier = 3;
-        await flushPromises();
+        await flushAll();
         expect(runs).toBe(2);
     });
 
@@ -239,7 +244,7 @@ describe('untracked', () => {
             untracked(() => doubled());
         });
 
-        await flushPromises();
+        await flushAll();
         expect(effectRuns).toBe(1);
         expect(computeRuns).toBe(1);
 
@@ -249,7 +254,7 @@ describe('untracked', () => {
         expect(doubled()).toBe(10);
         expect(computeRuns).toBe(2);
 
-        await flushPromises();
+        await flushAll();
         // Effect should NOT have run again
         expect(effectRuns).toBe(1);
     });

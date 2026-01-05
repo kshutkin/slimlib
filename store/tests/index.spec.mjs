@@ -1,9 +1,14 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { effect, state, unwrapValue } from '../src/index.js';
+import { effect, flush, state, unwrapValue } from '../src/index.js';
 
 function flushPromises() {
     return new Promise(resolve => setTimeout(resolve));
+}
+
+async function flushAll() {
+    await flushPromises();
+    flush();
 }
 
 describe('store', () => {
@@ -16,9 +21,9 @@ describe('store', () => {
             const subscriber = vi.fn();
             const store = state({ prop: 'test' });
             effect(() => subscriber(store.prop));
-            await flushPromises();
+            await flushAll();
             store.prop = 'test2';
-            await flushPromises();
+            await flushAll();
             expect(subscriber).toHaveBeenCalledWith('test');
             expect(subscriber).toHaveBeenCalledWith('test2');
             expect(unwrapValue(store).prop).toBe('test2');
@@ -29,9 +34,9 @@ describe('store', () => {
             const subscriber = vi.fn();
             const store = state({ prop: 3 });
             effect(() => subscriber(store.prop));
-            await flushPromises();
+            await flushAll();
             store.prop = 42;
-            await flushPromises();
+            await flushAll();
             expect(subscriber).toHaveBeenCalledWith(3);
             expect(subscriber).toHaveBeenCalledWith(42);
             expect(unwrapValue(store).prop).toBe(42);
@@ -42,9 +47,9 @@ describe('store', () => {
             const subscriber = vi.fn();
             const store = state({ prop: false });
             effect(() => subscriber(store.prop));
-            await flushPromises();
+            await flushAll();
             store.prop = true;
-            await flushPromises();
+            await flushAll();
             expect(subscriber).toHaveBeenCalledWith(false);
             expect(subscriber).toHaveBeenCalledWith(true);
             expect(unwrapValue(store).prop).toBe(true);
@@ -55,9 +60,9 @@ describe('store', () => {
             const subscriber = vi.fn();
             const store = state({ prop: /** @type {number | null} */ (1) });
             effect(() => subscriber(store.prop));
-            await flushPromises();
+            await flushAll();
             store.prop = null;
-            await flushPromises();
+            await flushAll();
             expect(subscriber).toHaveBeenCalledWith(1);
             expect(subscriber).toHaveBeenCalledWith(null);
             expect(unwrapValue(store).prop).toBe(null);
@@ -68,9 +73,9 @@ describe('store', () => {
             const subscriber = vi.fn();
             const store = state({ prop: /** @type {number | undefined} */ (1) });
             effect(() => subscriber(store.prop));
-            await flushPromises();
+            await flushAll();
             store.prop = undefined;
-            await flushPromises();
+            await flushAll();
             expect(subscriber).toHaveBeenCalledWith(1);
             expect(subscriber).toHaveBeenCalledWith(undefined);
             expect(unwrapValue(store).prop).toBe(undefined);
@@ -82,9 +87,9 @@ describe('store', () => {
             const store = state({ prop: /** @type {{a?: number, b?: number}} */ ({ a: 1 }) });
             effect(() => subscriber({ ...store.prop }));
             const b = { b: 2 };
-            await flushPromises();
+            await flushAll();
             store.prop = b;
-            await flushPromises();
+            await flushAll();
             expect(subscriber).toHaveBeenCalledWith({ a: 1 });
             expect(subscriber).toHaveBeenCalledWith({ b: 2 });
             expect(unwrapValue(store).prop).toBe(b);
@@ -95,9 +100,9 @@ describe('store', () => {
             const subscriber = vi.fn();
             const store = state({ items: [1, 2, 3] });
             effect(() => subscriber([...store.items]));
-            await flushPromises();
+            await flushAll();
             store.items.push(4);
-            await flushPromises();
+            await flushAll();
             expect(subscriber).toHaveBeenCalledWith([1, 2, 3]);
             expect(subscriber).toHaveBeenCalledWith([1, 2, 3, 4]);
         });
@@ -112,11 +117,11 @@ describe('store', () => {
             const subscriber = vi.fn();
             const store = state(/** @type {{prop?: string}} */ ({}));
             effect(() => subscriber(store.prop));
-            await flushPromises();
+            await flushAll();
             Object.defineProperty(store, 'prop', {
                 value: 'test',
             });
-            await flushPromises();
+            await flushAll();
             expect(subscriber).toHaveBeenCalledWith(undefined);
             expect(subscriber).toHaveBeenCalledWith('test');
             expect(store.prop).toBe('test');
@@ -126,12 +131,12 @@ describe('store', () => {
             const subscriber = vi.fn();
             const store = state(/** @type {{prop?: string}} */ ({}));
             effect(() => subscriber(store.prop));
-            await flushPromises();
+            await flushAll();
             Object.defineProperty(store, 'prop', {
                 value: 'test',
                 writable: true,
             });
-            await flushPromises();
+            await flushAll();
             expect(subscriber).toHaveBeenCalledWith(undefined);
             expect(subscriber).toHaveBeenCalledWith('test');
             expect(unwrapValue(store).prop).toBe('test');
@@ -161,9 +166,9 @@ describe('store', () => {
             const subscriber = vi.fn();
             const store = state({ prop: 'test' });
             effect(() => subscriber(store.prop));
-            await flushPromises();
+            await flushAll();
             store.prop = 'test';
-            await flushPromises();
+            await flushAll();
             expect(subscriber).toHaveBeenCalledTimes(1);
         });
 
@@ -171,10 +176,10 @@ describe('store', () => {
             const subscriber = vi.fn();
             const store = state({ prop: 'test' });
             effect(() => subscriber(store.prop));
-            await flushPromises();
+            await flushAll();
             store.prop = 'test2';
             store.prop = 'test3';
-            await flushPromises();
+            await flushAll();
             expect(subscriber).toHaveBeenCalledTimes(2); // initial + one batched update
         });
 
@@ -182,9 +187,9 @@ describe('store', () => {
             const subscriber = vi.fn();
             const store = state({ prop: { a: 1 } });
             effect(() => subscriber(store.prop.a));
-            await flushPromises();
+            await flushAll();
             store.prop.a = 2;
-            await flushPromises();
+            await flushAll();
             expect(subscriber).toHaveBeenCalledWith(1);
             expect(subscriber).toHaveBeenCalledWith(2);
             expect(unwrapValue(store).prop.a).toBe(2);
@@ -195,9 +200,9 @@ describe('store', () => {
             const subscriber = vi.fn();
             const store = state({ prop: /** @type {string | undefined} */ ('test') });
             effect(() => subscriber(store.prop));
-            await flushPromises();
+            await flushAll();
             delete store.prop;
-            await flushPromises();
+            await flushAll();
             expect(subscriber).toHaveBeenCalledWith('test');
             expect(subscriber).toHaveBeenCalledWith(undefined);
         });
@@ -206,12 +211,12 @@ describe('store', () => {
             const subscriber = vi.fn();
             const store = state({ prop: /** @type {{a: number}} */ ({ a: 1 }) });
             effect(() => subscriber({ ...store.prop }));
-            await flushPromises();
+            await flushAll();
             // Intentional self-assignment to test proxy behavior
             const temp = store.prop;
             store.prop = temp;
             store.prop.a = 2;
-            await flushPromises();
+            await flushAll();
             expect(subscriber).toHaveBeenCalledWith({ a: 1 });
             expect(subscriber).toHaveBeenCalledWith({ a: 2 });
         });
@@ -220,10 +225,10 @@ describe('store', () => {
             const subscriber = vi.fn();
             const store = state({ data: /** @type {Array<{prop: number}>} */ ([{ prop: 1 }]) });
             effect(() => subscriber(store.data[0]?.prop));
-            await flushPromises();
+            await flushAll();
             // @ts-expect-error - we know data[0] exists
             store.data[0].prop = 2;
-            await flushPromises();
+            await flushAll();
             expect(subscriber).toHaveBeenCalledWith(1);
             expect(subscriber).toHaveBeenCalledWith(2);
             // @ts-expect-error - we know data[0] exists
@@ -246,9 +251,9 @@ describe('store', () => {
             const value = { a: 1 };
             const store = state({ map: new Map() });
             effect(() => subscriber(store.map.size));
-            await flushPromises();
+            await flushAll();
             store.map.set('key', value);
-            await flushPromises();
+            await flushAll();
             expect(subscriber).toHaveBeenCalledWith(0);
             expect(subscriber).toHaveBeenCalledWith(1);
         });
@@ -269,9 +274,9 @@ describe('store', () => {
             const store = state(value);
             const prop = store.prop;
             effect(() => subscriber(prop.value.value2));
-            await flushPromises();
+            await flushAll();
             store.prop.value.value2 = 'test2';
-            await flushPromises();
+            await flushAll();
             expect(subscriber).toHaveBeenCalledWith('test');
             expect(subscriber).toHaveBeenCalledWith('test2');
         });

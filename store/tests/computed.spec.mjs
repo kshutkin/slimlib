@@ -1,9 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
-import { computed, effect, state } from '../src/index.js';
+import { computed, effect, flush, state } from '../src/index.js';
 
 function flushPromises() {
     return new Promise(resolve => setTimeout(resolve));
+}
+
+async function flushAll() {
+    await flushPromises();
+    flush();
 }
 
 describe('computed', () => {
@@ -55,7 +60,7 @@ describe('computed', () => {
 
         store.count = 1;
         store.count = 2;
-        await flushPromises();
+        await flushAll();
 
         expect(computeCount).toBe(0); // Never accessed, never computed
 
@@ -103,11 +108,11 @@ describe('computed', () => {
             doubled();
         });
 
-        await flushPromises();
+        await flushAll();
         expect(effectRuns).toBe(1);
 
         store.count = 2;
-        await flushPromises();
+        await flushAll();
         expect(effectRuns).toBe(2);
     });
 
@@ -124,11 +129,11 @@ describe('computed', () => {
             tripled();
         });
 
-        await flushPromises();
+        await flushAll();
         expect(effectRuns).toBe(1);
 
         store.count = 2;
-        await flushPromises();
+        await flushAll();
         // Effect should run only once, not twice
         expect(effectRuns).toBe(2);
     });
@@ -254,15 +259,15 @@ describe('computed', () => {
             c();
         });
 
-        await flushPromises();
+        await flushAll();
         expect(effectRuns).toBe(1);
 
         store.a = 2;
-        await flushPromises();
+        await flushAll();
         expect(effectRuns).toBe(2);
 
         store.a = 3;
-        await flushPromises();
+        await flushAll();
         expect(effectRuns).toBe(3);
     });
 
@@ -354,7 +359,7 @@ describe('computed', () => {
             doubled();
         });
 
-        await flushPromises();
+        await flushAll();
         expect(effectRuns).toBe(1);
 
         // Dispose the effect
@@ -362,7 +367,7 @@ describe('computed', () => {
 
         // Change the store - effect should NOT run
         store.value = 5;
-        await flushPromises();
+        await flushAll();
         expect(effectRuns).toBe(1);
 
         // Computed should still work independently
@@ -398,14 +403,14 @@ describe('computed', () => {
             b();
         });
 
-        await flushPromises();
+        await flushAll();
         expect(effectRuns).toBe(1);
 
         dispose();
 
         // Changes should not trigger effect
         store.value = 10;
-        await flushPromises();
+        await flushAll();
         expect(effectRuns).toBe(1);
     });
 
@@ -418,7 +423,7 @@ describe('computed', () => {
             store.value;
         });
 
-        await flushPromises();
+        await flushAll();
         expect(effectRuns).toBe(1);
 
         // Change store to trigger effect (it gets batched)
@@ -427,7 +432,7 @@ describe('computed', () => {
         // Immediately dispose before flush happens
         dispose();
 
-        await flushPromises();
+        await flushAll();
         // Effect should NOT have run because it was disposed before flush
         expect(effectRuns).toBe(1);
     });
@@ -442,14 +447,14 @@ describe('computed', () => {
             store.b;
         });
 
-        await flushPromises();
+        await flushAll();
         expect(runs).toBe(1);
 
         // Change multiple tracked properties
         store.a = 10;
         store.b = 20;
 
-        await flushPromises();
+        await flushAll();
         // Should only run once despite two changes
         expect(runs).toBe(2);
     });
@@ -471,7 +476,7 @@ describe('computed', () => {
             doubled();
         });
 
-        await flushPromises();
+        await flushAll();
         expect(effect1Runs).toBe(1);
         expect(effect2Runs).toBe(1);
 
@@ -480,7 +485,7 @@ describe('computed', () => {
 
         // Change should only trigger second effect
         store.value = 5;
-        await flushPromises();
+        await flushAll();
         expect(effect1Runs).toBe(1);
         expect(effect2Runs).toBe(2);
     });
@@ -497,7 +502,7 @@ describe('computed', () => {
             doubled();
         });
 
-        await flushPromises();
+        await flushAll();
         expect(effectRuns).toBe(1);
         expect(doubled()).toBe(2);
 
@@ -505,7 +510,7 @@ describe('computed', () => {
         // When effect re-runs, clearSources is called which should hit
         // the `else if (source.computed)` branch
         store.value = 5;
-        await flushPromises();
+        await flushAll();
         expect(effectRuns).toBe(2);
         expect(doubled()).toBe(10);
 
@@ -526,7 +531,7 @@ describe('computed', () => {
             doubled();
         });
 
-        await flushPromises();
+        await flushAll();
         expect(computeRuns).toBe(1);
 
         // Dispose effect - this should clear the computed from sources
@@ -548,7 +553,7 @@ describe('computed', () => {
             store.value;
         });
 
-        await flushPromises();
+        await flushAll();
         expect(effectRuns).toBe(1);
 
         // Trigger a change - effect gets batched and marked dirty
@@ -558,7 +563,7 @@ describe('computed', () => {
         // by removing from the batch before it runs
         dispose();
 
-        await flushPromises();
+        await flushAll();
         // Effect should NOT have run because it was removed from batch
         expect(effectRuns).toBe(1);
     });
@@ -578,12 +583,12 @@ describe('computed', () => {
             c();
         });
 
-        await flushPromises();
+        await flushAll();
         expect(effectRuns).toBe(1);
         expect(c()).toBe(4); // 1 + 1 + 1 + 1
 
         store.x = 10;
-        await flushPromises();
+        await flushAll();
         expect(effectRuns).toBe(2);
         expect(c()).toBe(13); // 10 + 1 + 1 + 1
     });

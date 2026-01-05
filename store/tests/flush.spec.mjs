@@ -2,6 +2,16 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { computed, effect, flush, setScheduler, state } from '../src/index.js';
 
+// Ensure scheduler is reset before/after each test to avoid cross-test pollution
+beforeEach(() => {
+    setScheduler(queueMicrotask);
+});
+
+afterEach(() => {
+    flush();
+    setScheduler(queueMicrotask);
+});
+
 describe('flush', () => {
     it('executes pending effects immediately', () => {
         const store = state({ count: 0 });

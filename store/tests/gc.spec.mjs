@@ -1,9 +1,14 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 
-import { computed, effect, state } from '../src/index.js';
+import { computed, effect, flush, state } from '../src/index.js';
 
 function flushPromises() {
     return new Promise(resolve => setTimeout(resolve));
+}
+
+async function flushAll() {
+    await flushPromises();
+    flush();
 }
 
 /**
@@ -52,7 +57,7 @@ describe('garbage collection', () => {
         })();
 
         // Give microtasks a chance to run
-        await flushPromises();
+        await flushAll();
 
         // Allocate memory and force GC
         allocateMemory();
@@ -75,7 +80,7 @@ describe('garbage collection', () => {
             doubled();
         });
 
-        await flushPromises();
+        await flushAll();
         expect(effectRuns).toBe(1);
 
         // Force GC
@@ -87,7 +92,7 @@ describe('garbage collection', () => {
 
         // Change state and verify effect still works
         store.count = 5;
-        await flushPromises();
+        await flushAll();
         expect(effectRuns).toBe(2);
         expect(doubled()).toBe(10);
 
@@ -109,7 +114,7 @@ describe('garbage collection', () => {
             weakRefMiddle = new WeakRef(middle);
         })();
 
-        await flushPromises();
+        await flushAll();
 
         // Force GC
         allocateMemory();
@@ -136,7 +141,7 @@ describe('garbage collection', () => {
             doubled();
         });
 
-        await flushPromises();
+        await flushAll();
         expect(effectRuns).toBe(1);
 
         // Dispose the effect
@@ -152,7 +157,7 @@ describe('garbage collection', () => {
 
         // Change state - effect should NOT run since disposed
         store.count = 5;
-        await flushPromises();
+        await flushAll();
         expect(effectRuns).toBe(1);
     });
 
@@ -169,7 +174,7 @@ describe('garbage collection', () => {
             weakRefUnused = new WeakRef(unused);
         })();
 
-        await flushPromises();
+        await flushAll();
 
         // Force GC
         allocateMemory();
@@ -197,7 +202,7 @@ describe('garbage collection', () => {
             weakRefDependent = new WeakRef(dependent);
         })();
 
-        await flushPromises();
+        await flushAll();
 
         // Force GC
         allocateMemory();
@@ -222,7 +227,7 @@ describe('garbage collection', () => {
             temp();
         })();
 
-        await flushPromises();
+        await flushAll();
 
         // Force GC to collect the temp computed
         allocateMemory();
@@ -232,7 +237,7 @@ describe('garbage collection', () => {
         // This tests the markDependents cleanup path
         store.count = 10;
 
-        await flushPromises();
+        await flushAll();
 
         // No error should occur - dead refs should be cleaned
         expect(store.count).toBe(10);
@@ -251,7 +256,7 @@ describe('garbage collection', () => {
             })();
         }
 
-        await flushPromises();
+        await flushAll();
 
         // Force GC multiple times to ensure collection
         for (let i = 0; i < 3; i++) {
@@ -286,7 +291,7 @@ describe('garbage collection', () => {
             }
         });
 
-        await flushPromises();
+        await flushAll();
         expect(effectRuns).toBe(1);
 
         // Force GC
@@ -311,7 +316,7 @@ describe('garbage collection', () => {
             temp();
         })();
 
-        await flushPromises();
+        await flushAll();
 
         // Force GC
         allocateMemory();
@@ -320,7 +325,7 @@ describe('garbage collection', () => {
         // Modifying the property should trigger cleanup of dead WeakRefs
         store.nested.value = 5;
 
-        await flushPromises();
+        await flushAll();
 
         // Should not error, and value should be updated
         expect(store.nested.value).toBe(5);
@@ -349,7 +354,7 @@ describe('garbage collection', () => {
             })();
         }
 
-        await flushPromises();
+        await flushAll();
 
         // Change store value BEFORE GC - this marks base as needing check
         store.value = 5;
@@ -363,7 +368,7 @@ describe('garbage collection', () => {
                 pressure.push(new Array(100000).fill(j));
             }
             forceGC();
-            await flushPromises();
+            await flushAll();
             await new Promise(resolve => setTimeout(resolve, 5));
         }
 
