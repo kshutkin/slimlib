@@ -5,6 +5,8 @@ export default defineConfig({
         include: ['**/tests/**/*.spec.mjs'],
         exclude: ['**/node_modules/**'],
         environment: 'node',
+        pool: 'forks',
+        execArgv: ['--expose-gc'],
         coverage: {
             provider: 'v8',
             reportsDirectory: './coverage',
