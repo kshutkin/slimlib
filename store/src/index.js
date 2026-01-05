@@ -117,8 +117,8 @@ const scheduleFlush = () => {
             const nodes = [...batched];
             batched.clear();
             for (const node of nodes) {
-                // Access getValue() to trigger recomputation for effects
-                // The getValue method will clear dirty flag
+                // Access node to trigger recomputation for effects
+                // This will also clear the dirty flag
                 node();
             }
         });
@@ -167,11 +167,6 @@ const isComputing = node => node[nodeStateSymbol] === STATE_COMPUTING || node[no
 const needsWork = node => node[nodeStateSymbol] >= STATE_CHECK;
 
 /**
- * Mark a node as needing check (eager propagation with equality cutoff)
- * Marks the node and recursively marks all dependents in a single traversal
- * @param {ComputedNode<any>} node
- */
-/**
  * Schedule an effect for execution
  * @param {ComputedNode<any>} node
  */
@@ -180,9 +175,14 @@ const scheduleEffect = node => {
     scheduleFlush();
 };
 
+/**
+ * Mark a node as needing check (eager propagation with equality cutoff)
+ * Marks the node and recursively marks all dependents in a single traversal
+ * @param {ComputedNode<any>} node
+ */
 const markNeedsCheck = node => {
     // Don't mark nodes that are currently computing - they'll handle their own state
-    // Unless forceComputing is true (store changes should still trigger re-run)
+    // Exception: effects that have store changes during execution should still be scheduled for re-run
     if (isComputing(node)) {
         if (node[isEffect]) {
             // Store changed during effect execution - schedule re-run
@@ -308,7 +308,7 @@ export const state = (object = /** @type {any} */ ({})) => {
                 }
 
                 // Functions are wrapped to apply with correct `this` (target, not proxy)
-                // After function call, mark deps dirty (function may have mutated internal state)
+                // After function call, notify dependents (function may have mutated internal state)
                 return valueType === 'function'
                     ? /** @param {...any} args */ (...args) => {
                           const result = /** @type {Function} */ (propValue).apply(target, args.map(unwrapValue));
@@ -393,7 +393,7 @@ export const effect = callback => {
  */
 
 /**
- * Creates a computed node (internal implementation)
+ * Creates a computed value that automatically tracks dependencies and caches results
  * @template T
  * @param {() => T} getter
  * @param {(a: T, b: T) => boolean} [equals=Object.is] - Equality comparison function
@@ -411,13 +411,11 @@ export const computed = (getter, equals = Object.is) => {
                     // Track if someone is reading us
                     trackDependency(context[dependencies], context);
 
-                    const nodeState = context[nodeStateSymbol];
-
                     // For CHECK state, verify if sources actually changed before recomputing
                     // This preserves the equality cutoff optimization with eager marking
                     // Only do this for non-effects that ONLY have computed sources (with nodes)
                     // Effects should always run when marked, and state deps have no node to check
-                    if (nodeState === STATE_CHECK && hasValue && !context[isEffect]) {
+                    if (context[nodeStateSymbol] === STATE_CHECK && hasValue && !context[isEffect]) {
                         const sourcesArray = context[sources];
                         // Check if we have any computed sources to verify
                         let hasComputedSources = false;
@@ -522,7 +520,7 @@ export const computed = (getter, equals = Object.is) => {
  * @returns {(() => T) & { set: (value: T) => void }}
  */
 export const signal = initialValue => {
-    let value = initialValue;
+    let value = /** @type {T} */ (initialValue);
     /** @type {Set<WeakRef<ComputedNode<any>>>} */
     const deps = new Set();
 

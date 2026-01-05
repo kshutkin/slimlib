@@ -25,13 +25,14 @@ describe('signal', () => {
         });
 
         it('sets value to null', () => {
-            const s = signal(5);
+            const s = signal(/** @type {number | null} */ (5));
             s.set(null);
             expect(s()).toBe(null);
         });
 
         it('sets value to undefined', () => {
             const s = signal(5);
+            // @ts-expect-error Testing setting undefined on a number signal
             s.set(undefined);
             expect(s()).toBe(undefined);
         });
@@ -203,7 +204,7 @@ describe('signal', () => {
 
     describe('with object values', () => {
         it('handles object signals', () => {
-            const obj1 = { a: 1 };
+            const obj1 = /** @type {{ a?: number; b?: number }} */ ({ a: 1 });
             const obj2 = { b: 2 };
             const s = signal(obj1);
 
