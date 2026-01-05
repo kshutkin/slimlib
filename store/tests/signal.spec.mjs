@@ -7,8 +7,8 @@ function flushPromises() {
 }
 
 async function flushAll() {
-    await flushPromises();
     flush();
+    await flushPromises();
 }
 
 describe('signal', () => {
