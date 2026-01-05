@@ -7,6 +7,9 @@ function flushPromises() {
 }
 
 async function flushAll() {
+    // First yield to microtask queue to let scheduled effects be queued
+    await Promise.resolve();
+    // Then flush any pending effects
     flush();
     await flushPromises();
 }

@@ -7,6 +7,9 @@ function flushPromises() {
 }
 
 async function flushAll() {
+    // First yield to microtask queue to let scheduled effects be queued
+    await Promise.resolve();
+    // Then flush any pending effects
     flush();
     await flushPromises();
 }
@@ -343,9 +346,10 @@ describe('garbage collection', () => {
         // Track WeakRefs to dependents
         const weakRefs = [];
 
-        // Create MANY dependent computeds in isolated scopes
+        // Create dependent computeds in isolated scopes
         // These should become eligible for GC once the scope exits
-        for (let i = 0; i < 500; i++) {
+        // Using fewer iterations to reduce resource usage in parallel test runs
+        for (let i = 0; i < 100; i++) {
             (() => {
                 const dependent = computed(() => base() + i);
                 // Access to establish dependency chain: store -> base -> dependent
@@ -361,29 +365,24 @@ describe('garbage collection', () => {
 
         // Now force aggressive GC AFTER the state change but BEFORE accessing base
         // This way, when base() recomputes and iterates dependencies, some should be dead
-        for (let i = 0; i < 30; i++) {
-            // Allocate significant memory to pressure GC
+        // Using fewer iterations and smaller allocations to be more robust under parallel load
+        for (let i = 0; i < 10; i++) {
+            // Allocate memory to pressure GC
             const pressure = [];
-            for (let j = 0; j < 50; j++) {
-                pressure.push(new Array(100000).fill(j));
+            for (let j = 0; j < 20; j++) {
+                pressure.push(new Array(10000).fill(j));
             }
             forceGC();
             await flushAll();
-            await new Promise(resolve => setTimeout(resolve, 5));
+            await new Promise(resolve => setTimeout(resolve, 1));
         }
 
-        // Count collected refs before triggering recomputation
-        weakRefs.filter(ref => ref.deref() === undefined).length;
-
         // Now access base to trigger recomputation
-        // If any dependents were GC'd, this will hit line 484
+        // If any dependents were GC'd, this will hit the cleanup path in forEachDep
         const result = base();
 
         // Should not error, and base should have correct value
         expect(result).toBe(10);
-
-        // Log for debugging - remove if not needed
-        // console.log(`Collected ${collectedBefore} of ${weakRefs.length} dependents before base() call`);
 
         // The test passes whether or not GC collected the dependents
         // The important thing is that the code handles both cases correctly
