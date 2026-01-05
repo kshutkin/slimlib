@@ -5,6 +5,7 @@ const unwrap = Symbol();
 
 /**
  * Symbol for sources - what this effect/computed depends on
+ * Each entry is { deps: Set<ComputedNode>, node?: ComputedNode }
  */
 const sources = Symbol();
 
@@ -40,11 +41,6 @@ const isEffect = Symbol();
  * Symbol for skipped dependencies counter (optimization)
  */
 const skippedDeps = Symbol();
-
-/**
- * Symbol for computed nodes we depend on
- */
-const sourceNodes = Symbol();
 
 /**
  * @template T
@@ -92,13 +88,9 @@ export const unwrapValue = value => (value != null && /** @type {Unwrappable<T>}
 const clearSources = (node, fromIndex = 0) => {
     const sourcesArray = node[sources];
     for (let i = fromIndex; i < sourcesArray.length; i++) {
-        sourcesArray[i].delete(node);
+        sourcesArray[i].deps.delete(node);
     }
     sourcesArray.length = fromIndex;
-    // Also clear source nodes tracking
-    if (node[sourceNodes]) {
-        node[sourceNodes].length = fromIndex;
-    }
 };
 
 /**
@@ -129,24 +121,16 @@ const trackDependency = (deps, sourceNode) => {
     const sourcesArray = currentComputing[sources];
     const skipIndex = currentComputing[skippedDeps];
 
-    if (sourcesArray[skipIndex] !== deps) {
+    if (sourcesArray[skipIndex]?.deps !== deps) {
         // Different dependency - clear old ones from this point and rebuild
         if (skipIndex < sourcesArray.length) {
             clearSources(currentComputing, skipIndex);
         }
-        sourcesArray.push(deps);
+        sourcesArray.push({ deps, node: sourceNode });
     }
 
     deps.add(currentComputing);
     currentComputing[skippedDeps]++;
-
-    // Track source computed node for lazy propagation check
-    if (sourceNode) {
-        const sourceNodesArray = currentComputing[sourceNodes];
-        if (!sourceNodesArray[skipIndex]) {
-            sourceNodesArray[skipIndex] = sourceNode;
-        }
-    }
 };
 
 /**
@@ -423,7 +407,6 @@ export const computed = (getter, equals = Object.is) => {
     /** @type {ComputedNode<T>} */
     const comp = {
         [sources]: [],
-        [sourceNodes]: [],
         [dependencies]: new Set(),
         [state]: STATE_DIRTY,
         [skippedDeps]: 0,
@@ -439,12 +422,12 @@ export const computed = (getter, equals = Object.is) => {
             // and equality checking. If their values haven't changed, they won't mark us.
             // We ALWAYS check sources (not just when marked) to enable lazy propagation.
             if (nodeState === STATE_CLEAN && hasValue) {
-                const sourceNodesArray = this[sourceNodes];
+                const sourcesArray = this[sources];
                 const prevTracked = tracked;
                 tracked = false; // Don't track dependencies while checking sources
                 try {
-                    for (let i = 0; i < sourceNodesArray.length; i++) {
-                        const sourceNode = sourceNodesArray[i];
+                    for (let i = 0; i < sourcesArray.length; i++) {
+                        const sourceNode = sourcesArray[i].node;
                         if (sourceNode) {
                             // Always access the source value to trigger recursive checking
                             // This allows transitive dependencies to be checked
