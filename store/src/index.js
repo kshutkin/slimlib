@@ -179,30 +179,21 @@ const markNeedsCheck = (node, forceComputing = false) => {
 
         // Recursively find and mark effect nodes in the dependency tree
         // but don't mark intermediate computed nodes (they use lazy checking)
-        for (const dep of node[dependencies]) {
-            if (dep[isEffect]) {
-                markNeedsCheck(dep);
-            } else {
-                // For computed nodes, recursively search their dependents for effects
-                markEffectsInTree(dep);
-            }
-        }
+        markEffectsInDeps(node);
     }
 };
 
 /**
- * Recursively search for and mark effect nodes without marking intermediate computed nodes
+ * Recursively search dependents for effect nodes and mark them
+ * Does not mark intermediate computed nodes (they use lazy checking)
  * @param {ComputedNode<any>} node
  */
-const markEffectsInTree = node => {
-    if (isComputing(node)) {
-        return;
-    }
+const markEffectsInDeps = node => {
     for (const dep of node[dependencies]) {
-        if (dep[isEffect] && dep[state] === STATE_CLEAN) {
+        if (dep[isEffect]) {
             markNeedsCheck(dep);
-        } else if (!dep[isEffect]) {
-            markEffectsInTree(dep);
+        } else if (!isComputing(dep)) {
+            markEffectsInDeps(dep);
         }
     }
 };
