@@ -588,6 +588,46 @@ describe('computed', () => {
         expect(c()).toBe(13); // 10 + 1 + 1 + 1
     });
 
+    it('computed that modifies state during execution is intentionally not re-marked', async () => {
+        // This tests the branch where a computed (not effect) is COMPUTING
+        // and state changes during its execution (forceComputing=true, isEffect=false)
+        // Unlike effects, computeds are NOT re-marked as COMPUTING_DIRTY because
+        // computeds should be pure - this behavior discourages side effects
+        const store = state({ value: 0 });
+        let computeCount = 0;
+
+        const derived = computed(() => {
+            computeCount++;
+            const v = store.value;
+            // Modify state during computation (side effect - not recommended!)
+            if (v < 2) {
+                store.value = v + 1;
+            }
+            return v;
+        });
+
+        // First access - computed runs and modifies state during execution
+        // The state change does NOT cause re-run because:
+        // 1. Computed is in COMPUTING state
+        // 2. forceComputing=true (from state change) but node[isEffect]=false
+        // 3. So the computed is NOT marked COMPUTING_DIRTY
+        expect(derived()).toBe(0);
+        expect(computeCount).toBe(1);
+
+        // Accessing again - computed is CLEAN (not re-marked), so it returns cached value
+        // This is intentional - computeds should not have side effects
+        expect(derived()).toBe(0); // Still 0, cached value!
+        expect(computeCount).toBe(1); // No recomputation
+
+        // The state WAS modified though
+        expect(store.value).toBe(1);
+
+        // External state change will trigger recomputation
+        store.value = 5;
+        expect(derived()).toBe(5);
+        expect(computeCount).toBe(2);
+    });
+
     it('computed with fewer dependencies on subsequent run triggers cleanup', () => {
         // This test specifically covers line 384: cleanup when sources.length > skippedDeps
         // This happens when a computed accesses fewer properties on a subsequent recomputation

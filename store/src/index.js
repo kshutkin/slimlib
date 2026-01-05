@@ -144,8 +144,8 @@ const isComputing = node => node[nodeStateSymbol] === STATE_COMPUTING || node[no
 const needsWork = node => node[nodeStateSymbol] >= STATE_CHECK;
 
 /**
- * Mark a node as needing check (lazy propagation)
- * Only marks the node itself, but recursively finds and marks effect nodes
+ * Mark a node as needing check (eager propagation with equality cutoff)
+ * Marks the node and recursively marks all dependents in a single traversal
  * @param {ComputedNode<any>} node
  * @param {boolean} [forceComputing=false] - If true, mark even computing nodes (for store changes)
  */
@@ -173,23 +173,9 @@ const markNeedsCheck = (node, forceComputing = false) => {
             scheduleFlush();
         }
 
-        // Recursively find and mark effect nodes in the dependency tree
-        // but don't mark intermediate computed nodes (they use lazy checking)
-        markEffectsInDeps(node);
-    }
-};
-
-/**
- * Recursively search dependents for effect nodes and mark them
- * Does not mark intermediate computed nodes (they use lazy checking)
- * @param {ComputedNode<any>} node
- */
-const markEffectsInDeps = node => {
-    for (const dep of node[dependencies]) {
-        if (dep[isEffect]) {
-            markNeedsCheck(dep);
-        } else if (!isComputing(dep)) {
-            markEffectsInDeps(dep);
+        // Recursively mark ALL dependents (single traversal optimization)
+        for (const dep of node[dependencies]) {
+            markNeedsCheck(dep, forceComputing);
         }
     }
 };
@@ -388,33 +374,46 @@ export const computed = (getter, equals = Object.is) => {
 
                     const nodeState = context[nodeStateSymbol];
 
-                    // Check if any source computed nodes have changed values
-                    // We do this by actually accessing their values, which triggers recomputation
-                    // and equality checking. If their values haven't changed, they won't mark us.
-                    // We ALWAYS check sources (not just when marked) to enable lazy propagation.
-                    if (nodeState === STATE_CLEAN && hasValue) {
+                    // For CHECK state, verify if sources actually changed before recomputing
+                    // This preserves the equality cutoff optimization with eager marking
+                    // Only do this for non-effects that ONLY have computed sources (with nodes)
+                    // Effects should always run when marked, and state deps have no node to check
+                    if (nodeState === STATE_CHECK && hasValue && !context[isEffect]) {
                         const sourcesArray = context[sources];
-                        const prevTracked = tracked;
-                        tracked = false; // Don't track dependencies while checking sources
-                        try {
-                            for (let i = 0; i < sourcesArray.length; i++) {
-                                const sourceNode = sourcesArray[i].node;
-                                if (sourceNode) {
-                                    // Always access the source value to trigger recursive checking
-                                    // This allows transitive dependencies to be checked
-                                    sourceNode();
-                                    // Check if we were marked as a result of the source changing
-                                    if (needsWork(context)) {
-                                        break;
-                                    }
-                                }
+                        // Check if we have any computed sources to verify
+                        let hasComputedSources = false;
+                        let hasStateSources = false;
+                        for (const source of sourcesArray) {
+                            if (source.node) {
+                                hasComputedSources = true;
+                            } else {
+                                hasStateSources = true;
                             }
-                        } finally {
-                            tracked = prevTracked;
+                        }
+
+                        // Only do source checking if we ONLY have computed sources
+                        // If we have state sources, we can't verify them - must recompute
+                        if (hasComputedSources && !hasStateSources) {
+                            const prevTracked = tracked;
+                            tracked = false; // Don't track dependencies while checking sources
+                            try {
+                                for (const source of sourcesArray) {
+                                    // Access source to trigger its recomputation if needed
+                                    // We know all sources have nodes (hasComputedSources && !hasStateSources)
+                                    source.node();
+                                }
+                                // If we're still CHECK after checking all sources, no source changed value
+                                // We can safely mark as clean and skip recomputation
+                                if (context[nodeStateSymbol] === STATE_CHECK) {
+                                    context[nodeStateSymbol] = STATE_CLEAN;
+                                }
+                            } finally {
+                                tracked = prevTracked;
+                            }
                         }
                     }
 
-                    // Recompute if dirty or needs check
+                    // Recompute if dirty (sources actually changed)
                     if (needsWork(context) && !isComputing(context)) {
                         const wasDirty = context[nodeStateSymbol] === STATE_DIRTY;
                         context[nodeStateSymbol] = STATE_COMPUTING;
@@ -435,8 +434,13 @@ export const computed = (getter, equals = Object.is) => {
                             if (changed) {
                                 cachedValue = newValue;
                                 hasValue = true;
-                                // Value changed - mark dependents as needing check
-                                markDependents(context[dependencies]);
+                                // Value changed - mark dependents as DIRTY (not just CHECK)
+                                // so they know they definitely need to recompute
+                                for (const dep of context[dependencies]) {
+                                    if (!isComputing(dep) && dep[nodeStateSymbol] === STATE_CHECK) {
+                                        dep[nodeStateSymbol] = STATE_DIRTY;
+                                    }
+                                }
                             } else if (wasDirty) {
                                 // Was dirty (first computation or error recovery) but value matches
                                 // Still need to mark as having a value
