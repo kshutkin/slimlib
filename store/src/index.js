@@ -149,7 +149,7 @@ const trackDependency = (deps, sourceNode) => {
     }
     // If reusing existing entry, weakRef is already in deps
 
-    currentComputing[skippedDeps]++;
+    ++currentComputing[skippedDeps];
 };
 
 /**
@@ -170,15 +170,12 @@ const needsWork = node => node[nodeStateSymbol] >= STATE_CHECK;
  * Mark a node as needing check (eager propagation with equality cutoff)
  * Marks the node and recursively marks all dependents in a single traversal
  * @param {ComputedNode<any>} node
- * @param {boolean} [forceComputing=false] - If true, mark even computing nodes (for store changes)
  */
-const markNeedsCheck = (node, forceComputing = false) => {
-    const nodeState = node[nodeStateSymbol];
-
+const markNeedsCheck = node => {
     // Don't mark nodes that are currently computing - they'll handle their own state
     // Unless forceComputing is true (store changes should still trigger re-run)
     if (isComputing(node)) {
-        if (forceComputing && node[isEffect]) {
+        if (node[isEffect]) {
             // Store changed during effect execution - schedule re-run
             node[nodeStateSymbol] = STATE_COMPUTING_DIRTY;
             batched.add(node);
@@ -187,7 +184,7 @@ const markNeedsCheck = (node, forceComputing = false) => {
         return;
     }
 
-    if (nodeState === STATE_CLEAN) {
+    if (node[nodeStateSymbol] === STATE_CLEAN) {
         node[nodeStateSymbol] = STATE_CHECK;
 
         // Schedule execution for effects
@@ -197,15 +194,23 @@ const markNeedsCheck = (node, forceComputing = false) => {
         }
 
         // Recursively mark ALL dependents (single traversal optimization)
-        // Dependencies are stored as WeakRefs - deref and clean up dead ones
-        for (const weakRef of node[dependencies]) {
-            const dep = weakRef.deref();
-            if (dep) {
-                markNeedsCheck(dep, forceComputing);
-            } else {
-                // Computed was GC'd, clean up dead WeakRef
-                node[dependencies].delete(weakRef);
-            }
+        markDependents(node[dependencies]);
+    }
+};
+
+/**
+ * Iterate over a WeakRef set, calling callback for each live dep and cleaning up dead ones
+ * @param {Set<WeakRef<ComputedNode<any>>>} deps - The dependency set to iterate (holds WeakRefs)
+ * @param {(dep: ComputedNode<any>) => void} callback - Function to call for each live dependency
+ */
+const forEachDep = (deps, callback) => {
+    for (const weakRef of deps) {
+        const dep = weakRef.deref();
+        if (dep) {
+            callback(dep);
+        } else {
+            // Computed was GC'd, clean up dead WeakRef
+            deps.delete(weakRef);
         }
     }
 };
@@ -214,18 +219,9 @@ const markNeedsCheck = (node, forceComputing = false) => {
  * Mark all dependents in a Set as needing check
  * Unified notification function for both computed and state dependencies
  * @param {Set<WeakRef<ComputedNode<any>>>} deps - The dependency set to notify (holds WeakRefs)
- * @param {boolean} [forceComputing=false] - If true, mark even computing nodes
  */
-const markDependents = (deps, forceComputing = false) => {
-    for (const weakRef of deps) {
-        const dep = weakRef.deref();
-        if (dep) {
-            markNeedsCheck(dep, forceComputing);
-        } else {
-            // Computed was GC'd, clean up dead WeakRef
-            deps.delete(weakRef);
-        }
-    }
+const markDependents = deps => {
+    forEachDep(deps, markNeedsCheck);
 };
 
 /**
@@ -249,13 +245,12 @@ export const state = (object = /** @type {any} */ ({})) => {
                 // Notify specific property
                 const deps = propsMap.get(property);
                 if (deps) {
-                    // Use forceComputing=true for state changes
-                    markDependents(deps, true);
+                    markDependents(deps);
                 }
             } else {
                 // Notify all properties
                 for (const deps of propsMap.values()) {
-                    markDependents(deps, true);
+                    markDependents(deps);
                 }
             }
         }
@@ -430,21 +425,17 @@ export const computed = (getter, equals = Object.is) => {
                         // Only do source checking if we ONLY have computed sources
                         // If we have state sources, we can't verify them - must recompute
                         if (hasComputedSources && !hasStateSources) {
-                            const prevTracked = tracked;
-                            tracked = false; // Don't track dependencies while checking sources
-                            try {
+                            untracked(() => {
                                 for (const source of sourcesArray) {
                                     // Access source to trigger its recomputation if needed
                                     // We know all sources have nodes (hasComputedSources && !hasStateSources)
                                     source.node();
                                 }
-                                // If we're still CHECK after checking all sources, no source changed value
-                                // We can safely mark as clean and skip recomputation
-                                if (context[nodeStateSymbol] === STATE_CHECK) {
-                                    context[nodeStateSymbol] = STATE_CLEAN;
-                                }
-                            } finally {
-                                tracked = prevTracked;
+                            });
+                            // If we're still CHECK after checking all sources, no source changed value
+                            // We can safely mark as clean and skip recomputation
+                            if (context[nodeStateSymbol] === STATE_CHECK) {
+                                context[nodeStateSymbol] = STATE_CLEAN;
                             }
                         }
                     }
@@ -472,18 +463,11 @@ export const computed = (getter, equals = Object.is) => {
                                 hasValue = true;
                                 // Value changed - mark dependents as DIRTY (not just CHECK)
                                 // so they know they definitely need to recompute
-                                // Dependencies are stored as WeakRefs
-                                for (const weakRef of context[dependencies]) {
-                                    const dep = weakRef.deref();
-                                    if (dep) {
-                                        if (!isComputing(dep) && dep[nodeStateSymbol] === STATE_CHECK) {
-                                            dep[nodeStateSymbol] = STATE_DIRTY;
-                                        }
-                                    } else {
-                                        // Computed was GC'd, clean up dead WeakRef
-                                        context[dependencies].delete(weakRef);
+                                forEachDep(context[dependencies], dep => {
+                                    if (!isComputing(dep) && dep[nodeStateSymbol] === STATE_CHECK) {
+                                        dep[nodeStateSymbol] = STATE_DIRTY;
                                     }
-                                }
+                                });
                             } else if (wasDirty) {
                                 // Was dirty (first computation or error recovery) but value matches
                                 // Still need to mark as having a value
@@ -550,7 +534,7 @@ export const signal = initialValue => {
     read.set = newValue => {
         if (value !== newValue) {
             value = newValue;
-            markDependents(deps, true);
+            markDependents(deps);
         }
     };
 
