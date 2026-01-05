@@ -159,7 +159,9 @@ describe('computed', () => {
     });
 
     it('handles circular dependency gracefully', () => {
+        /** @type {() => number} */
         const a = computed(() => b() + 1);
+        /** @type {() => number} */
         const b = computed(() => a() + 1);
 
         // Circular dependencies return cached value (undefined initially)
@@ -492,7 +494,7 @@ describe('computed', () => {
         const dispose = effect(() => {
             effectRuns++;
             // Access computed - this adds { computed: doubled } to effect's sources
-            return doubled();
+            doubled();
         });
 
         await flushPromises();

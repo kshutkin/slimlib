@@ -75,6 +75,7 @@ describe('computed with equality comparison', () => {
         let compute1Count = 0;
         let compute2Count = 0;
 
+        /** @type {(a: unknown, b: unknown) => boolean} */
         const deepEquals = (a, b) => {
             if (a === b) return true;
             if (!Array.isArray(a) || !Array.isArray(b)) return false;
@@ -300,14 +301,15 @@ describe('computed with equality comparison', () => {
         let computeCount = 0;
         let downstreamCount = 0;
 
+        /** @type {(a: Record<string, unknown> | unknown, b: Record<string, unknown> | unknown) => boolean} */
         const deepEquals = (a, b) => {
             if (a === b) return true;
             if (typeof a !== 'object' || typeof b !== 'object') return false;
             if (a === null || b === null) return false;
-            const keysA = Object.keys(a);
-            const keysB = Object.keys(b);
+            const keysA = Object.keys(/** @type {object} */ (a));
+            const keysB = Object.keys(/** @type {object} */ (b));
             if (keysA.length !== keysB.length) return false;
-            return keysA.every(key => a[key] === b[key]);
+            return keysA.every(key => /** @type {Record<string, unknown>} */ (a)[key] === /** @type {Record<string, unknown>} */ (b)[key]);
         };
 
         const userCopy = computed(() => {

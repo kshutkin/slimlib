@@ -434,8 +434,11 @@ describe('store', () => {
 
                 it('forEach', () => {
                     const store = state({ items: [1, 2, 3] });
+                    /** @type {number[]} */
                     const results = [];
-                    store.items.forEach(x => results.push(x * 2));
+                    store.items.forEach(x => {
+                        results.push(x * 2);
+                    });
                     expect(results).toEqual([2, 4, 6]);
                 });
 
@@ -480,8 +483,8 @@ describe('store', () => {
                     const store = state({ items: [1, 2, 3] });
                     const mapped = store.items.map(x => ({ value: x }));
                     // The returned objects should work normally
-                    expect(mapped[0].value).toBe(1);
-                    expect(mapped[1].value).toBe(2);
+                    expect(mapped[0]?.value).toBe(1);
+                    expect(mapped[1]?.value).toBe(2);
                 });
 
                 it('filter with object comparisons', () => {
@@ -490,8 +493,8 @@ describe('store', () => {
                     });
                     const filtered = store.items.filter(item => item.id > 1);
                     expect(filtered.length).toBe(2);
-                    expect(filtered[0].id).toBe(2);
-                    expect(filtered[1].id).toBe(3);
+                    expect(filtered[0]?.id).toBe(2);
+                    expect(filtered[1]?.id).toBe(3);
                 });
 
                 it('find with nested objects', () => {

@@ -44,7 +44,7 @@ const skippedDeps = Symbol();
 
 /**
  * @template T
- * @typedef {Record<symbol, any> & (() => T) } ComputedNode
+ * @typedef {(() => T) & { [key: symbol]: any }} ComputedNode
  */
 
 // Global state
@@ -395,95 +395,98 @@ export const computed = (getter, equals = Object.is) => {
     let cachedValue;
     let hasValue = false;
 
-    /** @type {ComputedNode<T>} */
-    const context = Object.assign(
-        () => {
-            // Track if someone is reading us
-            trackDependency(context[dependencies], context);
+    const context = /** @type {ComputedNode<T>} */ (
+        /** @type {unknown} */ (
+            Object.assign(
+                () => {
+                    // Track if someone is reading us
+                    trackDependency(context[dependencies], context);
 
-            const nodeState = context[nodeStateSymbol];
+                    const nodeState = context[nodeStateSymbol];
 
-            // Check if any source computed nodes have changed values
-            // We do this by actually accessing their values, which triggers recomputation
-            // and equality checking. If their values haven't changed, they won't mark us.
-            // We ALWAYS check sources (not just when marked) to enable lazy propagation.
-            if (nodeState === STATE_CLEAN && hasValue) {
-                const sourcesArray = context[sources];
-                const prevTracked = tracked;
-                tracked = false; // Don't track dependencies while checking sources
-                try {
-                    for (let i = 0; i < sourcesArray.length; i++) {
-                        const sourceNode = sourcesArray[i].node;
-                        if (sourceNode) {
-                            // Always access the source value to trigger recursive checking
-                            // This allows transitive dependencies to be checked
-                            sourceNode();
-                            // Check if we were marked as a result of the source changing
-                            if (needsWork(context)) {
-                                break;
+                    // Check if any source computed nodes have changed values
+                    // We do this by actually accessing their values, which triggers recomputation
+                    // and equality checking. If their values haven't changed, they won't mark us.
+                    // We ALWAYS check sources (not just when marked) to enable lazy propagation.
+                    if (nodeState === STATE_CLEAN && hasValue) {
+                        const sourcesArray = context[sources];
+                        const prevTracked = tracked;
+                        tracked = false; // Don't track dependencies while checking sources
+                        try {
+                            for (let i = 0; i < sourcesArray.length; i++) {
+                                const sourceNode = sourcesArray[i].node;
+                                if (sourceNode) {
+                                    // Always access the source value to trigger recursive checking
+                                    // This allows transitive dependencies to be checked
+                                    sourceNode();
+                                    // Check if we were marked as a result of the source changing
+                                    if (needsWork(context)) {
+                                        break;
+                                    }
+                                }
+                            }
+                        } finally {
+                            tracked = prevTracked;
+                        }
+                    }
+
+                    // Recompute if dirty or needs check
+                    if (needsWork(context) && !isComputing(context)) {
+                        const wasDirty = context[nodeStateSymbol] === STATE_DIRTY;
+                        context[nodeStateSymbol] = STATE_COMPUTING;
+
+                        // Reset skipped deps counter for this recomputation
+                        context[skippedDeps] = 0;
+
+                        const prev = currentComputing;
+                        const prevTracked = tracked;
+                        currentComputing = context;
+                        tracked = true; // Computed always tracks its own dependencies
+                        try {
+                            const newValue = getter();
+
+                            // Check if value actually changed
+                            const changed = !hasValue || !equals(cachedValue, newValue);
+
+                            if (changed) {
+                                cachedValue = newValue;
+                                hasValue = true;
+                                // Value changed - mark dependents as needing check
+                                markDependentsCheck(context);
+                            } else if (wasDirty) {
+                                // Was dirty (first computation or error recovery) but value matches
+                                // Still need to mark as having a value
+                                hasValue = true;
+                            }
+                            // If value unchanged and was only checking, don't propagate
+
+                            // Check if we were marked dirty during computation (computingDirty state)
+                            // If so, transition to dirty instead of clean
+                            context[nodeStateSymbol] = context[nodeStateSymbol] === STATE_COMPUTING_DIRTY ? STATE_DIRTY : STATE_CLEAN;
+                        } catch (e) {
+                            // Restore dirty flag on error so it can be retried
+                            context[nodeStateSymbol] = STATE_DIRTY;
+                            throw e;
+                        } finally {
+                            currentComputing = prev;
+                            tracked = prevTracked;
+                            // Clean up any excess sources that weren't reused
+                            if (context[sources].length > context[skippedDeps]) {
+                                clearSources(context, context[skippedDeps]);
                             }
                         }
                     }
-                } finally {
-                    tracked = prevTracked;
+
+                    return cachedValue;
+                },
+                {
+                    [sources]: [],
+                    [dependencies]: new Set(),
+                    [nodeStateSymbol]: STATE_DIRTY,
+                    [skippedDeps]: 0,
                 }
-            }
-
-            // Recompute if dirty or needs check
-            if (needsWork(context) && !isComputing(context)) {
-                const wasDirty = context[nodeStateSymbol] === STATE_DIRTY;
-                context[nodeStateSymbol] = STATE_COMPUTING;
-
-                // Reset skipped deps counter for this recomputation
-                context[skippedDeps] = 0;
-
-                const prev = currentComputing;
-                const prevTracked = tracked;
-                currentComputing = context;
-                tracked = true; // Computed always tracks its own dependencies
-                try {
-                    const newValue = getter();
-
-                    // Check if value actually changed
-                    const changed = !hasValue || !equals(cachedValue, newValue);
-
-                    if (changed) {
-                        cachedValue = newValue;
-                        hasValue = true;
-                        // Value changed - mark dependents as needing check
-                        markDependentsCheck(context);
-                    } else if (wasDirty) {
-                        // Was dirty (first computation or error recovery) but value matches
-                        // Still need to mark as having a value
-                        hasValue = true;
-                    }
-                    // If value unchanged and was only checking, don't propagate
-
-                    // Check if we were marked dirty during computation (computingDirty state)
-                    // If so, transition to dirty instead of clean
-                    context[nodeStateSymbol] = context[nodeStateSymbol] === STATE_COMPUTING_DIRTY ? STATE_DIRTY : STATE_CLEAN;
-                } catch (e) {
-                    // Restore dirty flag on error so it can be retried
-                    context[nodeStateSymbol] = STATE_DIRTY;
-                    throw e;
-                } finally {
-                    currentComputing = prev;
-                    tracked = prevTracked;
-                    // Clean up any excess sources that weren't reused
-                    if (context[sources].length > context[skippedDeps]) {
-                        clearSources(context, context[skippedDeps]);
-                    }
-                }
-            }
-
-            return cachedValue;
-        },
-        {
-            [sources]: [],
-            [dependencies]: new Set(),
-            [nodeStateSymbol]: STATE_DIRTY,
-            [skippedDeps]: 0,
-        }
+            )
+        )
     );
 
     return context;
