@@ -14,14 +14,22 @@ const sources = Symbol();
 const dependencies = Symbol();
 
 /**
- * Symbol for dirty flag
+ * Symbol for computation state (discriminated union)
+ * Values:
+ * - 0: clean (no action needed)
+ * - 1: check (might need recomputation, check sources first)
+ * - 2: dirty (definitely needs recomputation)
+ * - 3: computing (currently executing)
+ * - 4: computingDirty (computing but marked for re-run after)
  */
-const dirty = Symbol();
+const state = Symbol();
 
-/**
- * Symbol for needs check flag (lazy propagation)
- */
-const needsCheck = Symbol();
+// State constants
+const STATE_CLEAN = 0;
+const STATE_CHECK = 1;
+const STATE_DIRTY = 2;
+const STATE_COMPUTING = 3;
+const STATE_COMPUTING_DIRTY = 4;
 
 /**
  * Symbol to mark a node as an effect (eager execution)
@@ -37,11 +45,6 @@ const skippedDeps = Symbol();
  * Symbol for computed nodes we depend on
  */
 const sourceNodes = Symbol();
-
-/**
- * Symbol to indicate a node is currently computing
- */
-const computing = Symbol();
 
 /**
  * @template T
@@ -147,17 +150,42 @@ const trackDependency = (deps, sourceNode) => {
 };
 
 /**
+ * Check if node is in a computing state
+ * @param {ComputedNode<any>} node
+ * @returns {boolean}
+ */
+const isComputing = node => node[state] === STATE_COMPUTING || node[state] === STATE_COMPUTING_DIRTY;
+
+/**
+ * Check if node needs work (check, dirty, or computing-dirty)
+ * @param {ComputedNode<any>} node
+ * @returns {boolean}
+ */
+const needsWork = node => node[state] >= STATE_CHECK;
+
+/**
  * Mark a node as needing check (lazy propagation)
  * Only marks the node itself, but recursively finds and marks effect nodes
  * @param {ComputedNode<any>} node
+ * @param {boolean} [forceComputing=false] - If true, mark even computing nodes (for store changes)
  */
-const markNeedsCheck = node => {
+const markNeedsCheck = (node, forceComputing = false) => {
+    const nodeState = node[state];
+
     // Don't mark nodes that are currently computing - they'll handle their own state
-    if (node[computing]) {
+    // Unless forceComputing is true (store changes should still trigger re-run)
+    if (isComputing(node)) {
+        if (forceComputing && node[isEffect]) {
+            // Store changed during effect execution - schedule re-run
+            node[state] = STATE_COMPUTING_DIRTY;
+            batched.add(node);
+            scheduleFlush();
+        }
         return;
     }
-    if (!node[needsCheck] && !node[dirty]) {
-        node[needsCheck] = true;
+
+    if (nodeState === STATE_CLEAN) {
+        node[state] = STATE_CHECK;
 
         // Schedule execution for effects
         if (node[isEffect]) {
@@ -183,11 +211,11 @@ const markNeedsCheck = node => {
  * @param {ComputedNode<any>} node
  */
 const markEffectsInTree = node => {
-    if (node[computing]) {
+    if (isComputing(node)) {
         return;
     }
     for (const dep of node[dependencies]) {
-        if (dep[isEffect] && !dep[needsCheck] && !dep[dirty]) {
+        if (dep[isEffect] && dep[state] === STATE_CLEAN) {
             markNeedsCheck(dep);
         } else if (!dep[isEffect]) {
             markEffectsInTree(dep);
@@ -224,7 +252,8 @@ export const createStore = (object = /** @type {any} */ ({})) => {
      */
     const markDepsSetCheck = deps => {
         for (const dep of cleared(deps)) {
-            markNeedsCheck(dep);
+            // Store changes should force re-run even for computing effects
+            markNeedsCheck(dep, true);
         }
     };
 
@@ -396,20 +425,20 @@ export const computed = (getter, equals = Object.is) => {
         [sources]: [],
         [sourceNodes]: [],
         [dependencies]: new Set(),
-        [dirty]: true,
-        [needsCheck]: false,
-        [computing]: false,
+        [state]: STATE_DIRTY,
         [skippedDeps]: 0,
 
         get value() {
             // Track if someone is reading us
             trackDependency(this[dependencies], this);
 
+            const nodeState = this[state];
+
             // Check if any source computed nodes have changed values
             // We do this by actually accessing their values, which triggers recomputation
             // and equality checking. If their values haven't changed, they won't mark us.
             // We ALWAYS check sources (not just when marked) to enable lazy propagation.
-            if (!this[dirty] && !this[needsCheck] && hasValue) {
+            if (nodeState === STATE_CLEAN && hasValue) {
                 const sourceNodesArray = this[sourceNodes];
                 const prevTracked = tracked;
                 tracked = false; // Don't track dependencies while checking sources
@@ -421,7 +450,7 @@ export const computed = (getter, equals = Object.is) => {
                             // This allows transitive dependencies to be checked
                             sourceNode.value;
                             // Check if we were marked as a result of the source changing
-                            if (this[needsCheck] || this[dirty]) {
+                            if (needsWork(this)) {
                                 break;
                             }
                         }
@@ -432,11 +461,9 @@ export const computed = (getter, equals = Object.is) => {
             }
 
             // Recompute if dirty or needs check
-            if (this[dirty] || this[needsCheck]) {
-                const wasDirty = this[dirty];
-                this[dirty] = false;
-                this[needsCheck] = false;
-                this[computing] = true; // Mark as currently computing
+            if (needsWork(this) && !isComputing(this)) {
+                const wasDirty = this[state] === STATE_DIRTY;
+                this[state] = STATE_COMPUTING;
 
                 // Reset skipped deps counter for this recomputation
                 this[skippedDeps] = 0;
@@ -462,12 +489,15 @@ export const computed = (getter, equals = Object.is) => {
                         hasValue = true;
                     }
                     // If value unchanged and was only checking, don't propagate
+
+                    // Check if we were marked dirty during computation (computingDirty state)
+                    // If so, transition to dirty instead of clean
+                    this[state] = this[state] === STATE_COMPUTING_DIRTY ? STATE_DIRTY : STATE_CLEAN;
                 } catch (e) {
                     // Restore dirty flag on error so it can be retried
-                    this[dirty] = true;
+                    this[state] = STATE_DIRTY;
                     throw e;
                 } finally {
-                    this[computing] = false; // Clear computing flag
                     currentComputing = prev;
                     tracked = prevTracked;
                     // Clean up any excess sources that weren't reused
