@@ -1,4 +1,17 @@
 /**
+ * @typedef {import('./symbols').unwrap} unwrap
+ * @typedef {import('./symbols').sources} sources
+ * @typedef {import('./symbols').dependencies} dependencies
+ * @typedef {import('./symbols').flagsSymbol} flagsSymbol
+ * @typedef {import('./symbols').skippedDeps} skippedDeps
+ * @typedef {import('./symbols').weakRefSymbol} weakRefSymbol
+ * @typedef {import('./symbols').lastGlobalVersionSymbol} lastGlobalVersionSymbol
+ * @typedef {import('./symbols').getterSymbol} getterSymbol
+ * @typedef {import('./symbols').equalsSymbol} equalsSymbol
+ * @typedef {import('./symbols').valueSymbol} valueSymbol
+ */
+
+/**
  * Symbols used throughout the store:
  * - unwrap: to unwrap proxy to get underlying object
  * - sources: what this effect/computed depends on
@@ -32,9 +45,10 @@ const [
     getterSymbol,
     equalsSymbol,
     valueSymbol,
-] = /** @type {[Symbol, Symbol, Symbol, Symbol, Symbol, Symbol, Symbol, Symbol, Symbol, Symbol]}*/ (
-    /** @type {unknown}*/ (Array.from({ length: 10 }, () => Symbol()))
-);
+] =
+    /** @type {[unwrap, sources, dependencies, flagsSymbol, skippedDeps, weakRefSymbol, lastGlobalVersionSymbol, getterSymbol, equalsSymbol, valueSymbol]}*/ (
+        /** @type {unknown}*/ (Array.from({ length: 10 }, () => Symbol()))
+    );
 
 /**
  * Module-level WeakMap for property-level dependencies on state objects
