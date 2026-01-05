@@ -33,6 +33,7 @@
     ],
     "scripts": {
         "build": "dts-buddy",
-        "test": "vitest run --coverage --config ../vitest.config.mjs"
+        "test": "vitest run --coverage --config ../vitest.config.mjs",
+        "bench": "node tests/benchmark.mjs"
     }
 }
