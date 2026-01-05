@@ -23,7 +23,7 @@ describe('effect', () => {
         // Effect should not run synchronously
         expect(subscriber).toHaveBeenCalledTimes(0);
 
-        await flushPromises();
+        await flushAll();
         expect(subscriber).toHaveBeenCalledTimes(1);
         expect(subscriber).toHaveBeenCalledWith(0);
     });
@@ -36,16 +36,16 @@ describe('effect', () => {
             subscriber(store.count);
         });
 
-        await flushPromises();
+        await flushAll();
         expect(subscriber).toHaveBeenCalledTimes(1);
 
         store.count = 1;
-        await flushPromises();
+        await flushAll();
         expect(subscriber).toHaveBeenCalledTimes(2);
         expect(subscriber).toHaveBeenLastCalledWith(1);
 
         store.count = 2;
-        await flushPromises();
+        await flushAll();
         expect(subscriber).toHaveBeenCalledTimes(3);
         expect(subscriber).toHaveBeenLastCalledWith(2);
     });
@@ -58,17 +58,17 @@ describe('effect', () => {
             subscriber(store.tracked);
         });
 
-        await flushPromises();
+        await flushAll();
         expect(subscriber).toHaveBeenCalledTimes(1);
 
         // Changing untracked property should not trigger effect
         store.untracked = 1;
-        await flushPromises();
+        await flushAll();
         expect(subscriber).toHaveBeenCalledTimes(1);
 
         // Changing tracked property should trigger effect
         store.tracked = 1;
-        await flushPromises();
+        await flushAll();
         expect(subscriber).toHaveBeenCalledTimes(2);
     });
 
@@ -83,11 +83,11 @@ describe('effect', () => {
             };
         });
 
-        await flushPromises();
+        await flushAll();
         expect(cleanupCalled).toBe(false);
 
         store.count = 1;
-        await flushPromises();
+        await flushAll();
         expect(cleanupCalled).toBe(true);
     });
 
@@ -105,16 +105,16 @@ describe('effect', () => {
             };
         });
 
-        await flushPromises();
+        await flushAll();
         expect(calls).toEqual(['run:0']);
 
         store.count = 1;
-        await flushPromises();
+        await flushAll();
         // Cleanup runs with old value captured in closure
         expect(calls).toEqual(['run:0', 'cleanup:0', 'run:1']);
 
         store.count = 2;
-        await flushPromises();
+        await flushAll();
         expect(calls).toEqual(['run:0', 'cleanup:0', 'run:1', 'cleanup:1', 'run:2']);
     });
 
@@ -126,13 +126,13 @@ describe('effect', () => {
             subscriber(store.count);
         });
 
-        await flushPromises();
+        await flushAll();
         expect(subscriber).toHaveBeenCalledTimes(1);
 
         dispose();
 
         store.count = 1;
-        await flushPromises();
+        await flushAll();
         expect(subscriber).toHaveBeenCalledTimes(1); // Still 1, not 2
     });
 
@@ -147,7 +147,7 @@ describe('effect', () => {
             };
         });
 
-        await flushPromises();
+        await flushAll();
         expect(cleanupCalled).toBe(false);
 
         dispose();
@@ -162,11 +162,11 @@ describe('effect', () => {
             subscriber(store.user.name);
         });
 
-        await flushPromises();
+        await flushAll();
         expect(subscriber).toHaveBeenCalledWith('John');
 
         store.user.name = 'Jane';
-        await flushPromises();
+        await flushAll();
         expect(subscriber).toHaveBeenCalledWith('Jane');
         expect(subscriber).toHaveBeenCalledTimes(2);
     });
@@ -186,17 +186,17 @@ describe('effect', () => {
             ageRuns++;
         });
 
-        await flushPromises();
+        await flushAll();
         expect(nameRuns).toBe(1);
         expect(ageRuns).toBe(1);
 
         store.user.name = 'Jane';
-        await flushPromises();
+        await flushAll();
         expect(nameRuns).toBe(2);
         expect(ageRuns).toBe(1); // Age effect should not run
 
         store.user.age = 31;
-        await flushPromises();
+        await flushAll();
         expect(nameRuns).toBe(2); // Name effect should not run
         expect(ageRuns).toBe(2);
     });
@@ -214,30 +214,30 @@ describe('effect', () => {
             }
         });
 
-        await flushPromises();
+        await flushAll();
         expect(runs).toBe(1);
 
         // When flag is true, only 'a' and 'flag' are tracked
         store.b = 10;
-        await flushPromises();
+        await flushAll();
         expect(runs).toBe(1); // Should NOT trigger
 
         store.a = 5;
-        await flushPromises();
+        await flushAll();
         expect(runs).toBe(2); // SHOULD trigger
 
         // Now switch the flag
         store.flag = false;
-        await flushPromises();
+        await flushAll();
         expect(runs).toBe(3);
 
         // Now 'b' and 'flag' should be tracked, not 'a'
         store.a = 100;
-        await flushPromises();
+        await flushAll();
         expect(runs).toBe(3); // Should NOT trigger
 
         store.b = 20;
-        await flushPromises();
+        await flushAll();
         expect(runs).toBe(4); // SHOULD trigger
     });
 
@@ -250,11 +250,11 @@ describe('effect', () => {
             store.items.length;
         });
 
-        await flushPromises();
+        await flushAll();
         expect(runs).toBe(1);
 
         store.items.push(4);
-        await flushPromises();
+        await flushAll();
         expect(runs).toBe(2);
     });
 
@@ -271,12 +271,12 @@ describe('effect', () => {
             }
         });
 
-        await flushPromises();
+        await flushAll();
         expect(runs).toBe(1);
         expect(sum).toBe(6);
 
         store.items.push(4);
-        await flushPromises();
+        await flushAll();
         expect(runs).toBe(2);
         expect(sum).toBe(10);
     });
@@ -290,11 +290,11 @@ describe('effect', () => {
             store.count;
         });
 
-        await flushPromises();
+        await flushAll();
         expect(runs).toBe(1);
 
         store.count = 0; // Same value
-        await flushPromises();
+        await flushAll();
         expect(runs).toBe(1); // Should not run
     });
 
@@ -311,20 +311,20 @@ describe('effect', () => {
             }
         });
 
-        await flushPromises();
+        await flushAll();
         expect(runs).toBe(1);
 
         store.count = 1;
-        await flushPromises();
+        await flushAll();
         expect(runs).toBe(2);
 
         store.count = 3;
-        await flushPromises();
+        await flushAll();
         expect(runs).toBe(3);
 
         // Effect disposed itself, further changes should not trigger
         store.count = 4;
-        await flushPromises();
+        await flushAll();
         expect(runs).toBe(3);
     });
 
@@ -339,15 +339,15 @@ describe('effect', () => {
             store2.b;
         });
 
-        await flushPromises();
+        await flushAll();
         expect(runs).toBe(1);
 
         store1.a = 10;
-        await flushPromises();
+        await flushAll();
         expect(runs).toBe(2);
 
         store2.b = 20;
-        await flushPromises();
+        await flushAll();
         expect(runs).toBe(3);
     });
 
@@ -362,7 +362,7 @@ describe('effect', () => {
         // Dispose before microtask runs
         dispose();
 
-        await flushPromises();
+        await flushAll();
         expect(subscriber).toHaveBeenCalledTimes(0);
     });
 
@@ -378,13 +378,13 @@ describe('effect', () => {
             doubled();
         });
 
-        await flushPromises();
+        await flushAll();
         expect(effectRuns).toBe(1);
 
         // Change store - triggers recompute and effect re-run
         // This clears and re-establishes the computed dependency
         store.value = 5;
-        await flushPromises();
+        await flushAll();
         expect(effectRuns).toBe(2);
         expect(doubled()).toBe(10);
     });
@@ -397,7 +397,7 @@ describe('effect', () => {
             subscriber(store.value);
         });
 
-        await flushPromises();
+        await flushAll();
         expect(subscriber).toHaveBeenCalledTimes(1);
         expect(subscriber).toHaveBeenCalledWith(0);
 
@@ -407,7 +407,7 @@ describe('effect', () => {
         // Dispose immediately - before the microtask runs
         dispose();
 
-        await flushPromises();
+        await flushAll();
         // Effect should NOT have run again because it was disposed
         expect(subscriber).toHaveBeenCalledTimes(1);
     });
@@ -423,15 +423,15 @@ describe('effect', () => {
             sum();
         });
 
-        await flushPromises();
+        await flushAll();
         expect(effectRuns).toBe(1);
 
         store.a = 10;
-        await flushPromises();
+        await flushAll();
         expect(effectRuns).toBe(2);
 
         store.b = 20;
-        await flushPromises();
+        await flushAll();
         expect(effectRuns).toBe(3);
     });
 
@@ -456,14 +456,14 @@ describe('effect', () => {
             b();
         });
 
-        await flushPromises();
+        await flushAll();
         expect(effectRuns).toBe(1);
         expect(computeARuns).toBe(1);
         expect(computeBRuns).toBe(1);
 
         // Change store - all should update
         store.value = 5;
-        await flushPromises();
+        await flushAll();
         expect(effectRuns).toBe(2);
         expect(computeARuns).toBe(2);
         expect(computeBRuns).toBe(2);
@@ -490,7 +490,7 @@ describe('effect', () => {
             store.value;
         });
 
-        await flushPromises();
+        await flushAll();
         expect(effect1Runs).toBe(1);
         expect(effect2Runs).toBe(1);
         expect(effect3Runs).toBe(1);
@@ -502,7 +502,7 @@ describe('effect', () => {
         dispose1();
         dispose2();
 
-        await flushPromises();
+        await flushAll();
         // Only effect3 should have run again
         expect(effect1Runs).toBe(1);
         expect(effect2Runs).toBe(1);
@@ -531,14 +531,14 @@ describe('effect', () => {
             store.value;
         });
 
-        await flushPromises();
+        await flushAll();
         expect(effect1Runs).toBe(1);
         expect(effect2Runs).toBe(1);
 
         // Change triggers both effects
         store.value = 1;
 
-        await flushPromises();
+        await flushAll();
         // Effect 1 ran and disposed Effect 2
         // Effect 2 might or might not have run depending on order
         expect(effect1Runs).toBe(2);
@@ -556,7 +556,7 @@ describe('effect', () => {
             }
         });
 
-        await flushPromises();
+        await flushAll();
         // Effect runs multiple times as it keeps changing its dependency
         // Eventually stops when value reaches 3
         expect(store.value).toBe(3);
@@ -576,12 +576,12 @@ describe('effect', () => {
             level3();
         });
 
-        await flushPromises();
+        await flushAll();
         expect(effectRuns).toBe(1);
         expect(level3()).toBe(36); // ((1*2)+10)*3
 
         store.base = 5;
-        await flushPromises();
+        await flushAll();
         expect(effectRuns).toBe(2);
         expect(level3()).toBe(60); // ((5*2)+10)*3
 
@@ -589,7 +589,7 @@ describe('effect', () => {
 
         // After dispose, changes should not trigger effect
         store.base = 10;
-        await flushPromises();
+        await flushAll();
         expect(effectRuns).toBe(2);
     });
 
@@ -607,18 +607,18 @@ describe('effect', () => {
             product();
         });
 
-        await flushPromises();
+        await flushAll();
         expect(effectRuns).toBe(1);
 
         store.x = 5;
-        await flushPromises();
+        await flushAll();
         expect(effectRuns).toBe(2);
 
         // Dispose and verify cleanup
         dispose();
 
         store.y = 10;
-        await flushPromises();
+        await flushAll();
         expect(effectRuns).toBe(2);
     });
 
@@ -639,7 +639,7 @@ describe('effect', () => {
             d();
         }
 
-        await flushPromises();
+        await flushAll();
         // All effects were disposed before running
         // No errors should occur
     });
@@ -660,32 +660,32 @@ describe('effect', () => {
             }
         });
 
-        await flushPromises();
+        await flushAll();
         expect(effectRuns).toBe(1);
 
         // Change compA dependency - should trigger
         store.a = 10;
-        await flushPromises();
+        await flushAll();
         expect(effectRuns).toBe(2);
 
         // Change compB dependency - should NOT trigger (not in current deps)
         store.b = 20;
-        await flushPromises();
+        await flushAll();
         expect(effectRuns).toBe(2);
 
         // Switch branch
         store.flag = false;
-        await flushPromises();
+        await flushAll();
         expect(effectRuns).toBe(3);
 
         // Now compA should not trigger
         store.a = 100;
-        await flushPromises();
+        await flushAll();
         expect(effectRuns).toBe(3);
 
         // But compB should trigger
         store.b = 200;
-        await flushPromises();
+        await flushAll();
         expect(effectRuns).toBe(4);
     });
 });
