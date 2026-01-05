@@ -348,14 +348,18 @@ export const effect = callback => {
     /** @type {void | (() => void)} */
     let cleanup;
 
+    const runCleanup = () => {
+        if (typeof cleanup === 'function') {
+            cleanup();
+        }
+    };
+
     // Effects use a custom equals that always returns false to ensure they always run
     const comp = /** @type {ComputedNode<void | (() => void)>} */ (
         computed(
             () => {
                 // Run previous cleanup if it exists
-                if (typeof cleanup === 'function') {
-                    cleanup();
-                }
+                runCleanup();
                 // Run the callback and store new cleanup
                 cleanup = callback();
             },
@@ -371,9 +375,7 @@ export const effect = callback => {
     // Return dispose function
     return () => {
         // Run final cleanup
-        if (typeof cleanup === 'function') {
-            cleanup();
-        }
+        runCleanup();
         clearSources(comp);
         batched.delete(comp);
     };
