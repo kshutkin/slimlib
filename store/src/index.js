@@ -171,6 +171,15 @@ const needsWork = node => node[nodeStateSymbol] >= STATE_CHECK;
  * Marks the node and recursively marks all dependents in a single traversal
  * @param {ComputedNode<any>} node
  */
+/**
+ * Schedule an effect for execution
+ * @param {ComputedNode<any>} node
+ */
+const scheduleEffect = node => {
+    batched.add(node);
+    scheduleFlush();
+};
+
 const markNeedsCheck = node => {
     // Don't mark nodes that are currently computing - they'll handle their own state
     // Unless forceComputing is true (store changes should still trigger re-run)
@@ -178,8 +187,7 @@ const markNeedsCheck = node => {
         if (node[isEffect]) {
             // Store changed during effect execution - schedule re-run
             node[nodeStateSymbol] = STATE_COMPUTING_DIRTY;
-            batched.add(node);
-            scheduleFlush();
+            scheduleEffect(node);
         }
         return;
     }
@@ -189,8 +197,7 @@ const markNeedsCheck = node => {
 
         // Schedule execution for effects
         if (node[isEffect]) {
-            batched.add(node);
-            scheduleFlush();
+            scheduleEffect(node);
         }
 
         // Recursively mark ALL dependents (single traversal optimization)
@@ -369,8 +376,7 @@ export const effect = callback => {
     comp[isEffect] = true;
 
     // Trigger first run via batched queue (node is already dirty from computed())
-    batched.add(comp);
-    scheduleFlush();
+    scheduleEffect(comp);
 
     // Return dispose function
     return () => {
