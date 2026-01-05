@@ -15,6 +15,12 @@ const sources = Symbol();
 const dependencies = Symbol();
 
 /**
+ * Module-level WeakMap for property-level dependencies on state objects
+ * Structure: target -> Map<property, Set<ComputedNode>>
+ */
+const propertyDeps = new WeakMap();
+
+/**
  * Symbol for computation state (discriminated union)
  * Values:
  * - 0: clean (no action needed)
@@ -61,18 +67,6 @@ let tracked = true;
  */
 
 /**
- * Atomically copy and clear a Set
- * @template T
- * @param {Set<T>} set
- * @returns {T[]}
- */
-const cleared = set => {
-    const items = [...set];
-    set.clear();
-    return items;
-};
-
-/**
  * Unwraps a proxied value to get the underlying object
  * @template T
  * @param {T} value
@@ -101,7 +95,9 @@ const scheduleFlush = () => {
         flushScheduled = true;
         queueMicrotask(() => {
             flushScheduled = false;
-            for (const node of cleared(batched)) {
+            const nodes = [...batched];
+            batched.clear();
+            for (const node of nodes) {
                 // Access getValue() to trigger recomputation for effects
                 // The getValue method will clear dirty flag
                 node();
@@ -199,12 +195,14 @@ const markEffectsInDeps = node => {
 };
 
 /**
- * Mark dependents as needing check (when value changed after recomputation)
- * @param {ComputedNode<any>} node
+ * Mark all dependents in a Set as needing check
+ * Unified notification function for both computed and state dependencies
+ * @param {Set<ComputedNode<any>>} deps - The dependency set to notify
+ * @param {boolean} [forceComputing=false] - If true, mark even computing nodes
  */
-const markDependentsCheck = node => {
-    for (const dep of node[dependencies]) {
-        markNeedsCheck(dep);
+const markDependents = (deps, forceComputing = false) => {
+    for (const dep of deps) {
+        markNeedsCheck(dep, forceComputing);
     }
 };
 
@@ -216,21 +214,6 @@ const markDependentsCheck = node => {
  */
 export const state = (object = /** @type {any} */ ({})) => {
     const proxiesCache = new WeakMap();
-
-    // Per-property dependency tracking
-    // Structure: target -> Map(property -> Set<dependents>)
-    const propertyDeps = new WeakMap();
-
-    /**
-     * Mark all dependents in a Set as needing check
-     * @param {Set<ComputedNode<any>>} deps
-     */
-    const markDepsSetCheck = deps => {
-        for (const dep of cleared(deps)) {
-            // Store changes should force re-run even for computing effects
-            markNeedsCheck(dep, true);
-        }
-    };
 
     /**
      * Notify dependents of a specific property or all properties
@@ -244,12 +227,13 @@ export const state = (object = /** @type {any} */ ({})) => {
                 // Notify specific property
                 const deps = propsMap.get(property);
                 if (deps) {
-                    markDepsSetCheck(deps);
+                    // Use forceComputing=true for state changes
+                    markDependents(deps, true);
                 }
             } else {
                 // Notify all properties
                 for (const deps of propsMap.values()) {
-                    markDepsSetCheck(deps);
+                    markDependents(deps, true);
                 }
             }
         }
@@ -452,7 +436,7 @@ export const computed = (getter, equals = Object.is) => {
                                 cachedValue = newValue;
                                 hasValue = true;
                                 // Value changed - mark dependents as needing check
-                                markDependentsCheck(context);
+                                markDependents(context[dependencies]);
                             } else if (wasDirty) {
                                 // Was dirty (first computation or error recovery) but value matches
                                 // Still need to mark as having a value
