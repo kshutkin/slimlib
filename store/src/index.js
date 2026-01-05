@@ -5,18 +5,36 @@ const unwrap = Symbol();
 
 /**
  * Symbol for sources - what this effect/computed depends on
- * Each entry is { deps: Set<ComputedNode>, node?: ComputedNode }
+ * Each entry is { deps: Set<WeakRef<ComputedNode>>, node?: ComputedNode, weakRef: WeakRef<ComputedNode> }
+ *
+ * The `node` field is a STRONG reference to the source computed - this is semantically
+ * necessary because a computed needs its sources to exist to compute its value.
+ *
+ * The `weakRef` field stores our own WeakRef so we can properly remove it from the deps Set
+ * during cleanup (clearSources).
  */
 const sources = Symbol();
 
 /**
  * Symbol for dependencies - effects/computed depending on this
+ *
+ * Dependencies are stored as WeakRefs to allow automatic garbage collection of unused computeds.
+ * When a computed is no longer referenced by user code and has no dependents, it can be GC'd
+ * even if its sources (state or other computeds) are still alive.
+ *
+ * This enables memory-efficient patterns in long-running applications where computeds are
+ * dynamically created and discarded.
  */
 const dependencies = Symbol();
 
 /**
  * Module-level WeakMap for property-level dependencies on state objects
- * Structure: target -> Map<property, Set<ComputedNode>>
+ * Structure: target -> Map<property, Set<WeakRef<ComputedNode>>>
+ *
+ * Uses WeakMap with target as key, so when a state object is GC'd, all its dependency
+ * tracking is automatically cleaned up.
+ *
+ * Property dependencies are stored as WeakRefs to allow automatic GC of unused computeds.
  */
 const propertyDeps = new WeakMap();
 
@@ -82,7 +100,8 @@ export const unwrapValue = value => (value != null && /** @type {Unwrappable<T>}
 const clearSources = (node, fromIndex = 0) => {
     const sourcesArray = node[sources];
     for (let i = fromIndex; i < sourcesArray.length; i++) {
-        sourcesArray[i].deps.delete(node);
+        // Delete our specific WeakRef from the deps Set
+        sourcesArray[i].deps.delete(sourcesArray[i].weakRef);
     }
     sourcesArray.length = fromIndex;
 };
@@ -108,7 +127,8 @@ const scheduleFlush = () => {
 
 /**
  * Track a dependency between currentComputing and a deps Set
- * @param {Set<ComputedNode<any>>} deps - The dependency set to track
+ * Uses WeakRef to allow automatic GC of unused computeds
+ * @param {Set<WeakRef<ComputedNode<any>>>} deps - The dependency set to track (holds WeakRefs)
  * @param {ComputedNode<any>} [sourceNode] - The computed node being accessed (if any)
  */
 const trackDependency = (deps, sourceNode) => {
@@ -122,10 +142,13 @@ const trackDependency = (deps, sourceNode) => {
         if (skipIndex < sourcesArray.length) {
             clearSources(currentComputing, skipIndex);
         }
-        sourcesArray.push({ deps, node: sourceNode });
+        // Create WeakRef and store it for later cleanup
+        const weakRef = new WeakRef(currentComputing);
+        sourcesArray.push({ deps, node: sourceNode, weakRef });
+        deps.add(weakRef);
     }
+    // If reusing existing entry, weakRef is already in deps
 
-    deps.add(currentComputing);
     currentComputing[skippedDeps]++;
 };
 
@@ -174,8 +197,15 @@ const markNeedsCheck = (node, forceComputing = false) => {
         }
 
         // Recursively mark ALL dependents (single traversal optimization)
-        for (const dep of node[dependencies]) {
-            markNeedsCheck(dep, forceComputing);
+        // Dependencies are stored as WeakRefs - deref and clean up dead ones
+        for (const weakRef of node[dependencies]) {
+            const dep = weakRef.deref();
+            if (dep) {
+                markNeedsCheck(dep, forceComputing);
+            } else {
+                // Computed was GC'd, clean up dead WeakRef
+                node[dependencies].delete(weakRef);
+            }
         }
     }
 };
@@ -183,12 +213,18 @@ const markNeedsCheck = (node, forceComputing = false) => {
 /**
  * Mark all dependents in a Set as needing check
  * Unified notification function for both computed and state dependencies
- * @param {Set<ComputedNode<any>>} deps - The dependency set to notify
+ * @param {Set<WeakRef<ComputedNode<any>>>} deps - The dependency set to notify (holds WeakRefs)
  * @param {boolean} [forceComputing=false] - If true, mark even computing nodes
  */
 const markDependents = (deps, forceComputing = false) => {
-    for (const dep of deps) {
-        markNeedsCheck(dep, forceComputing);
+    for (const weakRef of deps) {
+        const dep = weakRef.deref();
+        if (dep) {
+            markNeedsCheck(dep, forceComputing);
+        } else {
+            // Computed was GC'd, clean up dead WeakRef
+            deps.delete(weakRef);
+        }
     }
 };
 
@@ -436,9 +472,16 @@ export const computed = (getter, equals = Object.is) => {
                                 hasValue = true;
                                 // Value changed - mark dependents as DIRTY (not just CHECK)
                                 // so they know they definitely need to recompute
-                                for (const dep of context[dependencies]) {
-                                    if (!isComputing(dep) && dep[nodeStateSymbol] === STATE_CHECK) {
-                                        dep[nodeStateSymbol] = STATE_DIRTY;
+                                // Dependencies are stored as WeakRefs
+                                for (const weakRef of context[dependencies]) {
+                                    const dep = weakRef.deref();
+                                    if (dep) {
+                                        if (!isComputing(dep) && dep[nodeStateSymbol] === STATE_CHECK) {
+                                            dep[nodeStateSymbol] = STATE_DIRTY;
+                                        }
+                                    } else {
+                                        // Computed was GC'd, clean up dead WeakRef
+                                        context[dependencies].delete(weakRef);
                                     }
                                 }
                             } else if (wasDirty) {
