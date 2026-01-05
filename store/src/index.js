@@ -78,6 +78,17 @@ let flushScheduled = false;
 let tracked = true;
 
 /**
+ * Global version counter - increments on every signal/state write
+ * Used for fast-path: if globalVersion hasn't changed since last read, skip all checks
+ */
+let globalVersion = 0;
+
+/**
+ * Symbol for storing the last seen global version on a computed node
+ */
+const lastGlobalVersionSymbol = Symbol();
+
+/**
  * Scheduler function used to schedule effect execution
  * Defaults to queueMicrotask, can be replaced with setScheduler
  * @type {(callback: () => void) => void}
@@ -245,6 +256,7 @@ const forEachDep = (deps, callback) => {
  * @param {Set<WeakRef<ComputedNode<any>>>} deps - The dependency set to notify (holds WeakRefs)
  */
 const markDependents = deps => {
+    globalVersion++;
     forEachDep(deps, markNeedsCheck);
 };
 
@@ -430,6 +442,11 @@ export const computed = (getter, equals = Object.is) => {
 
                     let flags = context[flagsSymbol];
 
+                    // Fast-path: if node is clean and nothing has changed globally since last read, return cached value
+                    if (hasValue && !(flags & FLAG_NEEDS_WORK) && context[lastGlobalVersionSymbol] === globalVersion) {
+                        return cachedValue;
+                    }
+
                     // For CHECK state, verify if sources actually changed before recomputing
                     // This preserves the equality cutoff optimization with eager marking
                     // Only do this for non-effects that ONLY have computed sources (with nodes)
@@ -507,6 +524,9 @@ export const computed = (getter, equals = Object.is) => {
                             // If so, keep dirty flag, otherwise clear computing
                             const endFlags = context[flagsSymbol];
                             context[flagsSymbol] = endFlags & ~FLAG_COMPUTING;
+
+                            // Update last seen global version
+                            context[lastGlobalVersionSymbol] = globalVersion;
                         } catch (e) {
                             // Restore dirty flag on error so it can be retried
                             context[flagsSymbol] = (context[flagsSymbol] & ~FLAG_COMPUTING) | FLAG_DIRTY;
