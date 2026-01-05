@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { computed, createStore, effect, untracked } from '../src/index.js';
+import { computed, effect, state, untracked } from '../src/index.js';
 
 function flushPromises() {
     return new Promise(resolve => setTimeout(resolve));
@@ -9,7 +9,7 @@ function flushPromises() {
 describe('untracked', () => {
     it('prevents dependency tracking', async () => {
         let runs = 0;
-        const store = createStore({ a: 1, b: 2 });
+        const store = state({ a: 1, b: 2 });
 
         effect(() => {
             runs++;
@@ -32,7 +32,7 @@ describe('untracked', () => {
     });
 
     it('returns the value from callback', () => {
-        const store = createStore({ value: 42 });
+        const store = state({ value: 42 });
 
         const result = untracked(() => store.value * 2);
 
@@ -41,7 +41,7 @@ describe('untracked', () => {
 
     it('works with nested objects', async () => {
         let runs = 0;
-        const store = createStore({ user: { name: 'John', age: 30 } });
+        const store = state({ user: { name: 'John', age: 30 } });
 
         effect(() => {
             runs++;
@@ -57,7 +57,7 @@ describe('untracked', () => {
     });
 
     it('can be used inside computed', () => {
-        const store = createStore({ a: 1, b: 2 });
+        const store = state({ a: 1, b: 2 });
         let computeCount = 0;
 
         const result = computed(() => {
@@ -65,23 +65,23 @@ describe('untracked', () => {
             return store.a + untracked(() => store.b);
         });
 
-        expect(result.value).toBe(3);
+        expect(result()).toBe(3);
         expect(computeCount).toBe(1);
 
         // Changing b should not cause recompute
         store.b = 10;
-        expect(result.value).toBe(3); // Still cached
+        expect(result()).toBe(3); // Still cached
         expect(computeCount).toBe(1);
 
         // Changing a should cause recompute
         store.a = 5;
-        expect(result.value).toBe(15); // 5 + 10
+        expect(result()).toBe(15); // 5 + 10
         expect(computeCount).toBe(2);
     });
 
     it('nested untracked calls work correctly', async () => {
         let runs = 0;
-        const store = createStore({ a: 1, b: 2, c: 3 });
+        const store = state({ a: 1, b: 2, c: 3 });
 
         effect(() => {
             runs++;
@@ -106,7 +106,7 @@ describe('untracked', () => {
 
     it('tracking resumes after untracked block', async () => {
         let runs = 0;
-        const store = createStore({ a: 1, b: 2, c: 3 });
+        const store = state({ a: 1, b: 2, c: 3 });
 
         effect(() => {
             runs++;
@@ -136,7 +136,7 @@ describe('untracked', () => {
 
     it('handles exceptions inside untracked', async () => {
         let runs = 0;
-        const store = createStore({ a: 1, b: 2 });
+        const store = state({ a: 1, b: 2 });
 
         effect(() => {
             runs++;
@@ -166,7 +166,7 @@ describe('untracked', () => {
     });
 
     it('untracked with no effect context is a no-op', () => {
-        const store = createStore({ value: 42 });
+        const store = state({ value: 42 });
 
         // Should just return the value, no effect context
         const result = untracked(() => store.value);
@@ -175,7 +175,7 @@ describe('untracked', () => {
 
     it('mix of tracked and untracked in same expression', async () => {
         let runs = 0;
-        const store = createStore({ a: 1, b: 2, c: 3 });
+        const store = state({ a: 1, b: 2, c: 3 });
 
         effect(() => {
             runs++;
@@ -201,7 +201,7 @@ describe('untracked', () => {
 
     it('untracked in loop', async () => {
         let runs = 0;
-        const store = createStore({ items: [1, 2, 3], multiplier: 2 });
+        const store = state({ items: [1, 2, 3], multiplier: 2 });
 
         effect(() => {
             runs++;
@@ -227,7 +227,7 @@ describe('untracked', () => {
     it('computed accessed inside untracked does not create dependency', async () => {
         let effectRuns = 0;
         let computeRuns = 0;
-        const store = createStore({ value: 1 });
+        const store = state({ value: 1 });
 
         const doubled = computed(() => {
             computeRuns++;
@@ -236,7 +236,7 @@ describe('untracked', () => {
 
         effect(() => {
             effectRuns++;
-            untracked(() => doubled.value);
+            untracked(() => doubled());
         });
 
         await flushPromises();
@@ -246,7 +246,7 @@ describe('untracked', () => {
         // Changing store should recompute the computed but NOT re-run the effect
         store.value = 5;
         // Access the computed to trigger recomputation
-        expect(doubled.value).toBe(10);
+        expect(doubled()).toBe(10);
         expect(computeRuns).toBe(2);
 
         await flushPromises();

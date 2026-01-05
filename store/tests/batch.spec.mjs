@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { computed, createStore, effect } from '../src/index.js';
+import { computed, effect, state } from '../src/index.js';
 
 function flushPromises() {
     return new Promise(resolve => setTimeout(resolve));
@@ -8,7 +8,7 @@ function flushPromises() {
 
 describe('automatic batching', () => {
     it('multiple synchronous updates result in single effect run', async () => {
-        const store = createStore({ count: 0 });
+        const store = state({ count: 0 });
         let runs = 0;
 
         effect(() => {
@@ -30,7 +30,7 @@ describe('automatic batching', () => {
     });
 
     it('effect sees final values after batch', async () => {
-        const store = createStore({ a: 0, b: 0, c: 0 });
+        const store = state({ a: 0, b: 0, c: 0 });
         let result = {};
 
         effect(() => {
@@ -50,7 +50,7 @@ describe('automatic batching', () => {
     });
 
     it('multiple properties changed in sequence', async () => {
-        const store = createStore({ name: 'John', age: 30, city: 'NYC' });
+        const store = state({ name: 'John', age: 30, city: 'NYC' });
         let runs = 0;
 
         effect(() => {
@@ -72,7 +72,7 @@ describe('automatic batching', () => {
     });
 
     it('nested object updates are batched', async () => {
-        const store = createStore({ user: { profile: { name: 'John', email: 'john@example.com' } } });
+        const store = state({ user: { profile: { name: 'John', email: 'john@example.com' } } });
         let runs = 0;
 
         effect(() => {
@@ -92,7 +92,7 @@ describe('automatic batching', () => {
     });
 
     it('array mutations are batched', async () => {
-        const store = createStore({ items: [1, 2, 3] });
+        const store = state({ items: [1, 2, 3] });
         let runs = 0;
         /** @type {number[]} */
         let lastItems = [];
@@ -117,7 +117,7 @@ describe('automatic batching', () => {
 
     it('computed values are recalculated once per batch', async () => {
         let computeCount = 0;
-        const store = createStore({ a: 1, b: 2 });
+        const store = state({ a: 1, b: 2 });
 
         const sum = computed(() => {
             computeCount++;
@@ -125,7 +125,7 @@ describe('automatic batching', () => {
         });
 
         effect(() => {
-            sum.value;
+            sum();
         });
 
         await flushPromises();
@@ -135,7 +135,7 @@ describe('automatic batching', () => {
         store.b = 20;
 
         // Access computed before flush - should recompute
-        expect(sum.value).toBe(30);
+        expect(sum()).toBe(30);
         expect(computeCount).toBe(2);
 
         await flushPromises();
@@ -144,7 +144,7 @@ describe('automatic batching', () => {
     });
 
     it('same value set multiple times does not trigger updates', async () => {
-        const store = createStore({ value: 0 });
+        const store = state({ value: 0 });
         let runs = 0;
 
         effect(() => {
@@ -165,7 +165,7 @@ describe('automatic batching', () => {
     });
 
     it('rapid updates and then revert', async () => {
-        const store = createStore({ value: 10 });
+        const store = state({ value: 10 });
         let runs = 0;
 
         effect(() => {
@@ -188,7 +188,7 @@ describe('automatic batching', () => {
     });
 
     it('multiple effects on same store are batched together', async () => {
-        const store = createStore({ value: 0 });
+        const store = state({ value: 0 });
         /** @type {string[]} */
         const calls = [];
 
@@ -215,8 +215,8 @@ describe('automatic batching', () => {
     });
 
     it('effects from multiple stores are batched', async () => {
-        const store1 = createStore({ a: 0 });
-        const store2 = createStore({ b: 0 });
+        const store1 = state({ a: 0 });
+        const store2 = state({ b: 0 });
         let runs = 0;
 
         effect(() => {
@@ -236,7 +236,7 @@ describe('automatic batching', () => {
     });
 
     it('effect runs in microtask, not synchronously', async () => {
-        const store = createStore({ value: 0 });
+        const store = state({ value: 0 });
         const log = [];
 
         effect(() => {
@@ -258,7 +258,7 @@ describe('automatic batching', () => {
     });
 
     it('changes during effect execution are also batched', async () => {
-        const store = createStore({ value: 0 });
+        const store = state({ value: 0 });
         let runs = 0;
 
         effect(() => {

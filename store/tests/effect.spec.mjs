@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { computed, createStore, effect } from '../src/index.js';
+import { computed, effect, state } from '../src/index.js';
 
 function flushPromises() {
     return new Promise(resolve => setTimeout(resolve));
@@ -9,7 +9,7 @@ function flushPromises() {
 describe('effect', () => {
     it('runs effect on next microtask', async () => {
         const subscriber = vi.fn();
-        const store = createStore({ count: 0 });
+        const store = state({ count: 0 });
 
         effect(() => {
             subscriber(store.count);
@@ -25,7 +25,7 @@ describe('effect', () => {
 
     it('re-runs when dependencies change', async () => {
         const subscriber = vi.fn();
-        const store = createStore({ count: 0 });
+        const store = state({ count: 0 });
 
         effect(() => {
             subscriber(store.count);
@@ -47,7 +47,7 @@ describe('effect', () => {
 
     it('does not re-run when untracked properties change', async () => {
         const subscriber = vi.fn();
-        const store = createStore({ tracked: 0, untracked: 0 });
+        const store = state({ tracked: 0, untracked: 0 });
 
         effect(() => {
             subscriber(store.tracked);
@@ -69,7 +69,7 @@ describe('effect', () => {
 
     it('supports cleanup function', async () => {
         let cleanupCalled = false;
-        const store = createStore({ count: 0 });
+        const store = state({ count: 0 });
 
         effect(() => {
             store.count; // Track dependency
@@ -89,7 +89,7 @@ describe('effect', () => {
     it('cleanup is called before each re-run', async () => {
         /** @type {string[]} */
         const calls = [];
-        const store = createStore({ count: 0 });
+        const store = state({ count: 0 });
 
         effect(() => {
             const currentCount = store.count;
@@ -115,7 +115,7 @@ describe('effect', () => {
 
     it('dispose stops effect from running', async () => {
         const subscriber = vi.fn();
-        const store = createStore({ count: 0 });
+        const store = state({ count: 0 });
 
         const dispose = effect(() => {
             subscriber(store.count);
@@ -133,7 +133,7 @@ describe('effect', () => {
 
     it('dispose calls cleanup function', async () => {
         let cleanupCalled = false;
-        const store = createStore({ count: 0 });
+        const store = state({ count: 0 });
 
         const dispose = effect(() => {
             store.count;
@@ -151,7 +151,7 @@ describe('effect', () => {
 
     it('tracks nested object properties', async () => {
         const subscriber = vi.fn();
-        const store = createStore({ user: { name: 'John', age: 30 } });
+        const store = state({ user: { name: 'John', age: 30 } });
 
         effect(() => {
             subscriber(store.user.name);
@@ -169,7 +169,7 @@ describe('effect', () => {
     it('only tracks accessed properties', async () => {
         let nameRuns = 0;
         let ageRuns = 0;
-        const store = createStore({ user: { name: 'John', age: 30 } });
+        const store = state({ user: { name: 'John', age: 30 } });
 
         effect(() => {
             store.user.name;
@@ -198,7 +198,7 @@ describe('effect', () => {
 
     it('handles conditional dependencies', async () => {
         let runs = 0;
-        const store = createStore({ flag: true, a: 1, b: 2 });
+        const store = state({ flag: true, a: 1, b: 2 });
 
         effect(() => {
             runs++;
@@ -238,7 +238,7 @@ describe('effect', () => {
 
     it('handles array mutations', async () => {
         let runs = 0;
-        const store = createStore({ items: [1, 2, 3] });
+        const store = state({ items: [1, 2, 3] });
 
         effect(() => {
             runs++;
@@ -256,7 +256,7 @@ describe('effect', () => {
     it('handles array iteration', async () => {
         let runs = 0;
         let sum = 0;
-        const store = createStore({ items: [1, 2, 3] });
+        const store = state({ items: [1, 2, 3] });
 
         effect(() => {
             runs++;
@@ -278,7 +278,7 @@ describe('effect', () => {
 
     it('does not run if value is the same', async () => {
         let runs = 0;
-        const store = createStore({ count: 0 });
+        const store = state({ count: 0 });
 
         effect(() => {
             runs++;
@@ -295,7 +295,7 @@ describe('effect', () => {
 
     it('self-dispose within effect', async () => {
         let runs = 0;
-        const store = createStore({ count: 0 });
+        const store = state({ count: 0 });
 
         /** @type {() => void} */
         let dispose;
@@ -325,8 +325,8 @@ describe('effect', () => {
 
     it('multiple stores in single effect', async () => {
         let runs = 0;
-        const store1 = createStore({ a: 1 });
-        const store2 = createStore({ b: 2 });
+        const store1 = state({ a: 1 });
+        const store2 = state({ b: 2 });
 
         effect(() => {
             runs++;
@@ -348,7 +348,7 @@ describe('effect', () => {
 
     it('dispose before first run cancels effect', async () => {
         const subscriber = vi.fn();
-        const store = createStore({ count: 0 });
+        const store = state({ count: 0 });
 
         const dispose = effect(() => {
             subscriber(store.count);
@@ -362,7 +362,7 @@ describe('effect', () => {
     });
 
     it('effect depending on computed clears computed sources on re-run', async () => {
-        const store = createStore({ value: 1 });
+        const store = state({ value: 1 });
         let effectRuns = 0;
 
         const doubled = computed(() => store.value * 2);
@@ -370,7 +370,7 @@ describe('effect', () => {
         effect(() => {
             effectRuns++;
             // Access computed to create dependency
-            doubled.value;
+            doubled();
         });
 
         await flushPromises();
@@ -381,12 +381,12 @@ describe('effect', () => {
         store.value = 5;
         await flushPromises();
         expect(effectRuns).toBe(2);
-        expect(doubled.value).toBe(10);
+        expect(doubled()).toBe(10);
     });
 
     it('effect disposed after being marked dirty but before flush', async () => {
         const subscriber = vi.fn();
-        const store = createStore({ value: 0 });
+        const store = state({ value: 0 });
 
         const dispose = effect(() => {
             subscriber(store.value);
@@ -408,14 +408,14 @@ describe('effect', () => {
     });
 
     it('computed dependency is properly tracked in effect', async () => {
-        const store = createStore({ a: 1, b: 2 });
+        const store = state({ a: 1, b: 2 });
         let effectRuns = 0;
 
         const sum = computed(() => store.a + store.b);
 
         effect(() => {
             effectRuns++;
-            sum.value;
+            sum();
         });
 
         await flushPromises();
@@ -431,7 +431,7 @@ describe('effect', () => {
     });
 
     it('effect on computed chain clears sources properly on each run', async () => {
-        const store = createStore({ value: 1 });
+        const store = state({ value: 1 });
         let effectRuns = 0;
         let computeARuns = 0;
         let computeBRuns = 0;
@@ -443,12 +443,12 @@ describe('effect', () => {
 
         const b = computed(() => {
             computeBRuns++;
-            return a.value * 2;
+            return a() * 2;
         });
 
         effect(() => {
             effectRuns++;
-            b.value;
+            b();
         });
 
         await flushPromises();
@@ -465,7 +465,7 @@ describe('effect', () => {
     });
 
     it('multiple effects disposed before flush only run remaining ones', async () => {
-        const store = createStore({ value: 0 });
+        const store = state({ value: 0 });
         let effect1Runs = 0;
         let effect2Runs = 0;
         let effect3Runs = 0;
@@ -505,7 +505,7 @@ describe('effect', () => {
     });
 
     it('effect disposed while another effect runs during flush', async () => {
-        const store = createStore({ value: 0 });
+        const store = state({ value: 0 });
         let effect1Runs = 0;
         let effect2Runs = 0;
 
@@ -540,7 +540,7 @@ describe('effect', () => {
     });
 
     it('effect that changes its own dependency during execution', async () => {
-        const store = createStore({ value: 0 });
+        const store = state({ value: 0 });
         let runs = 0;
 
         effect(() => {
@@ -559,26 +559,26 @@ describe('effect', () => {
     });
 
     it('computed depending on computed with effect exercises all code paths', async () => {
-        const store = createStore({ base: 1 });
+        const store = state({ base: 1 });
         let effectRuns = 0;
 
         const level1 = computed(() => store.base * 2);
-        const level2 = computed(() => level1.value + 10);
-        const level3 = computed(() => level2.value * 3);
+        const level2 = computed(() => level1() + 10);
+        const level3 = computed(() => level2() * 3);
 
         const dispose = effect(() => {
             effectRuns++;
-            level3.value;
+            level3();
         });
 
         await flushPromises();
         expect(effectRuns).toBe(1);
-        expect(level3.value).toBe(36); // ((1*2)+10)*3
+        expect(level3()).toBe(36); // ((1*2)+10)*3
 
         store.base = 5;
         await flushPromises();
         expect(effectRuns).toBe(2);
-        expect(level3.value).toBe(60); // ((5*2)+10)*3
+        expect(level3()).toBe(60); // ((5*2)+10)*3
 
         dispose();
 
@@ -589,7 +589,7 @@ describe('effect', () => {
     });
 
     it('effect with only computed dependencies (no direct store access)', async () => {
-        const store = createStore({ x: 1, y: 2 });
+        const store = state({ x: 1, y: 2 });
         let effectRuns = 0;
 
         const sum = computed(() => store.x + store.y);
@@ -598,8 +598,8 @@ describe('effect', () => {
         // Effect only accesses computed values, not store directly
         const dispose = effect(() => {
             effectRuns++;
-            sum.value;
-            product.value;
+            sum();
+            product();
         });
 
         await flushPromises();
@@ -618,7 +618,7 @@ describe('effect', () => {
     });
 
     it('rapidly creating and disposing effects', async () => {
-        const store = createStore({ value: 0 });
+        const store = state({ value: 0 });
         const disposes = [];
 
         for (let i = 0; i < 10; i++) {
@@ -640,7 +640,7 @@ describe('effect', () => {
     });
 
     it('effect re-run clears previous computed dependencies', async () => {
-        const store = createStore({ flag: true, a: 1, b: 2 });
+        const store = state({ flag: true, a: 1, b: 2 });
         let effectRuns = 0;
 
         const compA = computed(() => store.a * 2);
@@ -649,9 +649,9 @@ describe('effect', () => {
         effect(() => {
             effectRuns++;
             if (store.flag) {
-                compA.value;
+                compA();
             } else {
-                compB.value;
+                compB();
             }
         });
 

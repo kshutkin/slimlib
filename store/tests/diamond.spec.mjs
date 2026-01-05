@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { computed, createStore, effect } from '../src/index.js';
+import { computed, effect, state } from '../src/index.js';
 
 function flushPromises() {
     return new Promise(resolve => setTimeout(resolve));
@@ -22,13 +22,13 @@ describe('diamond problem', () => {
      */
 
     it('effect runs once when source changes (diamond via computed)', async () => {
-        const store = createStore({ a: 0 });
+        const store = state({ a: 0 });
         const b = computed(() => store.a + 1);
         const c = computed(() => store.a + 2);
         let runCount = 0;
 
         effect(() => {
-            b.value + c.value;
+            b() + c();
             runCount++;
         });
 
@@ -41,7 +41,7 @@ describe('diamond problem', () => {
     });
 
     it('effect runs once when multiple computed share same source', async () => {
-        const store = createStore({ value: 1 });
+        const store = state({ value: 1 });
 
         const doubled = computed(() => store.value * 2);
         const tripled = computed(() => store.value * 3);
@@ -52,7 +52,7 @@ describe('diamond problem', () => {
 
         effect(() => {
             runCount++;
-            result = doubled.value + tripled.value + quadrupled.value;
+            result = doubled() + tripled() + quadrupled();
         });
 
         await flushPromises();
@@ -75,21 +75,21 @@ describe('diamond problem', () => {
          *       \ /
          *        G (effect)
          */
-        const store = createStore({ a: 1 });
+        const store = state({ a: 1 });
 
         const b = computed(() => store.a + 1);
         const c = computed(() => store.a + 2);
         const d = computed(() => store.a + 3);
 
-        const e = computed(() => b.value + c.value);
-        const f = computed(() => c.value + d.value);
+        const e = computed(() => b() + c());
+        const f = computed(() => c() + d());
 
         let runCount = 0;
         let result;
 
         effect(() => {
             runCount++;
-            result = e.value + f.value;
+            result = e() + f();
         });
 
         await flushPromises();
@@ -115,7 +115,7 @@ describe('diamond problem', () => {
          *    / | \
          *   B  C  (effect reads A, B, C)
          */
-        const store = createStore({ a: 1 });
+        const store = state({ a: 1 });
         const b = computed(() => store.a * 2);
         const c = computed(() => store.a * 3);
 
@@ -125,7 +125,7 @@ describe('diamond problem', () => {
         effect(() => {
             runCount++;
             // Effect reads store directly AND both computed values
-            result = store.a + b.value + c.value;
+            result = store.a + b() + c();
         });
 
         await flushPromises();
@@ -139,7 +139,7 @@ describe('diamond problem', () => {
     });
 
     it('multiple effects on same diamond', async () => {
-        const store = createStore({ value: 1 });
+        const store = state({ value: 1 });
         const b = computed(() => store.value * 2);
         const c = computed(() => store.value * 3);
 
@@ -148,12 +148,12 @@ describe('diamond problem', () => {
 
         effect(() => {
             effect1Runs++;
-            b.value + c.value;
+            b() + c();
         });
 
         effect(() => {
             effect2Runs++;
-            b.value + c.value;
+            b() + c();
         });
 
         await flushPromises();
@@ -167,7 +167,7 @@ describe('diamond problem', () => {
     });
 
     it('diamond with conditional computed access', async () => {
-        const store = createStore({ value: 1, flag: true });
+        const store = state({ value: 1, flag: true });
         const doubled = computed(() => store.value * 2);
         const tripled = computed(() => store.value * 3);
 
@@ -177,7 +177,7 @@ describe('diamond problem', () => {
         effect(() => {
             runCount++;
             // Conditionally access computed values
-            result = store.flag ? doubled.value : tripled.value;
+            result = store.flag ? doubled() : tripled();
         });
 
         await flushPromises();
@@ -197,26 +197,26 @@ describe('diamond problem', () => {
     });
 
     it('deeply nested diamond', async () => {
-        const store = createStore({ value: 1 });
+        const store = state({ value: 1 });
 
         // Two branches that eventually merge
         const a1 = computed(() => store.value + 1);
-        const a2 = computed(() => a1.value + 1);
-        const a3 = computed(() => a2.value + 1);
+        const a2 = computed(() => a1() + 1);
+        const a3 = computed(() => a2() + 1);
 
         const b1 = computed(() => store.value + 10);
-        const b2 = computed(() => b1.value + 10);
-        const b3 = computed(() => b2.value + 10);
+        const b2 = computed(() => b1() + 10);
+        const b3 = computed(() => b2() + 10);
 
         // Merge point
-        const merge = computed(() => a3.value + b3.value);
+        const merge = computed(() => a3() + b3());
 
         let runCount = 0;
         let result;
 
         effect(() => {
             runCount++;
-            result = merge.value;
+            result = merge();
         });
 
         await flushPromises();
@@ -234,8 +234,8 @@ describe('diamond problem', () => {
     });
 
     it('multiple sources feeding into diamond', async () => {
-        const store1 = createStore({ x: 1 });
-        const store2 = createStore({ y: 2 });
+        const store1 = state({ x: 1 });
+        const store2 = state({ y: 2 });
 
         const sum = computed(() => store1.x + store2.y);
         const product = computed(() => store1.x * store2.y);
@@ -245,7 +245,7 @@ describe('diamond problem', () => {
 
         effect(() => {
             runCount++;
-            result = sum.value + product.value;
+            result = sum() + product();
         });
 
         await flushPromises();
@@ -266,15 +266,15 @@ describe('diamond problem', () => {
     });
 
     it('computed values are correct after diamond resolution', async () => {
-        const store = createStore({ a: 1 });
+        const store = state({ a: 1 });
         const b = computed(() => store.a + 10);
         const c = computed(() => store.a + 20);
 
         let effectB, effectC;
 
         effect(() => {
-            effectB = b.value;
-            effectC = c.value;
+            effectB = b();
+            effectC = c();
         });
 
         await flushPromises();

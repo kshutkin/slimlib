@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { computed, createStore, effect } from '../src/index.js';
+import { computed, effect, state } from '../src/index.js';
 
 function flushPromises() {
     return new Promise(resolve => setTimeout(resolve));
@@ -8,16 +8,16 @@ function flushPromises() {
 
 describe('computed', () => {
     it('returns computed value', () => {
-        const store = createStore({ count: 2 });
+        const store = state({ count: 2 });
 
         const doubled = computed(() => store.count * 2);
 
-        expect(doubled.value).toBe(4);
+        expect(doubled()).toBe(4);
     });
 
     it('caches value until dependencies change', async () => {
         let computeCount = 0;
-        const store = createStore({ count: 2 });
+        const store = state({ count: 2 });
 
         const doubled = computed(() => {
             computeCount++;
@@ -25,28 +25,28 @@ describe('computed', () => {
         });
 
         // First access computes
-        expect(doubled.value).toBe(4);
+        expect(doubled()).toBe(4);
         expect(computeCount).toBe(1);
 
         // Second access uses cache
-        expect(doubled.value).toBe(4);
+        expect(doubled()).toBe(4);
         expect(computeCount).toBe(1);
 
         // Change dependency
         store.count = 3;
 
         // Next access recomputes
-        expect(doubled.value).toBe(6);
+        expect(doubled()).toBe(6);
         expect(computeCount).toBe(2);
 
         // Cache again
-        expect(doubled.value).toBe(6);
+        expect(doubled()).toBe(6);
         expect(computeCount).toBe(2);
     });
 
     it('is lazy - does not compute until accessed', async () => {
         let computeCount = 0;
-        const store = createStore({ count: 0 });
+        const store = state({ count: 0 });
 
         const doubled = computed(() => {
             computeCount++;
@@ -59,48 +59,48 @@ describe('computed', () => {
 
         expect(computeCount).toBe(0); // Never accessed, never computed
 
-        doubled.value; // Now it computes
+        doubled(); // Now it computes
         expect(computeCount).toBe(1);
     });
 
     it('computed depending on computed', () => {
-        const store = createStore({ count: 1 });
+        const store = state({ count: 1 });
 
         const doubled = computed(() => store.count * 2);
-        const quadrupled = computed(() => doubled.value * 2);
+        const quadrupled = computed(() => doubled() * 2);
 
-        expect(quadrupled.value).toBe(4);
+        expect(quadrupled()).toBe(4);
 
         store.count = 2;
-        expect(quadrupled.value).toBe(8);
+        expect(quadrupled()).toBe(8);
 
         store.count = 5;
-        expect(quadrupled.value).toBe(20);
+        expect(quadrupled()).toBe(20);
     });
 
     it('chain of computed values', () => {
-        const store = createStore({ value: 1 });
+        const store = state({ value: 1 });
 
         const a = computed(() => store.value + 1);
-        const b = computed(() => a.value + 1);
-        const c = computed(() => b.value + 1);
-        const d = computed(() => c.value + 1);
+        const b = computed(() => a() + 1);
+        const c = computed(() => b() + 1);
+        const d = computed(() => c() + 1);
 
-        expect(d.value).toBe(5);
+        expect(d()).toBe(5);
 
         store.value = 10;
-        expect(d.value).toBe(14);
+        expect(d()).toBe(14);
     });
 
     it('effect can depend on computed', async () => {
         let effectRuns = 0;
-        const store = createStore({ count: 1 });
+        const store = state({ count: 1 });
 
         const doubled = computed(() => store.count * 2);
 
         effect(() => {
             effectRuns++;
-            doubled.value;
+            doubled();
         });
 
         await flushPromises();
@@ -113,15 +113,15 @@ describe('computed', () => {
 
     it('effect runs once when multiple computed values change', async () => {
         let effectRuns = 0;
-        const store = createStore({ count: 1 });
+        const store = state({ count: 1 });
 
         const doubled = computed(() => store.count * 2);
         const tripled = computed(() => store.count * 3);
 
         effect(() => {
             effectRuns++;
-            doubled.value;
-            tripled.value;
+            doubled();
+            tripled();
         });
 
         await flushPromises();
@@ -134,130 +134,122 @@ describe('computed', () => {
     });
 
     it('handles nested object access in computed', () => {
-        const store = createStore({ user: { profile: { name: 'John' } } });
+        const store = state({ user: { profile: { name: 'John' } } });
 
         const name = computed(() => store.user.profile.name.toUpperCase());
 
-        expect(name.value).toBe('JOHN');
+        expect(name()).toBe('JOHN');
 
         store.user.profile.name = 'Jane';
-        expect(name.value).toBe('JANE');
+        expect(name()).toBe('JANE');
     });
 
     it('computed with array methods', () => {
-        const store = createStore({ items: [1, 2, 3, 4, 5] });
+        const store = state({ items: [1, 2, 3, 4, 5] });
 
         const sum = computed(() => store.items.reduce((a, b) => a + b, 0));
         const filtered = computed(() => store.items.filter(x => x > 2));
 
-        expect(sum.value).toBe(15);
-        expect(filtered.value).toEqual([3, 4, 5]);
+        expect(sum()).toBe(15);
+        expect(filtered()).toEqual([3, 4, 5]);
 
         store.items.push(6);
-        expect(sum.value).toBe(21);
-        expect(filtered.value).toEqual([3, 4, 5, 6]);
+        expect(sum()).toBe(21);
+        expect(filtered()).toEqual([3, 4, 5, 6]);
     });
 
     it('handles circular dependency gracefully', () => {
-        const a = computed(() => b.value + 1);
-        const b = computed(() => a.value + 1);
+        const a = computed(() => b() + 1);
+        const b = computed(() => a() + 1);
 
         // Circular dependencies return cached value (undefined initially)
         // a accesses b, b accesses a (still undefined), b returns NaN, a returns NaN
-        expect(Number.isNaN(a.value)).toBe(true);
+        expect(Number.isNaN(a())).toBe(true);
     });
 
     it('computed only recalculates when dirty', async () => {
         let computeCount = 0;
-        const store = createStore({ count: 0 });
+        const store = state({ count: 0 });
 
         const doubled = computed(() => {
             computeCount++;
             return store.count * 2;
         });
 
-        // First access
-        doubled.value;
+        // Initial access
+        doubled();
         expect(computeCount).toBe(1);
 
-        // Access without change
-        doubled.value;
-        doubled.value;
-        doubled.value;
+        // No changes - should use cache
+        doubled();
+        doubled();
+        doubled();
         expect(computeCount).toBe(1);
 
-        // Change and access
+        // Change dependency
         store.count = 1;
-        doubled.value;
+
+        // Access - should recompute once
+        doubled();
         expect(computeCount).toBe(2);
     });
 
     it('multiple computed from same source', () => {
-        const store = createStore({ value: 10 });
+        const store = state({ value: 1 });
 
         const plus1 = computed(() => store.value + 1);
         const plus2 = computed(() => store.value + 2);
         const times2 = computed(() => store.value * 2);
 
-        expect(plus1.value).toBe(11);
-        expect(plus2.value).toBe(12);
-        expect(times2.value).toBe(20);
+        expect(plus1()).toBe(2);
+        expect(plus2()).toBe(3);
+        expect(times2()).toBe(2);
 
-        store.value = 100;
+        store.value = 10;
 
-        expect(plus1.value).toBe(101);
-        expect(plus2.value).toBe(102);
-        expect(times2.value).toBe(200);
+        expect(plus1()).toBe(11);
+        expect(plus2()).toBe(12);
+        expect(times2()).toBe(20);
     });
 
     it('computed with conditional dependencies', async () => {
         let computeCount = 0;
-        const store = createStore({ flag: true, a: 1, b: 2 });
+        const store = state({ flag: true, a: 1, b: 2 });
 
         const result = computed(() => {
             computeCount++;
             return store.flag ? store.a : store.b;
         });
 
-        expect(result.value).toBe(1);
+        expect(result()).toBe(1);
         expect(computeCount).toBe(1);
 
         // Change b - should not cause recompute since flag is true
         store.b = 20;
-        expect(result.value).toBe(1);
+        expect(result()).toBe(1);
         // Note: computed will recompute because we use a simple dirty flag
         // A more sophisticated implementation would track dependencies per-run
         // For this implementation, changing any tracked property marks dirty
 
         // Change flag
         store.flag = false;
-        expect(result.value).toBe(20);
+        expect(result()).toBe(20);
 
         // Change a - should not cause recompute since flag is now false
         store.a = 100;
-        expect(result.value).toBe(20);
-    });
-
-    it('computed value is readonly', () => {
-        const store = createStore({ count: 1 });
-        const doubled = computed(() => store.count * 2);
-
-        expect(() => {
-            // @ts-expect-error - intentionally testing readonly
-            doubled.value = 10;
-        }).toThrow();
+        expect(result()).toBe(20);
     });
 
     it('effect with computed chain reruns once per source change', async () => {
         let effectRuns = 0;
-        const store = createStore({ a: 1 });
+        const store = state({ a: 1 });
 
         const b = computed(() => store.a + 1);
-        const c = computed(() => b.value + 1);
+        const c = computed(() => b() + 1);
 
         effect(() => {
             effectRuns++;
-            c.value;
+            c();
         });
 
         await flushPromises();
@@ -273,36 +265,36 @@ describe('computed', () => {
     });
 
     it('computed handles undefined values', () => {
-        const store = createStore({ value: undefined });
+        const store = state({ value: /** @type {number | undefined} */ (undefined) });
 
         const doubled = computed(() => {
             const v = store.value;
-            return v === undefined ? 'undefined' : v * 2;
+            return v === undefined ? 'empty' : v * 2;
         });
 
-        expect(doubled.value).toBe('undefined');
+        expect(doubled()).toBe('empty');
 
         store.value = 5;
-        expect(doubled.value).toBe(10);
+        expect(doubled()).toBe(10);
 
         store.value = undefined;
-        expect(doubled.value).toBe('undefined');
+        expect(doubled()).toBe('empty');
     });
 
     it('computed handles null values', () => {
-        const store = createStore({ value: null });
+        const store = state({ value: /** @type {number | null} */ (null) });
 
         const isNull = computed(() => store.value === null);
 
-        expect(isNull.value).toBe(true);
+        expect(isNull()).toBe(true);
 
-        store.value = 'something';
-        expect(isNull.value).toBe(false);
+        store.value = 42;
+        expect(isNull()).toBe(false);
     });
 
     it('computed restores dirty flag on error and can retry', () => {
         let shouldThrow = true;
-        const store = createStore({ value: 1 });
+        const store = state({ value: 1 });
 
         const comp = computed(() => {
             if (shouldThrow) {
@@ -312,22 +304,22 @@ describe('computed', () => {
         });
 
         // First access should throw
-        expect(() => comp.value).toThrow('Computation failed');
+        expect(() => comp()).toThrow('Computation failed');
 
         // After error, we can fix the issue and retry
         shouldThrow = false;
 
         // Now it should work
-        expect(comp.value).toBe(2);
+        expect(comp()).toBe(2);
 
         // And caching should work normally
         store.value = 5;
-        expect(comp.value).toBe(10);
+        expect(comp()).toBe(10);
     });
 
     it('computed error does not corrupt state for subsequent access', () => {
         let throwCount = 0;
-        const store = createStore({ value: 1 });
+        const store = state({ value: 1 });
 
         const comp = computed(() => {
             throwCount++;
@@ -338,26 +330,26 @@ describe('computed', () => {
         });
 
         // First two accesses should throw
-        expect(() => comp.value).toThrow('Error #1');
-        expect(() => comp.value).toThrow('Error #2');
+        expect(() => comp()).toThrow('Error #1');
+        expect(() => comp()).toThrow('Error #2');
 
         // Third access should succeed
-        expect(comp.value).toBe(2);
+        expect(comp()).toBe(2);
 
         // After success, it should be cached
-        expect(comp.value).toBe(2);
+        expect(comp()).toBe(2);
         expect(throwCount).toBe(3);
     });
 
     it('effect depending on computed clears sources properly on dispose', async () => {
-        const store = createStore({ value: 1 });
+        const store = state({ value: 1 });
         let effectRuns = 0;
 
         const doubled = computed(() => store.value * 2);
 
         const dispose = effect(() => {
             effectRuns++;
-            doubled.value;
+            doubled();
         });
 
         await flushPromises();
@@ -372,36 +364,36 @@ describe('computed', () => {
         expect(effectRuns).toBe(1);
 
         // Computed should still work independently
-        expect(doubled.value).toBe(10);
+        expect(doubled()).toBe(10);
     });
 
     it('computed depending on computed clears sources when dependency changes', () => {
-        const store = createStore({ value: 1 });
+        const store = state({ value: 1 });
 
         const first = computed(() => store.value * 2);
-        const second = computed(() => first.value + 10);
+        const second = computed(() => first() + 10);
 
         // Access to set up dependencies
-        expect(second.value).toBe(12);
+        expect(second()).toBe(12);
 
         // Change store
         store.value = 5;
 
         // Both should update
-        expect(first.value).toBe(10);
-        expect(second.value).toBe(20);
+        expect(first()).toBe(10);
+        expect(second()).toBe(20);
     });
 
     it('effect on computed chain properly clears computed dependencies on dispose', async () => {
-        const store = createStore({ value: 1 });
+        const store = state({ value: 1 });
         let effectRuns = 0;
 
         const a = computed(() => store.value + 1);
-        const b = computed(() => a.value + 1);
+        const b = computed(() => a() + 1);
 
         const dispose = effect(() => {
             effectRuns++;
-            b.value;
+            b();
         });
 
         await flushPromises();
@@ -416,7 +408,7 @@ describe('computed', () => {
     });
 
     it('disposed effect is not run when flush happens', async () => {
-        const store = createStore({ value: 1 });
+        const store = state({ value: 1 });
         let effectRuns = 0;
 
         const dispose = effect(() => {
@@ -439,7 +431,7 @@ describe('computed', () => {
     });
 
     it('effect marked dirty multiple times only runs once', async () => {
-        const store = createStore({ a: 1, b: 2 });
+        const store = state({ a: 1, b: 2 });
         let runs = 0;
 
         effect(() => {
@@ -461,7 +453,7 @@ describe('computed', () => {
     });
 
     it('computed accessed from multiple effects handles dependency cleanup', async () => {
-        const store = createStore({ value: 1 });
+        const store = state({ value: 1 });
         let effect1Runs = 0;
         let effect2Runs = 0;
 
@@ -469,12 +461,12 @@ describe('computed', () => {
 
         const dispose1 = effect(() => {
             effect1Runs++;
-            doubled.value;
+            doubled();
         });
 
         effect(() => {
             effect2Runs++;
-            doubled.value;
+            doubled();
         });
 
         await flushPromises();
@@ -491,7 +483,7 @@ describe('computed', () => {
         expect(effect2Runs).toBe(2);
     });
     it('effect clears computed from sources when re-running (exercises clearSources computed branch)', async () => {
-        const store = createStore({ value: 1 });
+        const store = state({ value: 1 });
         let effectRuns = 0;
 
         const doubled = computed(() => store.value * 2);
@@ -500,12 +492,12 @@ describe('computed', () => {
         const dispose = effect(() => {
             effectRuns++;
             // Access computed - this adds { computed: doubled } to effect's sources
-            return doubled.value;
+            return doubled();
         });
 
         await flushPromises();
         expect(effectRuns).toBe(1);
-        expect(doubled.value).toBe(2);
+        expect(doubled()).toBe(2);
 
         // Change store - triggers effect to re-run
         // When effect re-runs, clearSources is called which should hit
@@ -513,14 +505,14 @@ describe('computed', () => {
         store.value = 5;
         await flushPromises();
         expect(effectRuns).toBe(2);
-        expect(doubled.value).toBe(10);
+        expect(doubled()).toBe(10);
 
         // Dispose to also test cleanup of computed sources
         dispose();
     });
 
     it('disposing effect with computed dependency clears computed sources', async () => {
-        const store = createStore({ value: 1 });
+        const store = state({ value: 1 });
         let computeRuns = 0;
 
         const doubled = computed(() => {
@@ -529,7 +521,7 @@ describe('computed', () => {
         });
 
         const dispose = effect(() => {
-            doubled.value;
+            doubled();
         });
 
         await flushPromises();
@@ -541,12 +533,12 @@ describe('computed', () => {
 
         // Change store - computed should still work but effect shouldn't run
         store.value = 10;
-        expect(doubled.value).toBe(20);
+        expect(doubled()).toBe(20);
         expect(computeRuns).toBe(2);
     });
 
     it('effect already not dirty when flush runs (node[dirty] is false)', async () => {
-        const store = createStore({ value: 0 });
+        const store = state({ value: 0 });
         let effectRuns = 0;
 
         const dispose = effect(() => {
@@ -570,36 +562,34 @@ describe('computed', () => {
     });
 
     it('computed chain with effect exercises computed source clearing', async () => {
-        const store = createStore({ x: 1 });
+        const store = state({ x: 1 });
         let effectRuns = 0;
 
         // Chain of computed values
+        // Effect depends on last one, which depends on others
         const a = computed(() => store.x + 1);
-        const b = computed(() => a.value + 1);
-        const c = computed(() => b.value + 1);
+        const b = computed(() => a() + 1);
+        const c = computed(() => b() + 1);
 
-        // Effect depends on end of chain
         effect(() => {
             effectRuns++;
-            c.value;
+            c();
         });
 
         await flushPromises();
         expect(effectRuns).toBe(1);
-        expect(c.value).toBe(4); // 1 + 1 + 1 + 1
+        expect(c()).toBe(4); // 1 + 1 + 1 + 1
 
-        // Change triggers chain update
-        // Each computed re-evaluates and clears/re-establishes sources
         store.x = 10;
         await flushPromises();
         expect(effectRuns).toBe(2);
-        expect(c.value).toBe(13); // 10 + 1 + 1 + 1
+        expect(c()).toBe(13); // 10 + 1 + 1 + 1
     });
 
     it('computed with fewer dependencies on subsequent run triggers cleanup', () => {
         // This test specifically covers line 384: cleanup when sources.length > skippedDeps
         // This happens when a computed accesses fewer properties on a subsequent recomputation
-        const store = createStore({ useAll: true, a: 1, b: 2, c: 3 });
+        const store = state({ useAll: true, a: 1, b: 2, c: 3 });
 
         const conditional = computed(() => {
             if (store.useAll) {
@@ -612,7 +602,7 @@ describe('computed', () => {
         });
 
         // First computation: accesses a, b, c (sources.length = 3)
-        expect(conditional.value).toBe(6);
+        expect(conditional()).toBe(6);
 
         // Switch to accessing fewer dependencies
         store.useAll = false;
@@ -620,13 +610,13 @@ describe('computed', () => {
         // Second computation: accesses only a (skippedDeps = 1)
         // This should trigger cleanup at line 384: sources.length (3) > skippedDeps (1)
         // The excess sources (b and c) should be cleaned up
-        expect(conditional.value).toBe(1);
+        expect(conditional()).toBe(1);
 
         // Verify cleanup worked: changing b or c should not cause recomputation
-        const oldValue = conditional.value;
+        const oldValue = conditional();
         store.b = 100;
         store.c = 200;
         // Since b and c are no longer dependencies, computed should still return cached value
-        expect(conditional.value).toBe(oldValue);
+        expect(conditional()).toBe(oldValue);
     });
 });
