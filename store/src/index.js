@@ -184,28 +184,31 @@ const scheduleFlush = () => {
  * @param {ComputedNode<any>} [sourceNode] - The computed node being accessed (if any)
  */
 const trackDependency = (deps, sourceNode) => {
-    if (!tracked || !currentComputing) return;
+    // Caller should check tracked && currentComputing for hot paths
+    // but we still need to check here for safety
+    const node = currentComputing;
+    if (!tracked || !node) return;
 
-    const sourcesArray = currentComputing[sources];
-    const skipIndex = currentComputing[skippedDeps];
+    const sourcesArray = node[sources];
+    const skipIndex = node[skippedDeps];
 
     if (sourcesArray[skipIndex]?.deps !== deps) {
         // Different dependency - clear old ones from this point and rebuild
         if (skipIndex < sourcesArray.length) {
-            clearSources(currentComputing, skipIndex);
+            clearSources(node, skipIndex);
         }
         // Use cached WeakRef from the node (create lazily on first use)
-        let weakRef = currentComputing[weakRefSymbol];
+        let weakRef = node[weakRefSymbol];
         if (!weakRef) {
-            weakRef = new WeakRef(currentComputing);
-            currentComputing[weakRefSymbol] = weakRef;
+            weakRef = new WeakRef(node);
+            node[weakRefSymbol] = weakRef;
         }
         sourcesArray.push({ deps, node: sourceNode });
         deps.add(weakRef);
     }
     // If reusing existing entry, weakRef is already in deps
 
-    ++currentComputing[skippedDeps];
+    ++node[skippedDeps];
 };
 
 /**
@@ -322,19 +325,24 @@ export const state = (object = /** @type {any} */ ({})) => {
             return /** @type {T} */ (proxiesCache.get(object));
         }
 
+        // Cache for wrapped methods to avoid creating new functions on every access
+        /** @type {Map<string | symbol, Function>} */
+        const methodCache = new Map();
+
         const proxy = new Proxy(object, {
-            set(target, p, newValue, receiver) {
+            set(target, p, newValue) {
                 const realValue = unwrapValue(newValue);
-                if (!Object.is(Reflect.get(target, p, receiver), realValue)) {
-                    Reflect.set(target, p, realValue, receiver);
+                // Use direct property access instead of Reflect for performance
+                if (!Object.is(target[p], realValue)) {
+                    target[p] = realValue;
                     notifyPropertyDependents(target, p);
                 }
                 return true;
             },
             get(target, p) {
                 if (p === unwrap) return target;
-                const propValue = Reflect.get(target, p);
-                const valueType = typeof propValue;
+                // Use direct property access instead of Reflect for performance
+                const propValue = target[p];
 
                 // Track dependency if we're inside an effect/computed
                 if (tracked && currentComputing) {
@@ -356,22 +364,36 @@ export const state = (object = /** @type {any} */ ({})) => {
                     trackDependency(deps);
                 }
 
+                // Fast path for primitives (most common case)
+                if (propValue === null || (typeof propValue !== 'object' && typeof propValue !== 'function')) {
+                    return propValue;
+                }
+
                 // Functions are wrapped to apply with correct `this` (target, not proxy)
                 // After function call, notify dependents (function may have mutated internal state)
-                return valueType === 'function'
-                    ? /** @param {...any} args */ (...args) => {
-                          const result = /** @type {Function} */ (propValue).apply(target, args.map(unwrapValue));
-                          // Notify after function call (function may have mutated state)
-                          // Only notify if we're NOT currently inside an effect/computed execution
-                          // to avoid infinite loops when reading during effect
-                          if (!currentComputing) {
-                              notifyPropertyDependents(target);
-                          }
-                          return result;
-                      }
-                    : propValue !== null && valueType === 'object'
-                      ? createProxy(/** @type {any} */ (propValue))
-                      : propValue;
+                if (typeof propValue === 'function') {
+                    // Check cache first to avoid creating new function on every access
+                    let cached = methodCache.get(p);
+                    if (!cached) {
+                        cached = /** @param {...any} args */ (...args) => {
+                            // Re-read the method in case it changed
+                            const method = /** @type {Function} */ (target[p]);
+                            const result = method.apply(target, args.map(unwrapValue));
+                            // Notify after function call (function may have mutated state)
+                            // Only notify if we're NOT currently inside an effect/computed execution
+                            // to avoid infinite loops when reading during effect
+                            if (!currentComputing) {
+                                notifyPropertyDependents(target);
+                            }
+                            return result;
+                        };
+                        methodCache.set(p, cached);
+                    }
+                    return cached;
+                }
+
+                // Object - create nested proxy
+                return createProxy(/** @type {any} */ (propValue));
             },
             defineProperty(target, property, attributes) {
                 const result = Reflect.defineProperty(target, property, attributes);
@@ -384,6 +406,8 @@ export const state = (object = /** @type {any} */ ({})) => {
                 const result = Reflect.deleteProperty(target, p);
                 if (result) {
                     notifyPropertyDependents(target, p);
+                    // Clear method cache entry if it was a method
+                    methodCache.delete(p);
                 }
                 return result;
             },
@@ -448,7 +472,9 @@ export const effect = callback => {
  */
 function computedRead() {
     // Track if someone is reading us
-    trackDependency(this[dependencies], this);
+    if (tracked && currentComputing) {
+        trackDependency(this[dependencies], this);
+    }
 
     let flags = this[flagsSymbol];
 
@@ -463,27 +489,31 @@ function computedRead() {
     // Effects should always run when marked, and state deps have no node to check
     if ((flags & (FLAG_CHECK_ONLY | FLAG_HAS_VALUE)) === (FLAG_CHECK | FLAG_HAS_VALUE)) {
         const sourcesArray = this[sources];
-        // Check if we have any computed sources to verify
-        let hasComputedSources = false;
-        let hasStateSources = false;
-        for (const source of sourcesArray) {
-            if (source.node) {
-                hasComputedSources = true;
-            } else {
-                hasStateSources = true;
+        const len = sourcesArray.length;
+
+        // Fast path: check if all sources have nodes (are computed, not state)
+        // Do this inline to avoid separate loop
+        let allComputed = len > 0;
+        for (let i = 0; i < len && allComputed; i++) {
+            if (!sourcesArray[i].node) {
+                allComputed = false;
             }
         }
 
         // Only do source checking if we ONLY have computed sources
         // If we have state sources, we can't verify them - must recompute
-        if (hasComputedSources && !hasStateSources) {
-            untracked(() => {
-                for (const source of sourcesArray) {
+        if (allComputed) {
+            // Inline untracked to avoid function call overhead
+            const prevTracked = tracked;
+            tracked = false;
+            try {
+                for (let i = 0; i < len; i++) {
                     // Access source to trigger its recomputation if needed
-                    // We know all sources have nodes (hasComputedSources && !hasStateSources)
-                    source.node();
+                    sourcesArray[i].node();
                 }
-            });
+            } finally {
+                tracked = prevTracked;
+            }
             // If we're still CHECK after checking all sources, no source changed value
             // We can safely mark as clean and skip recomputation
             flags = this[flagsSymbol];
@@ -587,15 +617,19 @@ export const computed = (getter, equals = Object.is) => {
  */
 export const signal = initialValue => {
     let value = /** @type {T} */ (initialValue);
-    /** @type {Set<WeakRef<ComputedNode<any>>>} */
-    const deps = new Set();
+    /** @type {Set<WeakRef<ComputedNode<any>>> | null} */
+    let deps = null;
 
     /**
      * Read the signal value and track dependency
      * @returns {T}
      */
     const read = () => {
-        trackDependency(deps);
+        // Fast path: if not tracked or no current computing, skip tracking
+        if (tracked && currentComputing) {
+            if (!deps) deps = new Set();
+            trackDependency(deps);
+        }
         return value;
     };
 
@@ -604,9 +638,9 @@ export const signal = initialValue => {
      * @param {T} newValue
      */
     read.set = newValue => {
-        if (value !== newValue) {
+        if (!Object.is(value, newValue)) {
             value = newValue;
-            markDependents(deps);
+            if (deps) markDependents(deps);
         }
     };
 

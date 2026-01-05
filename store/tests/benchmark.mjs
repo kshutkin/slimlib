@@ -18,6 +18,7 @@ import {
     effect as slimlibEffect,
     flush as slimlibFlush,
     signal as slimlibSignal,
+    state as slimlibState,
 } from '../src/index.js';
 
 // Use no-op scheduler since we call flush() manually in withBatch/withBuild
@@ -28,6 +29,34 @@ const slimlibFramework = {
     signal: initial => {
         const s = slimlibSignal(initial);
         return { read: () => s(), write: v => s.set(v) };
+    },
+    computed: fn => {
+        const c = slimlibComputed(fn);
+        return { read: () => c() };
+    },
+    effect: fn => slimlibEffect(fn),
+    withBatch: fn => {
+        fn();
+        slimlibFlush();
+    },
+    withBuild: fn => {
+        const r = fn();
+        slimlibFlush();
+        return r;
+    },
+    cleanup: () => {},
+};
+
+const slimlibFrameworkProxy = {
+    name: '@slimlib/store (proxy value)',
+    signal: initial => {
+        const s = slimlibState({ value: initial });
+        return {
+            read: () => s.value,
+            write: v => {
+                s.value = v;
+            },
+        };
     },
     computed: fn => {
         const c = slimlibComputed(fn);
@@ -166,7 +195,7 @@ const solidFramework = {
 // All Frameworks
 // ============================================================================
 
-const frameworks = [slimlibFramework, preactFramework, alienFramework, reactivelyFramework, solidFramework];
+const frameworks = [slimlibFramework, slimlibFrameworkProxy, preactFramework, alienFramework, reactivelyFramework, solidFramework];
 
 // ============================================================================
 // Helpers
