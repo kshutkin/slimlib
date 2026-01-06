@@ -26,16 +26,14 @@ const [
  * Current configuration
  * @type {boolean}
  */
-let warnOnWriteInComputed = false;
+let warnOnWriteInComputed = true;
 
 /**
  * Configure the store behavior
  * @param {StoreConfig} options - Configuration options
  */
 export const configure = options => {
-    if (options.warnOnWriteInComputed !== undefined) {
-        warnOnWriteInComputed = options.warnOnWriteInComputed;
-    }
+    warnOnWriteInComputed = !!options.warnOnWriteInComputed;
 };
 
 /**
