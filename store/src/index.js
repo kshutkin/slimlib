@@ -11,7 +11,7 @@ const [
     valueSymbol,
     propertyDepsSymbol,
 ] = /** @type {[symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol]}*/ (
-    /** @type {unknown}*/ (Array.from({ length: 11 }, () => Symbol()))
+    Array.from({ length: 11 }, () => Symbol())
 );
 
 // Bit flags for node state

@@ -11,6 +11,21 @@
 // Framework Adapters
 // ============================================================================
 
+// @angular/core
+import {
+    computed as angularComputed,
+    effect as angularEffect,
+    signal as angularSignal,
+    Injector,
+    untracked,
+    ɵChangeDetectionScheduler,
+    ɵEffectScheduler,
+} from '@angular/core';
+// @vue/reactivity
+import { shallowRef, computed as vueComputed, effect as vueEffect, effectScope as vueEffectScope } from '@vue/reactivity';
+// svelte/internal/client
+import * as svelteInternal from 'svelte/internal/client';
+
 // @slimlib/store
 import {
     setScheduler,
@@ -106,7 +121,14 @@ const preactFramework = {
 };
 
 // alien-signals
-import { computed as alienComputed, effect as alienEffect, signal as alienSignal, effectScope, endBatch, startBatch } from 'alien-signals';
+import {
+    computed as alienComputed,
+    effect as alienEffect,
+    effectScope as alienEffectScope,
+    signal as alienSignal,
+    endBatch,
+    startBatch,
+} from 'alien-signals';
 
 let alienScope = null;
 const alienFramework = {
@@ -127,7 +149,7 @@ const alienFramework = {
     },
     withBuild: fn => {
         let out;
-        alienScope = effectScope(() => {
+        alienScope = alienEffectScope(() => {
             out = fn();
         });
         return out;
@@ -191,11 +213,171 @@ const solidFramework = {
     },
 };
 
+// Vue reactivity
+const vueScheduled = [];
+let vueScope = null;
+const vueFramework = {
+    name: '@vue/reactivity',
+    signal: initial => {
+        const data = shallowRef(initial);
+        return {
+            read: () => data.value,
+            write: v => {
+                data.value = v;
+            },
+        };
+    },
+    computed: fn => {
+        const c = vueComputed(fn);
+        return { read: () => c.value };
+    },
+    effect: fn => {
+        const t = vueEffect(fn, {
+            scheduler: () => {
+                vueScheduled.push(t.effect);
+            },
+        });
+    },
+    withBatch: fn => {
+        fn();
+        while (vueScheduled.length) {
+            vueScheduled.pop().run();
+        }
+    },
+    withBuild: fn => {
+        vueScope = vueEffectScope();
+        return vueScope.run(fn);
+    },
+    cleanup: () => {
+        if (vueScope) {
+            vueScope.stop();
+            vueScope = null;
+        }
+    },
+};
+
+// Angular Signals
+class ArrayEffectScheduler {
+    queue = new Set();
+
+    schedule(handle) {
+        this.queue.add(handle);
+    }
+
+    add(e) {
+        this.queue.add(e);
+    }
+
+    remove(handle) {
+        if (!this.queue.has(handle)) {
+            return;
+        }
+        this.queue.delete(handle);
+    }
+
+    flush() {
+        for (const handle of this.queue) {
+            handle.run();
+        }
+        this.queue.clear();
+    }
+}
+
+const angularScheduler = new ArrayEffectScheduler();
+
+const createAngularInjector = () => ({
+    injector: Injector.create({
+        providers: [
+            { provide: ɵChangeDetectionScheduler, useValue: { notify() {} } },
+            { provide: ɵEffectScheduler, useValue: angularScheduler },
+        ],
+    }),
+});
+
+let angularInjectorObj = createAngularInjector();
+
+const angularFramework = {
+    name: '@angular/core',
+    signal: initial => {
+        const s = angularSignal(initial);
+        return {
+            read: () => s(),
+            write: v => s.set(v),
+        };
+    },
+    computed: fn => {
+        const c = angularComputed(fn);
+        return { read: () => c() };
+    },
+    effect: fn => {
+        angularEffect(fn, angularInjectorObj);
+    },
+    withBatch: fn => {
+        fn();
+        angularScheduler.flush();
+    },
+    withBuild: fn => {
+        let res;
+        angularEffect(() => {
+            res = untracked(fn);
+        }, angularInjectorObj);
+        angularScheduler.flush();
+        return res;
+    },
+    cleanup: () => {
+        angularInjectorObj.injector.destroy();
+        angularInjectorObj = createAngularInjector();
+    },
+};
+
+// Svelte v5
+// NOTE: Uses private, internal APIs from svelte/internal/client
+let svelteCleanup = () => {};
+const svelteFramework = {
+    name: 'svelte v5',
+    signal: initial => {
+        const s = svelteInternal.state(initial);
+        return {
+            read: () => svelteInternal.get(s),
+            write: v => svelteInternal.set(s, v),
+        };
+    },
+    computed: fn => {
+        const c = svelteInternal.derived(fn);
+        return { read: () => svelteInternal.get(c) };
+    },
+    effect: fn => {
+        svelteInternal.render_effect(fn);
+    },
+    withBatch: fn => svelteInternal.flush(fn),
+    withBuild: fn => {
+        let res;
+        svelteCleanup = svelteInternal.effect_root(() => {
+            res = fn();
+        });
+        return res;
+    },
+    cleanup: () => {
+        svelteCleanup();
+        svelteCleanup = () => {};
+    },
+};
+
 // ============================================================================
 // All Frameworks
 // ============================================================================
 
-const frameworks = [slimlibFramework, slimlibFrameworkProxy, preactFramework, alienFramework, reactivelyFramework, solidFramework];
+const frameworks = [
+    slimlibFramework,
+    slimlibFrameworkProxy,
+    preactFramework,
+    alienFramework,
+    reactivelyFramework,
+    solidFramework,
+    vueFramework,
+    angularFramework,
+    svelteFramework,
+];
 
 // ============================================================================
 // Helpers
