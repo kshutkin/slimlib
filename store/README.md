@@ -318,6 +318,49 @@ Key behaviors (per TC39 Signals proposal):
 
 This behavior differs from some other reactive libraries that retry on every read. The caching approach is more efficient and matches the semantics of successful value caching.
 
+### Cycle Detection
+
+This library follows the [TC39 Signals proposal](https://github.com/tc39/proposal-signals) for cycle detection:
+
+> It is an error to read a computed recursively.
+
+When a computed signal attempts to read itself (directly or indirectly through other computeds), an error is thrown immediately:
+
+```js
+// Direct self-reference
+const self = computed(() => self() + 1);
+self(); // throws: "Detected cycle in computations."
+
+// Indirect cycle through multiple computeds
+const a = computed(() => b() + 1);
+const b = computed(() => a() + 1);
+a(); // throws: "Detected cycle in computations."
+```
+
+Key behaviors:
+
+- Cycles are detected at runtime when the cycle is actually traversed
+- The error is thrown immediately, not cached like regular computed errors
+- Computeds can recover if their dependencies change to break the cycle:
+
+```js
+const store = state({ useCycle: true, value: 10 });
+
+const a = computed(() => {
+  if (store.useCycle) {
+    return b() + 1; // Creates cycle when useCycle is true
+  }
+  return store.value;
+});
+const b = computed(() => a() + 1);
+
+a(); // throws: "Detected cycle in computations."
+
+store.useCycle = false; // Break the cycle
+a(); // 10 - works now!
+b(); // 11
+```
+
 ### Diamond Problem Solved
 
 Effects run only once even when multiple dependencies change:

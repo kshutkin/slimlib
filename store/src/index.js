@@ -435,6 +435,12 @@ function computedRead() {
 
     let flags = this[flagsSymbol];
 
+    // Cycle detection: if this computed is already being computed, we have a cycle
+    // This matches TC39 Signals proposal behavior: throw an error on cyclic reads
+    if (flags & FLAG_COMPUTING) {
+        throw new Error('Detected cycle in computations.');
+    }
+
     // Fast-path: if node is clean, has a cached result, and nothing has changed globally since last read
     if (!(flags & FLAG_NEEDS_WORK) && flags & (FLAG_HAS_VALUE | FLAG_HAS_ERROR) && this[lastGlobalVersionSymbol] === globalVersion) {
         // If we have a cached error, rethrow it (stored in valueSymbol)
@@ -485,8 +491,10 @@ function computedRead() {
     }
 
     // Recompute if dirty or check (sources actually changed)
+    // Note: FLAG_COMPUTING check is now redundant here since we throw above,
+    // but kept for safety in case of future refactoring
     flags = this[flagsSymbol];
-    if (flags & FLAG_NEEDS_WORK && !(flags & FLAG_COMPUTING)) {
+    if (flags & FLAG_NEEDS_WORK) {
         const wasDirty = (flags & FLAG_DIRTY) !== 0;
         this[flagsSymbol] = (flags & ~FLAG_NEEDS_WORK) | FLAG_COMPUTING;
 

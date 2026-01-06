@@ -166,15 +166,70 @@ describe('computed', () => {
         expect(filtered()).toEqual([3, 4, 5, 6]);
     });
 
-    it('handles circular dependency gracefully', () => {
+    it('throws error on circular dependency (TC39 Signals proposal)', () => {
         /** @type {() => number} */
         const a = computed(() => b() + 1);
         /** @type {() => number} */
         const b = computed(() => a() + 1);
 
-        // Circular dependencies return cached value (undefined initially)
-        // a accesses b, b accesses a (still undefined), b returns NaN, a returns NaN
-        expect(Number.isNaN(a())).toBe(true);
+        // Circular dependencies throw an error per TC39 Signals proposal
+        expect(() => a()).toThrow('Detected cycle in computations.');
+    });
+
+    it('throws error on self-referencing computed', () => {
+        /** @type {() => number} */
+        const self = computed(() => self() + 1);
+
+        expect(() => self()).toThrow('Detected cycle in computations.');
+    });
+
+    it('throws error on indirect cycle through multiple computeds', () => {
+        /** @type {() => number} */
+        const a = computed(() => c() + 1);
+        /** @type {() => number} */
+        const b = computed(() => a() + 1);
+        /** @type {() => number} */
+        const c = computed(() => b() + 1);
+
+        expect(() => a()).toThrow('Detected cycle in computations.');
+        expect(() => b()).toThrow('Detected cycle in computations.');
+        expect(() => c()).toThrow('Detected cycle in computations.');
+    });
+
+    it('cycle error is not cached - throws fresh each time', () => {
+        /** @type {() => number} */
+        const a = computed(() => b() + 1);
+        /** @type {() => number} */
+        const b = computed(() => a() + 1);
+
+        // First call throws
+        expect(() => a()).toThrow('Detected cycle in computations.');
+        // Second call also throws (not cached like regular errors)
+        expect(() => a()).toThrow('Detected cycle in computations.');
+    });
+
+    it('computed recovers after cycle is broken by changing dependencies', () => {
+        const store = state({ useCycle: true, value: 10 });
+
+        /** @type {() => number} */
+        const a = computed(() => {
+            if (store.useCycle) {
+                return b() + 1;
+            }
+            return store.value;
+        });
+        /** @type {() => number} */
+        const b = computed(() => a() + 1);
+
+        // With cycle enabled, throws
+        expect(() => a()).toThrow('Detected cycle in computations.');
+
+        // Break the cycle
+        store.useCycle = false;
+
+        // Now it works
+        expect(a()).toBe(10);
+        expect(b()).toBe(11);
     });
 
     it('computed only recalculates when dirty', async () => {
