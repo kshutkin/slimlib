@@ -415,6 +415,65 @@ const dispose = effect(() => console.log(store.count));
 store.count = 1;
 ```
 
+## TC39 Signals Proposal Compatibility
+
+This library is designed with the [TC39 Signals proposal](https://github.com/tc39/proposal-signals) in mind. Here's how it aligns with the proposal and where it differs:
+
+### What's Implemented
+
+| Feature | Status | Notes |
+|---------|--------|-------|
+| Lazy computed evaluation | ✅ | Computeds only evaluate when read |
+| Glitch-free execution | ✅ | No intermediate states exposed |
+| Error caching | ✅ | Errors cached and rethrown until dependency changes |
+| Cycle detection | ✅ | Throws `"Detected cycle in computations."` |
+| Custom equality | ✅ | Via second argument to `computed()` |
+| Untrack | ✅ | `untracked()` function |
+| Automatic GC | ✅ | WeakRef-based, no manual disposal for computeds |
+
+### Additional Features (Not in TC39)
+
+| Feature | Notes |
+|---------|-------|
+| `effect()` | TC39 leaves effects to frameworks; we provide a built-in implementation |
+| `state()` | Proxy-based reactive stores for deep reactivity |
+| `setScheduler()` | Custom effect scheduling |
+| `flushEffects()` | Synchronous effect execution |
+
+### What's Not Implemented
+
+| Feature | Reason |
+|---------|--------|
+| `Signal.subtle.Watcher` | Effects are built-in; no need to expose low-level Watcher API |
+| `watched`/`unwatched` callbacks | Not needed for current use cases |
+| Introspection APIs | `introspectSources`, `introspectSinks`, etc. not exposed |
+| Frozen state | See below |
+
+### Frozen State Considerations
+
+The TC39 Signals proposal includes a "frozen" state that prevents reading or writing signals during certain phases:
+
+1. **During Watcher `notify` callbacks** - when a state change triggers notification
+2. **During `watched`/`unwatched` callbacks** - when a signal becomes observed or stops being observed
+
+This frozen state prevents several classes of bugs:
+
+- **Glitches**: Reading signals during notification could expose inconsistent intermediate states
+- **Infinite loops**: Writing signals during notification could trigger cascading notifications
+- **Graph corruption**: Modifying the graph while it's being traversed
+
+**This library's approach**: A frozen state is **not** implemented because:
+
+1. **Effects are batched**: Effects run on microtask (not synchronously during `set()`), so the graph is always fully marked before any effect reads signals
+2. **No exposed Watcher**: Without a low-level Watcher API, there's no way to write `notify` callbacks that could misuse synchronous access
+3. **Simpler mental model**: The batched approach naturally prevents most issues that frozen state addresses
+
+If you're building a framework on top of this library and need Watcher-like functionality with frozen state guarantees, consider:
+
+- Using `untracked()` carefully when reading signals in notification-like contexts
+- Scheduling work via `queueMicrotask` or `setScheduler` rather than executing immediately
+- Being aware that writing to signals during computed evaluation is allowed but can lead to unexpected behavior
+
 ## Limitations
 
 - Mixing proxied values and values from an underlying object can fail for equality checks
