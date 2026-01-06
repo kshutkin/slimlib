@@ -16,6 +16,7 @@ async function flushAll() {
 }
 
 describe('effect', () => {
+    /** @type {ReturnType<typeof scope>} */
     let testScope;
 
     beforeEach(() => {

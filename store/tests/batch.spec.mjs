@@ -15,6 +15,7 @@ async function flushAll() {
 }
 
 describe('automatic batching', () => {
+    /** @type {ReturnType<typeof scope>} */
     let testScope;
 
     beforeEach(() => {

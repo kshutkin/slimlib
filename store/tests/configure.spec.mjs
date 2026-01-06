@@ -5,6 +5,7 @@ import { computed, configure, effect, scope, setActiveScope, signal, state } fro
 describe('configure', () => {
     /** @type {import('vitest').MockInstance<(message?: any, ...optionalParams: any[]) => void>} */
     let consoleWarnSpy;
+    /** @type {ReturnType<typeof scope>} */
     let testScope;
 
     beforeEach(() => {

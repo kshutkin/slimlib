@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { computed, effect, flushEffects, scope, setActiveScope, setScheduler, state } from '../src/index.js';
 
+/** @type {ReturnType<typeof scope>} */
 let testScope;
 
 // Ensure scheduler is reset before/after each test to avoid cross-test pollution

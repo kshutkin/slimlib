@@ -15,6 +15,7 @@ async function flushAll() {
 }
 
 describe('untracked', () => {
+    /** @type {ReturnType<typeof scope>} */
     let testScope;
 
     beforeEach(() => {

@@ -79,16 +79,20 @@ let flushScheduled = false;
 let tracked = true;
 
 /**
- * @typedef {((callback?: (onDispose: () => void) => void) => Scope | undefined) & { [key: symbol]: any }} Scope
+ * @typedef {ScopeFunction & { [key: symbol]: any }} Scope
+ */
+
+/**
+ * @typedef {((callback: (onDispose: (cleanup: () => void) => void) => void) => Scope) & (() => undefined)} ScopeFunction
  */
 
 /**
  * Active scope for effect tracking
  * When set, effects created will be tracked to this scope
  * Can be set via setActiveScope() or automatically during scope() callbacks
- * @type {Scope | null}
+ * @type {Scope | undefined}
  */
-export let activeScope = null;
+export let activeScope = undefined;
 
 /**
  * Set the active scope for effect tracking
@@ -97,7 +101,7 @@ export let activeScope = null;
  * @param {Scope | undefined} scope - The scope to set as active, or undefined to clear
  */
 export const setActiveScope = scope => {
-    activeScope = scope ?? null;
+    activeScope = scope;
 };
 
 /**
@@ -165,44 +169,46 @@ export const scope = (callback, parent = activeScope) => {
     /**
      * @type {Scope}
      */
-    const ctx = /** @type {Scope} */ (cb => {
-        if (disposed) throw new Error('Scope is disposed');
+    const ctx = /** @type {Scope} */ (
+        cb => {
+            if (disposed) throw new Error('Scope is disposed');
 
-        if (cb === undefined) {
-            // Dispose
-            disposed = true;
+            if (cb === undefined) {
+                // Dispose
+                disposed = true;
 
-            // Dispose children first (depth-first)
-            for (const child of children) {
-                child[disposedSymbol] = false; // Allow child disposal even if already marked
-                child();
+                // Dispose children first (depth-first)
+                for (const child of children) {
+                    child[disposedSymbol] = false; // Allow child disposal even if already marked
+                    child();
+                }
+                children.clear();
+
+                // Stop all effects
+                for (const stop of effects) stop();
+                effects.clear();
+
+                // Run cleanup handlers
+                for (const cleanup of cleanups) cleanup();
+                cleanups.length = 0;
+
+                // Remove from parent
+                if (parent) parent[childrenSymbol].delete(ctx);
+
+                return undefined;
             }
-            children.clear();
 
-            // Stop all effects
-            for (const stop of effects) stop();
-            effects.clear();
-
-            // Run cleanup handlers
-            for (const cleanup of cleanups) cleanup();
-            cleanups.length = 0;
-
-            // Remove from parent
-            if (parent) parent[childrenSymbol].delete(ctx);
-
-            return undefined;
+            // Extend scope - run callback in this scope's context
+            const prev = activeScope;
+            activeScope = ctx;
+            try {
+                cb(onDispose);
+            } finally {
+                activeScope = prev;
+            }
+            return ctx;
         }
-
-        // Extend scope - run callback in this scope's context
-        const prev = activeScope;
-        activeScope = ctx;
-        try {
-            cb(onDispose);
-        } finally {
-            activeScope = prev;
-        }
-        return ctx;
-    });
+    );
 
     // Internal symbols for effect tracking and child management
     ctx[trackSymbol] = /** @param {() => void} dispose */ dispose => effects.add(dispose);

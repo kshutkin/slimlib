@@ -17,6 +17,7 @@ describe('scope', () => {
         it('creates a scope without callback', () => {
             const ctx = scope();
             expect(ctx).toBeTypeOf('function');
+            ctx(); // cleanup
         });
 
         it('creates a scope with callback', () => {
@@ -24,6 +25,7 @@ describe('scope', () => {
             const ctx = scope(callback);
             expect(callback).toHaveBeenCalledTimes(1);
             expect(callback).toHaveBeenCalledWith(expect.any(Function));
+            ctx(); // cleanup
         });
 
         it('sets activeScope during callback execution', () => {
@@ -32,7 +34,7 @@ describe('scope', () => {
                 capturedScope = activeScope;
             });
             expect(capturedScope).toBe(ctx);
-            expect(activeScope).toBeNull();
+            expect(activeScope).toBeUndefined();
         });
 
         it('restores previous activeScope after callback', () => {
@@ -128,23 +130,28 @@ describe('scope', () => {
         });
 
         it('multiple effects in one scope are all disposed', async () => {
+            /** @type {import('vitest').Mock[]} */
             const subscribers = [vi.fn(), vi.fn(), vi.fn()];
             const store = state({ count: 0 });
 
             const ctx = scope(() => {
-                subscribers.forEach(sub => {
+                for (const sub of subscribers) {
                     effect(() => sub(store.count));
-                });
+                }
             });
 
             await flushAll();
-            subscribers.forEach(sub => expect(sub).toHaveBeenCalledTimes(1));
+            for (const sub of subscribers) {
+                expect(sub).toHaveBeenCalledTimes(1);
+            }
 
             ctx();
 
             store.count = 1;
             await flushAll();
-            subscribers.forEach(sub => expect(sub).toHaveBeenCalledTimes(1));
+            for (const sub of subscribers) {
+                expect(sub).toHaveBeenCalledTimes(1);
+            }
         });
     });
 
@@ -159,14 +166,16 @@ describe('scope', () => {
             const subscriber = vi.fn();
             const store = state({ count: 0 });
 
-            const ctx = scope()
-                (() => effect(() => subscriber(store.count)))
-                (() => {});
+            const s = scope();
+            const extended = s(() => {
+                effect(() => subscriber(store.count));
+            });
+            if (extended) extended(() => {});
 
             await flushAll();
             expect(subscriber).toHaveBeenCalledTimes(1);
 
-            ctx();
+            s();
         });
     });
 
@@ -184,6 +193,7 @@ describe('scope', () => {
         });
 
         it('runs multiple cleanups in order', () => {
+            /** @type {number[]} */
             const order = [];
 
             const ctx = scope(onDispose => {
@@ -200,6 +210,7 @@ describe('scope', () => {
         });
 
         it('effect cleanup runs before onDispose cleanup', async () => {
+            /** @type {string[]} */
             const order = [];
 
             const ctx = scope(onDispose => {
@@ -217,6 +228,7 @@ describe('scope', () => {
 
     describe('hierarchical scopes', () => {
         it('inner scope defaults to outer scope as parent', () => {
+            /** @type {ReturnType<typeof scope> | null} */
             let innerScope = null;
 
             const outer = scope(() => {
@@ -227,7 +239,7 @@ describe('scope', () => {
             // We test this by checking that inner throws after outer disposal
             outer();
 
-            expect(() => innerScope(() => {})).toThrow('Scope is disposed');
+            expect(() => innerScope?.(() => {})).toThrow('Scope is disposed');
         });
 
         it('parent dispose disposes children', async () => {
@@ -235,10 +247,9 @@ describe('scope', () => {
             const innerSub = vi.fn();
             const store = state({ count: 0 });
 
-            let inner = null;
             const outer = scope(() => {
                 effect(() => outerSub(store.count));
-                inner = scope(() => {
+                scope(() => {
                     effect(() => innerSub(store.count));
                 });
             });
@@ -261,11 +272,11 @@ describe('scope', () => {
 
             // Create inner scope with explicit undefined parent (detached)
             // The inner scope has no parent, and we set it as activeScope for the effect
-            const inner = scope(undefined, undefined);
+            const detachedInner = scope(undefined, undefined);
 
             const outer = scope(() => {
                 // Create effect in the detached inner scope
-                inner(() => {
+                detachedInner(() => {
                     effect(() => innerSub(store.count));
                 });
             });
@@ -281,7 +292,7 @@ describe('scope', () => {
             expect(innerSub).toHaveBeenCalledTimes(2);
 
             // Clean up
-            inner();
+            detachedInner();
         });
 
         it('explicit parent overrides default', async () => {
@@ -290,9 +301,8 @@ describe('scope', () => {
 
             const customParent = scope();
 
-            let inner = null;
             const outer = scope(() => {
-                inner = scope(() => {
+                scope(() => {
                     effect(() => innerSub(store.count));
                 }, customParent);
             });
@@ -315,6 +325,7 @@ describe('scope', () => {
         });
 
         it('deeply nested scopes dispose in correct order', () => {
+            /** @type {string[]} */
             const order = [];
 
             const level1 = scope(onDispose => {
@@ -349,6 +360,7 @@ describe('scope', () => {
         });
 
         it('throws when registering cleanup on disposed scope', () => {
+            /** @type {((cleanup: () => void) => void) | null} */
             let capturedOnDispose = null;
             const ctx = scope(onDispose => {
                 capturedOnDispose = onDispose;
@@ -356,7 +368,9 @@ describe('scope', () => {
 
             ctx();
 
-            expect(() => capturedOnDispose(() => {})).toThrow('Scope is disposed');
+            expect(() => {
+                if (capturedOnDispose) capturedOnDispose(() => {});
+            }).toThrow('Scope is disposed');
         });
     });
 
@@ -372,7 +386,7 @@ describe('scope', () => {
             const ctx = scope();
             setActiveScope(ctx);
             setActiveScope(undefined);
-            expect(activeScope).toBeNull();
+            expect(activeScope).toBeUndefined();
         });
 
         it('effects use activeScope when not in scope callback', async () => {
@@ -403,7 +417,7 @@ describe('scope', () => {
             const store = state({ count: 0 });
 
             // Ensure no active scope
-            expect(activeScope).toBeNull();
+            expect(activeScope).toBeUndefined();
 
             // Effect works without scope - just hold the dispose function
             const dispose = effect(() => subscriber(store.count));
@@ -428,7 +442,8 @@ describe('scope', () => {
             const subscriber = vi.fn();
             const store = state({ count: 0 });
 
-            let dispose = null;
+            /** @type {() => void} */
+            let dispose = () => {};
             const ctx = scope(() => {
                 dispose = effect(() => subscriber(store.count));
             });
@@ -450,18 +465,19 @@ describe('scope', () => {
 
     describe('activeScope live binding', () => {
         it('activeScope is readable', () => {
-            expect(activeScope).toBeNull();
+            expect(activeScope).toBeUndefined();
 
             let capturedScope = null;
             const ctx = scope(() => {
                 capturedScope = activeScope;
             });
 
-            expect(capturedScope).toBe(ctx);
-            expect(activeScope).toBeNull();
+            expect(/** @type {any} */ (capturedScope)).toBe(ctx);
+            expect(activeScope).toBeUndefined();
         });
 
         it('activeScope updates during nested scope callbacks', () => {
+            /** @type {(ReturnType<typeof scope> | undefined)[]} */
             const scopes = [];
 
             const outer = scope(() => {
@@ -524,11 +540,30 @@ describe('scope', () => {
 
         it('interleaved scope creation and disposal', async () => {
             const store = state({ count: 0 });
+            /** @type {[import('vitest').Mock, import('vitest').Mock, import('vitest').Mock]} */
             const subs = [vi.fn(), vi.fn(), vi.fn()];
 
-            const ctx1 = scope(() => effect(() => subs[0](store.count)));
-            const ctx2 = scope(() => effect(() => subs[1](store.count)));
-            const ctx3 = scope(() => effect(() => subs[2](store.count)));
+            // Create scopes and extend them
+            /** @type {any} */
+            const ctx1 = scope();
+            /** @type {any} */
+            const ctx2 = scope();
+            /** @type {any} */
+            const ctx3 = scope();
+
+            setActiveScope(ctx1);
+            effect(() => {
+                subs[0](store.count);
+            });
+            setActiveScope(ctx2);
+            effect(() => {
+                subs[1](store.count);
+            });
+            setActiveScope(ctx3);
+            effect(() => {
+                subs[2](store.count);
+            });
+            setActiveScope(undefined);
 
             await flushAll();
 

@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { computed, effect, flushEffects, scope, setActiveScope, signal } from '../src/index.js';
 
 describe('Benchmark Scenario Correctness', () => {
+    /** @type {ReturnType<typeof scope>} */
     let testScope;
 
     beforeEach(() => {

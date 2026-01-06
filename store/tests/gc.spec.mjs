@@ -38,6 +38,7 @@ function allocateMemory() {
 }
 
 describe('garbage collection', () => {
+    /** @type {ReturnType<typeof scope>} */
     let testScope;
 
     beforeEach(() => {

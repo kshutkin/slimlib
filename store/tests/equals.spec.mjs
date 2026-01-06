@@ -15,6 +15,7 @@ async function flushAll() {
 }
 
 describe('computed with equality comparison', () => {
+    /** @type {ReturnType<typeof scope>} */
     let testScope;
 
     beforeEach(() => {

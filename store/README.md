@@ -264,18 +264,18 @@ const detached = scope(() => {
 
 ### `activeScope`
 
-A live binding export that contains the currently active scope (or `null` if none).
+A live binding export that contains the currently active scope (or `undefined` if none).
 
 ```js
 import { activeScope, scope } from "@slimlib/store";
 
-console.log(activeScope); // null
+console.log(activeScope); // undefined
 
 scope(() => {
   console.log(activeScope); // the current scope
 });
 
-console.log(activeScope); // null
+console.log(activeScope); // undefined
 ```
 
 ### `setActiveScope(scope?): void`

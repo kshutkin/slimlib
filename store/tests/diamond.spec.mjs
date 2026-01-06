@@ -15,6 +15,7 @@ async function flushAll() {
 }
 
 describe('diamond problem', () => {
+    /** @type {ReturnType<typeof scope>} */
     let testScope;
 
     beforeEach(() => {
