@@ -31,7 +31,7 @@ import {
     setScheduler,
     computed as slimlibComputed,
     effect as slimlibEffect,
-    flush as slimlibFlush,
+    flushEffects as slimlibFlush,
     signal as slimlibSignal,
     state as slimlibState,
 } from '../src/index.js';

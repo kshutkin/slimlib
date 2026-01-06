@@ -5,7 +5,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { computed, effect, flush, signal } from '../src/index.js';
+import { computed, effect, flushEffects, signal } from '../src/index.js';
 
 describe('Benchmark Scenario Correctness', () => {
     it('deepPropagation', () => {
@@ -21,10 +21,10 @@ describe('Benchmark Scenario Correctness', () => {
         const dispose = effect(() => {
             lastValue = current();
         });
-        flush();
+        flushEffects();
         expect(lastValue).toBe(50);
         head.set(1);
-        flush();
+        flushEffects();
         expect(current()).toBe(51);
         expect(lastValue).toBe(51);
         dispose();
@@ -45,11 +45,11 @@ describe('Benchmark Scenario Correctness', () => {
                 })
             );
         }
-        flush();
+        flushEffects();
         expect(values[0]).toBe(0);
         expect(values[49]).toBe(49);
         head.set(1);
-        flush();
+        flushEffects();
         expect(values[0]).toBe(1);
         expect(values[49]).toBe(50);
         disposers.forEach(d => {
@@ -71,10 +71,10 @@ describe('Benchmark Scenario Correctness', () => {
         const dispose = effect(() => {
             lastValue = sum();
         });
-        flush();
+        flushEffects();
         expect(lastValue).toBe(2);
         head.set(1);
-        flush();
+        flushEffects();
         expect(sum()).toBe(4);
         expect(lastValue).toBe(4);
         dispose();
@@ -90,14 +90,14 @@ describe('Benchmark Scenario Correctness', () => {
         const dispose = effect(() => {
             lastValue = c();
         });
-        flush();
+        flushEffects();
         expect(lastValue).toBe(-0); // 0 % 2 = 0, uses b() = -0
         head.set(1);
-        flush();
+        flushEffects();
         expect(c()).toBe(2); // 1 % 2 = 1, uses a() = 1*2 = 2
         expect(lastValue).toBe(2);
         head.set(2);
-        flush();
+        flushEffects();
         expect(c()).toBe(-2); // 2 % 2 = 0, uses b() = -2
         expect(lastValue).toBe(-2);
         dispose();
@@ -111,11 +111,11 @@ describe('Benchmark Scenario Correctness', () => {
         const dispose = effect(() => {
             lastP1 = layer.p1();
         });
-        flush();
+        flushEffects();
         expect(lastP1).toBe(2);
         s.p1.set(4);
         s.p2.set(3);
-        flush();
+        flushEffects();
         expect(layer.p1()).toBe(3);
         expect(layer.p2()).toBe(1);
         expect(lastP1).toBe(3);

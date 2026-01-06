@@ -110,7 +110,7 @@ count.set(5); // Effect runs after microtask
 console.log(count()); // 5
 ```
 
-### `flush(): void`
+### `flushEffects(): void`
 
 Immediately executes all pending effects without waiting for the next microtask. Useful for testing or when you need synchronous effect execution.
 
@@ -123,11 +123,11 @@ effect(() => {
   runs++;
 });
 
-flush(); // runs = 1 (initial run)
+flushEffects(); // runs = 1 (initial run)
 
 store.count = 1;
 store.count = 2;
-flush(); // runs = 2 (batched update executed immediately)
+flushEffects(); // runs = 2 (batched update executed immediately)
 ```
 
 ### `setScheduler(fn: (callback: () => void) => void): void`
@@ -187,13 +187,13 @@ effect(() => {
   runs++;
 });
 
-flush(); // runs = 1 (initial)
+flushEffects(); // runs = 1 (initial)
 
 store.a = 1;
 store.b = 2;
 store.a = 3;
 
-flush(); // runs = 2 (single batched update)
+flushEffects(); // runs = 2 (single batched update)
 ```
 
 ### Fine-Grained Tracking
@@ -242,10 +242,10 @@ effect(() => {
   runs++;
 });
 
-flush(); // runs = 1
+flushEffects(); // runs = 1
 
 store.value = 10;
-flush(); // runs = 2 (not 3!)
+flushEffects(); // runs = 2 (not 3!)
 ```
 
 ## Migration from v1.x
@@ -280,7 +280,7 @@ store.count = 1;
 ## Limitations
 
 - Mixing proxied values and values from an underlying object can fail for equality checks
-- Effects run on microtask by default, not synchronously (use `flush()` for immediate execution)
+- Effects run on microtask by default, not synchronously (use `flushEffects()` for immediate execution)
 
 ## Similar Projects
 

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { computed, effect, flush, setScheduler, state } from '../src/index.js';
+import { computed, effect, flushEffects, setScheduler, state } from '../src/index.js';
 
 // Ensure scheduler is reset before/after each test to avoid cross-test pollution
 beforeEach(() => {
@@ -8,11 +8,11 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-    flush();
+    flushEffects();
     setScheduler(queueMicrotask);
 });
 
-describe('flush', () => {
+describe('flushEffects', () => {
     it('executes pending effects immediately', () => {
         const store = state({ count: 0 });
         let runs = 0;
@@ -23,8 +23,8 @@ describe('flush', () => {
         });
 
         expect(runs).toBe(0); // Effect not yet run
-        flush();
-        expect(runs).toBe(1); // Effect ran after flush
+        flushEffects();
+        expect(runs).toBe(1); // Effect ran after flushEffects
     });
 
     it('executes all batched effects', () => {
@@ -42,7 +42,7 @@ describe('flush', () => {
             runsB++;
         });
 
-        flush();
+        flushEffects();
         expect(runsA).toBe(1);
         expect(runsB).toBe(1);
 
@@ -52,7 +52,7 @@ describe('flush', () => {
         expect(runsA).toBe(1);
         expect(runsB).toBe(1);
 
-        flush();
+        flushEffects();
         expect(runsA).toBe(2);
         expect(runsB).toBe(2);
     });
@@ -65,14 +65,14 @@ describe('flush', () => {
             lastSeen = store.value;
         });
 
-        flush();
+        flushEffects();
         expect(lastSeen).toBe(0);
 
         store.value = 1;
         store.value = 2;
         store.value = 3;
 
-        flush();
+        flushEffects();
         expect(lastSeen).toBe(3);
     });
 
@@ -85,17 +85,17 @@ describe('flush', () => {
             runs++;
         });
 
-        flush();
-        flush();
-        flush();
+        flushEffects();
+        flushEffects();
+        flushEffects();
 
         expect(runs).toBe(1); // Only ran once
     });
 
-    it('flush with no pending effects does nothing', () => {
+    it('flushEffects with no pending effects does nothing', () => {
         // Should not throw
-        flush();
-        flush();
+        flushEffects();
+        flushEffects();
     });
 
     it('works with computed values', () => {
@@ -107,11 +107,11 @@ describe('flush', () => {
             lastSeen = doubled();
         });
 
-        flush();
+        flushEffects();
         expect(lastSeen).toBe(2);
 
         store.value = 5;
-        flush();
+        flushEffects();
         expect(lastSeen).toBe(10);
     });
 
@@ -124,16 +124,16 @@ describe('flush', () => {
             log.push(`length:${store.items.length}`);
         });
 
-        flush();
+        flushEffects();
         expect(log).toEqual(['length:0']);
 
         store.items.push('a');
-        flush();
+        flushEffects();
         expect(log).toEqual(['length:0', 'length:1']);
 
         store.items.push('b');
         store.items.push('c');
-        flush();
+        flushEffects();
         expect(log).toEqual(['length:0', 'length:1', 'length:3']);
     });
 
@@ -154,12 +154,12 @@ describe('flush', () => {
             innerRuns++;
         });
 
-        flush();
+        flushEffects();
         expect(outerRuns).toBe(1);
         expect(innerRuns).toBe(1);
 
-        // The store.value = 1 change should have scheduled another flush
-        flush();
+        // The store.value = 1 change should have scheduled another flushEffects
+        flushEffects();
         // Both effects re-run because value changed from 0 to 1
         expect(outerRuns).toBe(2);
         // innerRuns may still be 1 if dependency tracking optimizes it
@@ -264,8 +264,8 @@ describe('setScheduler', () => {
 
         expect(runs).toBe(0);
 
-        // flush should execute immediately regardless of scheduler
-        flush();
+        // flushEffects should execute immediately regardless of scheduler
+        flushEffects();
         expect(runs).toBe(1);
     });
 
@@ -321,7 +321,7 @@ describe('setScheduler', () => {
 
         // Switch back to default
         setScheduler(queueMicrotask);
-        flush(); // Clear pending
+        flushEffects(); // Clear pending
 
         // Now changes should work with microtask
         store.value = 1;

@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 
-import { computed, effect, flush, state } from '../src/index.js';
+import { computed, effect, flushEffects, state } from '../src/index.js';
 
 function flushPromises() {
     return new Promise(resolve => setTimeout(resolve));
@@ -10,7 +10,7 @@ async function flushAll() {
     // First yield to microtask queue to let scheduled effects be queued
     await Promise.resolve();
     // Then flush any pending effects
-    flush();
+    flushEffects();
     await flushPromises();
 }
 

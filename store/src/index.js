@@ -93,7 +93,7 @@ const clearSources = (node, fromIndex = 0) => {
  * This function can be called to manually trigger all scheduled effects
  * before the next microtask
  */
-export const flush = () => {
+export const flushEffects = () => {
     flushScheduled = false;
     const nodes = [...batched];
     batched.clear();
@@ -110,7 +110,7 @@ export const flush = () => {
 const scheduleFlush = () => {
     if (!flushScheduled) {
         flushScheduled = true;
-        scheduler(flush);
+        scheduler(flushEffects);
     }
 };
 
