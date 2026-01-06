@@ -9,11 +9,13 @@ Based on [get-parameter-names](https://github.com/CaptEmulation/get-parameter-na
 ## Installation
 
 Using npm:
+
 ```
 npm install @slimlib/get-parameter-names
 ```
 
 Using pnpm:
+
 ```
 pnpm add @slimlib/get-parameter-names
 ```
@@ -21,10 +23,10 @@ pnpm add @slimlib/get-parameter-names
 ## Usage
 
 ```javascript
-import getParameterNames from '@slimlib/get-parameter-names';
+import { getParameterNames } from "@slimlib/get-parameter-names";
 
 function example(foo, bar, baz) {
-    return foo + bar + baz;
+  return foo + bar + baz;
 }
 
 const params = getParameterNames(example);
@@ -38,6 +40,7 @@ console.log(params); // ['foo', 'bar', 'baz']
 Parse a function and extract its parameter names.
 
 **Parameters:**
+
 - `input` - `Function | string` - The function or function string to parse
 
 **Returns:** `string[]` - Array of parameter names
@@ -59,7 +62,7 @@ Parse a function and extract its parameter names.
 
 ```javascript
 function add(a, b, c) {
-    return a + b + c;
+  return a + b + c;
 }
 getParameterNames(add); // ['a', 'b', 'c']
 ```
@@ -70,7 +73,7 @@ getParameterNames(add); // ['a', 'b', 'c']
 const multiply = (x, y) => x * y;
 getParameterNames(multiply); // ['x', 'y']
 
-const square = x => x * x;
+const square = (x) => x * x;
 getParameterNames(square); // ['x']
 ```
 
@@ -78,7 +81,7 @@ getParameterNames(square); // ['x']
 
 ```javascript
 async function fetchData(url, options) {
-    return await fetch(url, options);
+  return await fetch(url, options);
 }
 getParameterNames(fetchData); // ['url', 'options']
 ```
@@ -86,8 +89,8 @@ getParameterNames(fetchData); // ['url', 'options']
 ### Default Parameters
 
 ```javascript
-function greet(name, greeting = 'Hello') {
-    return `${greeting}, ${name}!`;
+function greet(name, greeting = "Hello") {
+  return `${greeting}, ${name}!`;
 }
 getParameterNames(greet); // ['name', 'greeting']
 ```
@@ -96,11 +99,11 @@ getParameterNames(greet); // ['name', 'greeting']
 
 ```javascript
 class User {
-    constructor(name, email, age) {
-        this.name = name;
-        this.email = email;
-        this.age = age;
-    }
+  constructor(name, email, age) {
+    this.name = name;
+    this.email = email;
+    this.age = age;
+  }
 }
 getParameterNames(User); // ['name', 'email', 'age']
 ```
@@ -108,7 +111,7 @@ getParameterNames(User); // ['name', 'email', 'age']
 ### Function Strings
 
 ```javascript
-const fnString = '(a, b) => a + b';
+const fnString = "(a, b) => a + b";
 getParameterNames(fnString); // ['a', 'b']
 ```
 
