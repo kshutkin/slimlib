@@ -65,22 +65,6 @@ const FLAG_CHECK_ONLY = FLAG_CHECK | FLAG_DIRTY | FLAG_EFFECT; // 11 - for check
  * @typedef {(() => T) & { [key: symbol]: any }} ComputedNode
  */
 
-/**
- * Prototype for computed nodes - contains the read logic
- * Using a prototype allows V8 to optimize property access
- */
-const ComputedProto = {
-    [sources]: [],
-    [dependencies]: null,
-    [flagsSymbol]: FLAG_DIRTY,
-    [skippedDeps]: 0,
-    [weakRefSymbol]: undefined,
-    [lastGlobalVersionSymbol]: 0,
-    [getterSymbol]: null, // getter
-    [equalsSymbol]: null, // equals
-    [valueSymbol]: undefined, // cached value
-};
-
 // Global state
 /** @type {ComputedNode<any> | null} */
 let currentComputing = null;
@@ -461,7 +445,7 @@ export const effect = callback => {
  */
 
 /**
- * Read function for computed nodes - extracted for prototype-based approach
+ * Read function for computed nodes
  * @this {ComputedNode<any>}
  * @returns {any}
  */
@@ -587,13 +571,10 @@ function computedRead() {
  * @returns {ComputedNode<T>}
  */
 export const computed = (getter, equals = Object.is) => {
-    // Create a callable function that delegates to computedRead
+    // Create callable that invokes computedRead with itself as `this`
     const context = /** @type {ComputedNode<T>} */ (() => computedRead.call(context));
 
-    // Set prototype for optimized property access
-    Object.setPrototypeOf(context, ComputedProto);
-
-    // Initialize instance-specific properties
+    // Initialize all properties directly on the callable (no prototype needed)
     context[sources] = [];
     context[dependencies] = new Set();
     context[flagsSymbol] = FLAG_DIRTY;
