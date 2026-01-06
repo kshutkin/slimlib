@@ -28,13 +28,12 @@ const FLAG_CHECK_ONLY = FLAG_CHECK | FLAG_DIRTY | FLAG_EFFECT; // 11 - for check
 
 /**
  * @template T
- * @typedef {(() => T) & { [key: symbol]: any }} ComputedNode
+ * @typedef {(() => T) & { [key: symbol]: any }} Computed
  */
-
 // Global state
-/** @type {ComputedNode<any> | null} */
+/** @type {Computed<any> | null} */
 let currentComputing = null;
-/** @type {Set<ComputedNode<any>>} */
+/** @type {Set<Computed<any>>} */
 const batched = new Set();
 /**
  * Set holding strong references to active effects
@@ -76,7 +75,7 @@ export const unwrapValue = value => (value != null && /** @type {Record<symbol, 
 
 /**
  * Clear sources for a node starting from a specific index
- * @param {ComputedNode<any>} node
+ * @param {Computed<any>} node
  * @param {number} fromIndex - Index to start clearing from (default 0 clears all)
  */
 const clearSources = (node, fromIndex = 0) => {
@@ -118,12 +117,12 @@ const scheduleFlush = () => {
 /**
  * Track a dependency between currentComputing and a deps Set
  * Uses WeakRef to allow automatic GC of unused computeds
- * @param {Set<WeakRef<ComputedNode<any>>>} deps - The dependency set to track (holds WeakRefs)
- * @param {ComputedNode<any>} [sourceNode] - The computed node being accessed (if any)
+ * @param {Set<WeakRef<Computed<any>>>} deps - The dependency set to track (holds WeakRefs)
+ * @param {Computed<any>} [sourceNode] - The computed node being accessed (if any)
  */
 const trackDependency = (deps, sourceNode) => {
     // Callers guarantee tracked && currentComputing are true
-    const node = /** @type {ComputedNode<any>} */ (currentComputing);
+    const node = /** @type {Computed<any>} */ (currentComputing);
 
     const sourcesArray = node[sources];
     const skipIndex = node[skippedDeps];
@@ -149,7 +148,7 @@ const trackDependency = (deps, sourceNode) => {
 
 /**
  * Schedule an effect for execution
- * @param {ComputedNode<any>} node
+ * @param {Computed<any>} node
  */
 const scheduleEffect = node => {
     batched.add(node);
@@ -159,7 +158,7 @@ const scheduleEffect = node => {
 /**
  * Mark a node as needing check (eager propagation with equality cutoff)
  * Marks the node and recursively marks all dependents in a single traversal
- * @param {ComputedNode<any>} node
+ * @param {Computed<any>} node
  */
 const markNeedsCheck = node => {
     const flags = node[flagsSymbol];
@@ -194,8 +193,8 @@ const markNeedsCheck = node => {
 
 /**
  * Iterate over a WeakRef set, calling callback for each live dep and cleaning up dead ones
- * @param {Set<WeakRef<ComputedNode<any>>>} deps - The dependency set to iterate (holds WeakRefs)
- * @param {(dep: ComputedNode<any>) => void} callback - Function to call for each live dependency
+ * @param {Set<WeakRef<Computed<any>>>} deps - The dependency set to iterate (holds WeakRefs)
+ * @param {(dep: Computed<any>) => void} callback - Function to call for each live dependency
  */
 const forEachDep = (deps, callback) => {
     for (const weakRef of deps) {
@@ -212,7 +211,7 @@ const forEachDep = (deps, callback) => {
 /**
  * Mark all dependents in a Set as needing check
  * Unified notification function for both computed and state dependencies
- * @param {Set<WeakRef<ComputedNode<any>>>} deps - The dependency set to notify (holds WeakRefs)
+ * @param {Set<WeakRef<Computed<any>>>} deps - The dependency set to notify (holds WeakRefs)
  */
 const markDependents = deps => {
     globalVersion++;
@@ -234,7 +233,7 @@ export const state = (object = /** @type {any} */ ({})) => {
      * @param {string | symbol} [property] - If provided, notifies only this property's dependents. If omitted, notifies all properties' dependents.
      */
     const notifyPropertyDependents = (target, property) => {
-        const propsMap = /** @type {Map<string | symbol, Set<WeakRef<ComputedNode<any>>>> | undefined} */ (
+        const propsMap = /** @type {Map<string | symbol, Set<WeakRef<Computed<any>>>> | undefined} */ (
             /** @type {any} */ (target)[propertyDepsSymbol]
         );
         if (propsMap) {
@@ -285,7 +284,7 @@ export const state = (object = /** @type {any} */ ({})) => {
                 // Track dependency if we're inside an effect/computed
                 if (tracked && currentComputing) {
                     // Get or create the Map for this target (stored as non-enumerable property)
-                    let propsMap = /** @type {Map<string | symbol, Set<WeakRef<ComputedNode<any>>>> | undefined} */ (
+                    let propsMap = /** @type {Map<string | symbol, Set<WeakRef<Computed<any>>>> | undefined} */ (
                         /** @type {any} */ (target)[propertyDepsSymbol]
                     );
                     if (!propsMap) {
@@ -380,7 +379,7 @@ export const effect = callback => {
     };
 
     // Effects use a custom equals that always returns false to ensure they always run
-    const comp = /** @type {ComputedNode<void | (() => void)>} */ (
+    const comp = /** @type {Computed<void | (() => void)>} */ (
         computed(
             () => {
                 // Run previous cleanup if it exists
@@ -410,13 +409,8 @@ export const effect = callback => {
 };
 
 /**
- * @template T
- * @typedef {() => T} Computed
- */
-
-/**
  * Read function for computed nodes
- * @this {ComputedNode<any>}
+ * @this {Computed<any>}
  * @returns {any}
  */
 function computedRead() {
@@ -538,11 +532,11 @@ function computedRead() {
  * @template T
  * @param {() => T} getter
  * @param {(a: T, b: T) => boolean} [equals=Object.is] - Equality comparison function
- * @returns {ComputedNode<T>}
+ * @returns {Computed<T>}
  */
 export const computed = (getter, equals = Object.is) => {
     // Create callable that invokes computedRead with itself as `this`
-    const context = /** @type {ComputedNode<T>} */ (() => computedRead.call(context));
+    const context = /** @type {Computed<T>} */ (() => computedRead.call(context));
 
     // Initialize all properties directly on the callable (no prototype needed)
     context[sources] = [];
@@ -563,7 +557,7 @@ export const computed = (getter, equals = Object.is) => {
  */
 export const signal = initialValue => {
     let value = /** @type {T} */ (initialValue);
-    /** @type {Set<WeakRef<ComputedNode<any>>> | null} */
+    /** @type {Set<WeakRef<Computed<any>>> | null} */
     let deps = null;
 
     /**
