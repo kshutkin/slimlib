@@ -20,6 +20,7 @@ const FLAG_CHECK = 1 << 1; // 2 - might need recomputation, check sources first
 const FLAG_COMPUTING = 1 << 2; // 4 - currently executing
 const FLAG_EFFECT = 1 << 3; // 8 - is an effect (eager execution)
 const FLAG_HAS_VALUE = 1 << 4; // 16 - has a cached value
+const FLAG_HAS_ERROR = 1 << 5; // 32 - has a cached error (per TC39 Signals proposal)
 
 // Pre-combined flags for faster checks
 const FLAG_NEEDS_WORK = FLAG_DIRTY | FLAG_CHECK; // 3 - needs recomputation
@@ -81,9 +82,21 @@ export const unwrapValue = value => (value != null && /** @type {Record<symbol, 
 const clearSources = (node, fromIndex = 0) => {
     const sourcesArray = node[sources];
     const weakRef = node[weakRefSymbol];
-    for (let i = fromIndex; i < sourcesArray.length; i++) {
-        // Delete our cached WeakRef from the deps Set
-        sourcesArray[i].deps.delete(weakRef);
+    const len = sourcesArray.length;
+    for (let i = fromIndex; i < len; i++) {
+        const deps = sourcesArray[i].deps;
+        // Check if this deps is retained (exists in kept portion) - avoid removing shared deps
+        // This is rare (reading same property multiple times), so linear scan is acceptable
+        let isRetained = false;
+        for (let j = 0; j < fromIndex; j++) {
+            if (sourcesArray[j].deps === deps) {
+                isRetained = true;
+                break;
+            }
+        }
+        if (!isRetained) {
+            deps.delete(weakRef);
+        }
     }
     sourcesArray.length = fromIndex;
 };
@@ -422,8 +435,12 @@ function computedRead() {
 
     let flags = this[flagsSymbol];
 
-    // Fast-path: if node is clean and nothing has changed globally since last read, return cached value
-    if ((flags & (FLAG_HAS_VALUE | FLAG_NEEDS_WORK)) === FLAG_HAS_VALUE && this[lastGlobalVersionSymbol] === globalVersion) {
+    // Fast-path: if node is clean, has a cached result, and nothing has changed globally since last read
+    if (!(flags & FLAG_NEEDS_WORK) && flags & (FLAG_HAS_VALUE | FLAG_HAS_ERROR) && this[lastGlobalVersionSymbol] === globalVersion) {
+        // If we have a cached error, rethrow it (stored in valueSymbol)
+        if (flags & FLAG_HAS_ERROR) {
+            throw this[valueSymbol];
+        }
         return this[valueSymbol];
     }
 
@@ -480,15 +497,17 @@ function computedRead() {
         const prevTracked = tracked;
         currentComputing = this;
         tracked = true; // Computed always tracks its own dependencies
+
         try {
             const newValue = this[getterSymbol]();
 
-            // Check if value actually changed
+            // Check if value actually changed (common path: no error recovery)
             const changed = !(flags & FLAG_HAS_VALUE) || !this[equalsSymbol](this[valueSymbol], newValue);
 
             if (changed) {
                 this[valueSymbol] = newValue;
-                this[flagsSymbol] |= FLAG_HAS_VALUE;
+                // Set has value flag and clear error flag (single bitmask operation)
+                this[flagsSymbol] = (this[flagsSymbol] | FLAG_HAS_VALUE) & ~FLAG_HAS_ERROR;
                 // Value changed - mark dependents as DIRTY (not just CHECK)
                 // so they know they definitely need to recompute
                 forEachDep(this[dependencies], dep => {
@@ -498,7 +517,7 @@ function computedRead() {
                     }
                 });
             } else if (wasDirty) {
-                // Was dirty (first computation or error recovery) but value matches
+                // Was dirty (first computation) but value matches
                 // Still need to mark as having a value
                 this[flagsSymbol] |= FLAG_HAS_VALUE;
             }
@@ -512,9 +531,12 @@ function computedRead() {
             // Update last seen global version
             this[lastGlobalVersionSymbol] = globalVersion;
         } catch (e) {
-            // Restore dirty flag on error so it can be retried
-            this[flagsSymbol] = (this[flagsSymbol] & ~FLAG_COMPUTING) | FLAG_DIRTY;
-            throw e;
+            // Per TC39 Signals proposal: cache the error and mark as clean with error flag
+            // The error will be rethrown on subsequent reads until a dependency changes
+            // Reuse valueSymbol for error storage since a computed can't have both value and error
+            this[valueSymbol] = e;
+            this[flagsSymbol] = (this[flagsSymbol] & ~(FLAG_COMPUTING | FLAG_NEEDS_WORK | FLAG_HAS_VALUE)) | FLAG_HAS_ERROR;
+            this[lastGlobalVersionSymbol] = globalVersion;
         } finally {
             currentComputing = prev;
             tracked = prevTracked;
@@ -523,6 +545,11 @@ function computedRead() {
                 clearSources(this, this[skippedDeps]);
             }
         }
+    }
+
+    // Check if we have a cached error to rethrow (stored in valueSymbol)
+    if (this[flagsSymbol] & FLAG_HAS_ERROR) {
+        throw this[valueSymbol];
     }
 
     return this[valueSymbol];

@@ -264,6 +264,60 @@ store.b = 20; // Effect runs
 store.a = 5; // Effect does NOT run (a not tracked when flag is false)
 ```
 
+### Error Handling in Computeds
+
+This library follows the [TC39 Signals proposal](https://github.com/tc39/proposal-signals) for error handling:
+
+> Like Promises, Signals can represent an error state: If a computed Signal's callback throws, then that error is cached just like another value, and rethrown every time the Signal is read.
+
+When a computed throws an error during evaluation, the error is **cached** and the computed is marked as clean. Subsequent reads will rethrow the cached error without re-executing the callback, until a dependency changes:
+
+```js
+const store = state({ value: -1 });
+let callCount = 0;
+
+const safeSqrt = computed(() => {
+  callCount++;
+  if (store.value < 0) {
+    throw new Error("Cannot compute square root of negative number");
+  }
+  return Math.sqrt(store.value);
+});
+
+// First read throws
+try {
+  safeSqrt();
+} catch (e) {
+  console.log(e.message); // "Cannot compute square root of negative number"
+}
+console.log(callCount); // 1
+
+// Second read rethrows the CACHED error (callback is NOT called again)
+try {
+  safeSqrt();
+} catch (e) {
+  console.log(e.message); // "Cannot compute square root of negative number"
+}
+console.log(callCount); // Still 1 - callback was not re-executed
+
+// Fix the data - this marks the computed as needing re-evaluation
+store.value = 4;
+
+// Computed recovers automatically
+console.log(safeSqrt()); // 2
+console.log(callCount); // 3 - callback was called again
+```
+
+Key behaviors (per TC39 Signals proposal):
+
+- Errors **are cached** - the computed will NOT retry on subsequent reads
+- The cached error is rethrown on every read until a dependency changes
+- When a dependency changes, the computed is marked for re-evaluation
+- The computed remains connected to its dependencies even after an error
+- Effects that read throwing computeds should handle errors appropriately
+
+This behavior differs from some other reactive libraries that retry on every read. The caching approach is more efficient and matches the semantics of successful value caching.
+
 ### Diamond Problem Solved
 
 Effects run only once even when multiple dependencies change:

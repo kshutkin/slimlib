@@ -302,53 +302,165 @@ describe('computed', () => {
         expect(isNull()).toBe(false);
     });
 
-    it('computed restores dirty flag on error and can retry', () => {
-        let shouldThrow = true;
+    // TC39 Signals proposal compliance: errors are cached and rethrown until dependencies change
+    // See: https://github.com/tc39/proposal-signals
+
+    it('computed caches error and rethrows until dependency changes (TC39 proposal)', () => {
+        let callCount = 0;
         const store = state({ value: 1 });
 
         const comp = computed(() => {
-            if (shouldThrow) {
-                throw new Error('Computation failed');
+            callCount++;
+            if (store.value < 0) {
+                throw new Error('Negative value');
             }
             return store.value * 2;
         });
 
-        // First access should throw
-        expect(() => comp()).toThrow('Computation failed');
-
-        // After error, we can fix the issue and retry
-        shouldThrow = false;
-
-        // Now it should work
+        // First access should succeed
         expect(comp()).toBe(2);
+        expect(callCount).toBe(1);
 
-        // And caching should work normally
+        // Change to invalid value
+        store.value = -5;
+
+        // Should throw and cache the error
+        expect(() => comp()).toThrow('Negative value');
+        expect(callCount).toBe(2);
+
+        // Subsequent reads should rethrow the CACHED error without re-executing
+        expect(() => comp()).toThrow('Negative value');
+        expect(callCount).toBe(2); // Still 2 - callback was NOT called again
+
+        // Change dependency to valid value - should trigger re-evaluation
+        store.value = 10;
+        expect(comp()).toBe(20);
+        expect(callCount).toBe(3);
+
+        // And caching should work normally after recovery
+        expect(comp()).toBe(20);
+        expect(callCount).toBe(3);
+    });
+
+    it('computed error recovery when dependency changes (TC39 proposal)', () => {
+        const store = state({ value: -1 });
+
+        const comp = computed(() => {
+            if (store.value < 0) {
+                throw new Error(`Invalid: ${store.value}`);
+            }
+            return store.value * 2;
+        });
+
+        // First access throws
+        expect(() => comp()).toThrow('Invalid: -1');
+
+        // Changing to another invalid value should re-evaluate and throw new error
+        store.value = -10;
+        expect(() => comp()).toThrow('Invalid: -10');
+
+        // Fix the data - should recover
         store.value = 5;
         expect(comp()).toBe(10);
     });
 
-    it('computed error does not corrupt state for subsequent access', () => {
-        let throwCount = 0;
-        const store = state({ value: 1 });
+    it('computed error is cached even without dependencies', () => {
+        let callCount = 0;
 
         const comp = computed(() => {
-            throwCount++;
-            if (throwCount <= 2) {
-                throw new Error(`Error #${throwCount}`);
+            callCount++;
+            throw new Error('Always fails');
+        });
+
+        // First access throws
+        expect(() => comp()).toThrow('Always fails');
+        expect(callCount).toBe(1);
+
+        // Subsequent access should rethrow cached error without re-executing
+        expect(() => comp()).toThrow('Always fails');
+        expect(callCount).toBe(1); // Still 1 - not called again
+    });
+
+    it('computed error clears previous successful value', () => {
+        const store = state({ value: 5 });
+
+        const comp = computed(() => {
+            if (store.value < 0) {
+                throw new Error('Negative');
             }
             return store.value * 2;
         });
 
-        // First two accesses should throw
-        expect(() => comp()).toThrow('Error #1');
-        expect(() => comp()).toThrow('Error #2');
+        // Get initial value
+        expect(comp()).toBe(10);
 
-        // Third access should succeed
-        expect(comp()).toBe(2);
+        // Cause error
+        store.value = -1;
+        expect(() => comp()).toThrow('Negative');
 
-        // After success, it should be cached
-        expect(comp()).toBe(2);
-        expect(throwCount).toBe(3);
+        // Recover with new value
+        store.value = 7;
+        expect(comp()).toBe(14);
+    });
+
+    it('computed downstream of errored computed handles error correctly', () => {
+        const store = state({ value: 5 });
+
+        const first = computed(() => {
+            if (store.value < 0) {
+                throw new Error('Upstream error');
+            }
+            return store.value;
+        });
+
+        const second = computed(() => first() * 2);
+
+        // Normal operation
+        expect(second()).toBe(10);
+
+        // Cause upstream error
+        store.value = -1;
+        expect(() => second()).toThrow('Upstream error');
+
+        // Recover
+        store.value = 3;
+        expect(second()).toBe(6);
+    });
+
+    it('effect handles computed error gracefully', async () => {
+        const store = state({ value: 5 });
+        /** @type {Array<{value?: number, error?: string}>} */
+        const results = [];
+
+        const comp = computed(() => {
+            if (store.value < 0) {
+                throw new Error('Negative');
+            }
+            return store.value * 2;
+        });
+
+        const dispose = effect(() => {
+            try {
+                results.push({ value: comp() });
+            } catch (/** @type {any} */ e) {
+                results.push({ error: e.message });
+            }
+        });
+
+        await flushAll();
+        expect(results).toEqual([{ value: 10 }]);
+
+        // Trigger error
+        store.value = -1;
+        await flushAll();
+        expect(results).toEqual([{ value: 10 }, { error: 'Negative' }]);
+
+        // Recover
+        store.value = 7;
+        await flushAll();
+        expect(results).toEqual([{ value: 10 }, { error: 'Negative' }, { value: 14 }]);
+
+        dispose();
     });
 
     it('effect depending on computed clears sources properly on dispose', async () => {
