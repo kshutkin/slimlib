@@ -781,4 +781,47 @@ describe('computed', () => {
         // Since b and c are no longer dependencies, computed should still return cached value
         expect(conditional()).toBe(oldValue);
     });
+
+    it('reading same property multiple times then changing pattern preserves reactivity', () => {
+        // This test covers the isRetained check in clearSources (lines 90-96)
+        // When a computed reads the same property multiple times, duplicate deps entries are created.
+        // When the dependency pattern changes, clearSources must not remove the WeakRef from a deps
+        // Set that is still referenced in the retained portion of the sources array.
+        const store = state({ x: 1, y: 2, useDouble: true });
+        let computeCount = 0;
+
+        const comp = computed(() => {
+            computeCount++;
+            if (store.useDouble) {
+                // Read x twice - creates duplicate deps entries: [{deps: depsX}, {deps: depsX}]
+                return store.x + store.x;
+            } else {
+                // Read x once, then y - clearSources(node, 1) should detect depsX is retained
+                return store.x + store.y;
+            }
+        });
+
+        // First run: reads x twice, creates duplicate entries
+        expect(comp()).toBe(2);
+        expect(computeCount).toBe(1);
+
+        // Change to different dependency pattern
+        store.useDouble = false;
+
+        // Second run: reads x once, then y
+        // clearSources clears from index 1, isRetained check finds depsX at index 0
+        expect(comp()).toBe(3);
+        expect(computeCount).toBe(2);
+
+        // Verify reactivity still works - changing x should trigger recompute
+        // This would fail if isRetained check was missing (WeakRef incorrectly removed from depsX)
+        store.x = 10;
+        expect(comp()).toBe(12); // 10 + 2
+        expect(computeCount).toBe(3);
+
+        // Changing y should also trigger recompute
+        store.y = 5;
+        expect(comp()).toBe(15); // 10 + 5
+        expect(computeCount).toBe(4);
+    });
 });
