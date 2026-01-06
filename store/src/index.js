@@ -10,10 +10,9 @@ const [
     equalsSymbol,
     valueSymbol,
     propertyDepsSymbol,
-] =
-    /** @type {[import('./symbols').unwrap, import('./symbols').sources, import('./symbols').dependencies, import('./symbols').flagsSymbol, import('./symbols').skippedDeps, import('./symbols').weakRefSymbol, import('./symbols').lastGlobalVersionSymbol, import('./symbols').getterSymbol, import('./symbols').equalsSymbol, import('./symbols').valueSymbol, symbol]}*/ (
-        /** @type {unknown}*/ (Array.from({ length: 11 }, () => Symbol()))
-    );
+] = /** @type {[symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol]}*/ (
+    /** @type {unknown}*/ (Array.from({ length: 11 }, () => Symbol()))
+);
 
 // Bit flags for node state
 const FLAG_DIRTY = 1 << 0; // 1 - definitely needs recomputation
