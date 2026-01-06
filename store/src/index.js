@@ -409,9 +409,10 @@ export const effect = callback => {
 };
 
 /**
+ * @template T
  * Read function for computed nodes
- * @this {Computed<any>}
- * @returns {any}
+ * @this {Computed<T>}
+ * @returns {T}
  */
 function computedRead() {
     // Track if someone is reading us
