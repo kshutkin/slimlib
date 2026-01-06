@@ -15,10 +15,11 @@
     "devDependencies": {
         "@biomejs/biome": "^2.3.11",
         "@changesets/cli": "^2.26.8",
-        "@types/node": "^16.00.0",
+        "@types/node": "^20.00.0",
         "@vitest/coverage-v8": "^4.0.16",
         "dts-buddy": "^0.6.2",
-        "typescript": "^5.8.3",
+        "pkgprn": "^0.1.0",
+        "typescript": "~5.8.3",
         "vitest": "^4.0.16"
     }
 }
