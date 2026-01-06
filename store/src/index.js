@@ -1,3 +1,5 @@
+import { DEV } from 'esm-env';
+
 const [
     unwrap,
     sources,
@@ -13,6 +15,42 @@ const [
 ] = /** @type {[symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol]}*/ (
     Array.from({ length: 11 }, () => Symbol())
 );
+
+/**
+ * Configuration options for the store
+ * @typedef {Object} StoreConfig
+ * @property {boolean} [warnOnWriteInComputed] - Warn when writing to signals/state inside a computed
+ */
+
+/**
+ * Current configuration
+ * @type {boolean}
+ */
+let warnOnWriteInComputed = false;
+
+/**
+ * Configure the store behavior
+ * @param {StoreConfig} options - Configuration options
+ */
+export const configure = options => {
+    if (options.warnOnWriteInComputed !== undefined) {
+        warnOnWriteInComputed = options.warnOnWriteInComputed;
+    }
+};
+
+/**
+ * Warn if writing inside a computed (not an effect)
+ * Only runs in DEV mode and when configured
+ * @param {string} context - Description of where the write is happening
+ */
+const warnIfWriteInComputed = context => {
+    if (DEV && warnOnWriteInComputed && currentComputing && !(currentComputing[flagsSymbol] & FLAG_EFFECT)) {
+        console.warn(
+            `[@slimlib/store] Writing to ${context} inside a computed is not recommended. ` +
+                `The computed will not automatically re-run when this value changes, which may lead to stale values.`
+        );
+    }
+};
 
 // Bit flags for node state
 const FLAG_DIRTY = 1 << 0; // 1 - definitely needs recomputation
@@ -281,6 +319,7 @@ export const state = (object = /** @type {any} */ ({})) => {
 
         const proxy = new Proxy(object, {
             set(target, p, newValue) {
+                warnIfWriteInComputed('state');
                 const realValue = unwrapValue(newValue);
                 // Use direct property access instead of Reflect for performance
                 if (!Object.is(/** @type {Record<string | symbol, any>} */ (target)[p], realValue)) {
@@ -353,6 +392,7 @@ export const state = (object = /** @type {any} */ ({})) => {
                 return createProxy(/** @type {any} */ (propValue));
             },
             defineProperty(target, property, attributes) {
+                warnIfWriteInComputed('state');
                 const result = Reflect.defineProperty(target, property, attributes);
                 if (result) {
                     notifyPropertyDependents(target, property);
@@ -360,6 +400,7 @@ export const state = (object = /** @type {any} */ ({})) => {
                 return result;
             },
             deleteProperty(target, p) {
+                warnIfWriteInComputed('state');
                 const result = Reflect.deleteProperty(target, p);
                 if (result) {
                     notifyPropertyDependents(target, p);
@@ -614,6 +655,7 @@ export const signal = initialValue => {
      * @param {T} newValue
      */
     read.set = newValue => {
+        warnIfWriteInComputed('signal');
         if (!Object.is(value, newValue)) {
             value = newValue;
             if (deps) markDependents(deps);

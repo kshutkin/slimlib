@@ -181,6 +181,37 @@ setScheduler((callback) => setTimeout(callback, 0));
 setScheduler((callback) => requestAnimationFrame(callback));
 ```
 
+### `configure(options: StoreConfig): void`
+
+Configure the store behavior. Currently supports the following options:
+
+```js
+import { configure } from "@slimlib/store";
+
+// Enable warnings when writing to signals/state inside a computed
+configure({ warnOnWriteInComputed: true });
+```
+
+#### `warnOnWriteInComputed`
+
+When enabled, logs a warning to the console if you write to a signal or state inside a computed. This helps catch a common mistake where the computed will not re-run when the written value changes, potentially leading to stale values.
+
+```js
+configure({ warnOnWriteInComputed: true });
+
+const counter = signal(0);
+const other = signal(0);
+
+const doubled = computed(() => {
+  other.set(counter() * 2); // ⚠️ Warning logged!
+  return counter() * 2;
+});
+```
+
+**Note**: This warning only appears in development mode (when `esm-env`'s `DEV` flag is true). In production builds, the warning code is completely eliminated via dead code elimination when bundlers replace the `DEV` constant with `false`.
+
+For zero-cost production builds, configure your bundler to replace the `DEV` constant. With Vite/Rollup, this happens automatically based on the build mode.
+
 ### `untracked<T>(callback: () => T): T`
 
 Execute a callback without tracking dependencies.
@@ -315,8 +346,6 @@ Key behaviors (per TC39 Signals proposal):
 - When a dependency changes, the computed is marked for re-evaluation
 - The computed remains connected to its dependencies even after an error
 - Effects that read throwing computeds should handle errors appropriately
-
-This behavior differs from some other reactive libraries that retry on every read. The caching approach is more efficient and matches the semantics of successful value caching.
 
 ### Cycle Detection
 
@@ -473,6 +502,32 @@ If you're building a framework on top of this library and need Watcher-like func
 - Using `untracked()` carefully when reading signals in notification-like contexts
 - Scheduling work via `queueMicrotask` or `setScheduler` rather than executing immediately
 - Being aware that writing to signals during computed evaluation is allowed but can lead to unexpected behavior
+
+## Development Warnings
+
+The library includes optional development-time warnings that help catch common mistakes. These warnings:
+
+1. **Are opt-in** - Disabled by default, enable via `configure()`
+2. **Are DEV-only** - Only run when `esm-env`'s `DEV` flag is true
+3. **Are tree-shakeable** - Completely eliminated in production builds
+
+### Enabling Warnings
+
+```js
+import { configure } from "@slimlib/store";
+
+// Enable in your app's entry point
+configure({ warnOnWriteInComputed: true });
+```
+
+### Bundler Configuration
+
+The warnings use `esm-env` for environment detection. Most bundlers handle this automatically:
+
+- **Vite**: Works out of the box - uses `development` condition in dev, `production` in build
+- **Rollup/Webpack**: Configure resolve conditions or use `@rollup/plugin-replace`
+
+For truly zero-cost production builds (complete code elimination), ensure your bundler sets the appropriate conditions.
 
 ## Limitations
 
