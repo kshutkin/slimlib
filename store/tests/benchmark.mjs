@@ -684,6 +684,50 @@ async function unstable(framework) {
     );
 }
 
+// Error recovery benchmark - tests computed that throws for certain values and recovers
+async function errorRecovery(framework) {
+    let head;
+    let dispose;
+
+    await runBenchmark(
+        framework,
+        'errorRecovery',
+        fw => {
+            head = fw.signal(0);
+
+            // Computed that throws for 60% of values (when val % 5 < 3)
+            const maybeThrow = fw.computed(() => {
+                const val = head.read();
+                if (val % 5 < 3) {
+                    throw new Error(`Invalid value: ${val}`);
+                }
+                return val * 2;
+            });
+
+            // Computed that depends on the throwing one
+            const downstream = fw.computed(() => maybeThrow.read() + 1);
+
+            // Another layer
+            const final = fw.computed(() => downstream.read() + 10);
+
+            dispose = fw.effect(() => {
+                try {
+                    final.read();
+                } catch {
+                    // Error expected for some values
+                }
+            });
+            return dispose;
+        },
+        () => {
+            // Cycle through values: 60% will throw (0,1,2,5,6,7,10,...), 40% will succeed (3,4,8,9,13,14,...)
+            for (let i = 0; i < 100; i++) {
+                framework.withBatch(() => head.write(i));
+            }
+        }
+    );
+}
+
 async function molBench(framework) {
     let A;
     let B;
@@ -963,6 +1007,8 @@ const benchmarks = [
     updateSignals,
     // CellX
     cellx1000,
+    // Error handling
+    errorRecovery,
 ];
 
 const dynamicGraphConfigs = [
