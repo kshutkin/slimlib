@@ -1,26 +1,3 @@
-/**
- * Symbols used throughout the store:
- * - unwrap: to unwrap proxy to get underlying object
- * - sources: what this effect/computed depends on
- *   Each entry is { deps: Set<WeakRef<ComputedNode>>, node?: ComputedNode, weakRef: WeakRef<ComputedNode> }
- *   The `node` field is a STRONG reference to the source computed - this is semantically
- *   necessary because a computed needs its sources to exist to compute its value.
- *   The `weakRef` field stores our own WeakRef so we can properly remove it from the deps Set
- *   during cleanup (clearSources).
- * - dependencies: effects/computed depending on this
- *   Dependencies are stored as WeakRefs to allow automatic garbage collection of unused computeds.
- *   When a computed is no longer referenced by user code and has no dependents, it can be GC'd
- *   even if its sources (state or other computeds) are still alive.
- *   This enables memory-efficient patterns in long-running applications where computeds are
- *   dynamically created and discarded.
- * - flagsSymbol: computation state (bit flags)
- * - skippedDeps: skipped dependencies counter (optimization)
- * - weakRefSymbol: cached WeakRef of a computed node (avoids creating new WeakRef per dependency)
- * - lastGlobalVersionSymbol: storing the last seen global version on a computed node
- * - getterSymbol: getter function for computed
- * - equalsSymbol: equality function for computed
- * - valueSymbol: cached value for computed
- */
 const [
     unwrap,
     sources,
@@ -32,21 +9,11 @@ const [
     getterSymbol,
     equalsSymbol,
     valueSymbol,
+    propertyDepsSymbol,
 ] =
-    /** @type {[import('./symbols').unwrap, import('./symbols').sources, import('./symbols').dependencies, import('./symbols').flagsSymbol, import('./symbols').skippedDeps, import('./symbols').weakRefSymbol, import('./symbols').lastGlobalVersionSymbol, import('./symbols').getterSymbol, import('./symbols').equalsSymbol, import('./symbols').valueSymbol]}*/ (
-        /** @type {unknown}*/ (Array.from({ length: 10 }, () => Symbol()))
+    /** @type {[import('./symbols').unwrap, import('./symbols').sources, import('./symbols').dependencies, import('./symbols').flagsSymbol, import('./symbols').skippedDeps, import('./symbols').weakRefSymbol, import('./symbols').lastGlobalVersionSymbol, import('./symbols').getterSymbol, import('./symbols').equalsSymbol, import('./symbols').valueSymbol, symbol]}*/ (
+        /** @type {unknown}*/ (Array.from({ length: 11 }, () => Symbol()))
     );
-
-/**
- * Module-level WeakMap for property-level dependencies on state objects
- * Structure: target -> Map<property, Set<WeakRef<ComputedNode>>>
- *
- * Uses WeakMap with target as key, so when a state object is GC'd, all its dependency
- * tracking is automatically cleaned up.
- *
- * Property dependencies are stored as WeakRefs to allow automatic GC of unused computeds.
- */
-const propertyDeps = new WeakMap();
 
 // Bit flags for node state
 const FLAG_DIRTY = 1 << 0; // 1 - definitely needs recomputation
@@ -268,7 +235,9 @@ export const state = (object = /** @type {any} */ ({})) => {
      * @param {string | symbol} [property] - If provided, notifies only this property's dependents. If omitted, notifies all properties' dependents.
      */
     const notifyPropertyDependents = (target, property) => {
-        const propsMap = propertyDeps.get(target);
+        const propsMap = /** @type {Map<string | symbol, Set<WeakRef<ComputedNode<any>>>> | undefined} */ (
+            /** @type {any} */ (target)[propertyDepsSymbol]
+        );
         if (propsMap) {
             if (property !== undefined) {
                 // Notify specific property
@@ -316,11 +285,18 @@ export const state = (object = /** @type {any} */ ({})) => {
 
                 // Track dependency if we're inside an effect/computed
                 if (tracked && currentComputing) {
-                    // Get or create the Map for this target
-                    let propsMap = propertyDeps.get(target);
+                    // Get or create the Map for this target (stored as non-enumerable property)
+                    let propsMap = /** @type {Map<string | symbol, Set<WeakRef<ComputedNode<any>>>> | undefined} */ (
+                        /** @type {any} */ (target)[propertyDepsSymbol]
+                    );
                     if (!propsMap) {
                         propsMap = new Map();
-                        propertyDeps.set(target, propsMap);
+                        Object.defineProperty(target, propertyDepsSymbol, {
+                            value: propsMap,
+                            enumerable: false,
+                            configurable: false,
+                            writable: false,
+                        });
                     }
 
                     // Get or create the Set for this property
