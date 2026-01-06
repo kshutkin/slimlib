@@ -41,7 +41,7 @@ inject(($provide: Provider) => {
 ## Example
 
 ```typescript
-import createInject from "@slimlib/injector";
+import { createInject } from "@slimlib/injector";
 
 const inject = createInject();
 

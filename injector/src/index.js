@@ -1,4 +1,4 @@
-import getParameterNames from '@slimlib/get-parameter-names';
+import { getParameterNames } from '@slimlib/get-parameter-names';
 
 /**
  * @typedef {(key: string, value: unknown) => void} Provider
@@ -7,7 +7,7 @@ import getParameterNames from '@slimlib/get-parameter-names';
 /**
  * @returns {<F extends (...args: any[]) => any>(func: F, scope?: object) => ReturnType<F>}
  */
-export default function () {
+export function createInject() {
     /** @type {Record<string, unknown>} */
     const dependencies = Object.create(null);
 

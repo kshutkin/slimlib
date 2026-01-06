@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import createInject from '../src/index.js';
+import { createInject } from '../src/index.js';
 
 describe('createInject', () => {
     it('smoke', () => {
