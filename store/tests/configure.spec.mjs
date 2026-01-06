@@ -1,18 +1,23 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { computed, configure, effect, signal, state } from '../src/index.js';
+import { computed, configure, effect, scope, setActiveScope, signal, state } from '../src/index.js';
 
 describe('configure', () => {
     /** @type {import('vitest').MockInstance<(message?: any, ...optionalParams: any[]) => void>} */
     let consoleWarnSpy;
+    let testScope;
 
     beforeEach(() => {
         consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
         // Reset configuration before each test
         configure({ warnOnWriteInComputed: false });
+        testScope = scope();
+        setActiveScope(testScope);
     });
 
     afterEach(() => {
+        testScope();
+        setActiveScope(undefined);
         consoleWarnSpy.mockRestore();
         // Reset configuration after each test
         configure({ warnOnWriteInComputed: false });

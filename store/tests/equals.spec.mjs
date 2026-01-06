@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { computed, effect, flushEffects, state } from '../src/index.js';
+import { computed, effect, flushEffects, scope, setActiveScope, state } from '../src/index.js';
 
 function flushPromises() {
     return new Promise(resolve => setTimeout(resolve));
@@ -15,6 +15,18 @@ async function flushAll() {
 }
 
 describe('computed with equality comparison', () => {
+    let testScope;
+
+    beforeEach(() => {
+        testScope = scope();
+        setActiveScope(testScope);
+    });
+
+    afterEach(() => {
+        testScope();
+        setActiveScope(undefined);
+    });
+
     it('uses default Object.is equality', async () => {
         const store = state({ count: 0 });
         let computeCount = 0;

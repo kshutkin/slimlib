@@ -31,7 +31,7 @@ import { state, effect, computed } from "@slimlib/store";
 const store = state({ count: 0, name: "test" });
 
 // Effects automatically track dependencies and re-run when they change
-effect(() => {
+const dispose = effect(() => {
   console.log("Count:", store.count);
 });
 // Logs: "Count: 0" (on next microtask)
@@ -44,6 +44,9 @@ store.count = 5;
 // Logs: "Count: 5" (on next microtask)
 
 console.log(doubled()); // 10
+
+// Stop the effect when done
+dispose();
 ```
 
 ## API
@@ -66,10 +69,14 @@ Creates a reactive effect that runs when its dependencies change. Returns a disp
 - Effects run on the next microtask (not synchronously) by default
 - Multiple synchronous changes are automatically batched
 - Callback can return a cleanup function
+- **Important**: If not created within a scope, you must hold a reference to the dispose function to prevent the effect from being garbage collected
 
 ```js
+import { effect, state } from "@slimlib/store";
+
 const store = state({ count: 0 });
 
+// Hold the dispose function to prevent GC
 const dispose = effect(() => {
   console.log(store.count);
 
@@ -82,6 +89,21 @@ const dispose = effect(() => {
 store.count = 1; // Effect runs after microtask
 
 dispose(); // Stop the effect, run cleanup
+```
+
+For managing multiple effects, use a [scope](#scopecallback-parent-scope):
+
+```js
+import { scope, effect, state } from "@slimlib/store";
+
+const store = state({ count: 0 });
+
+const ctx = scope(() => {
+  effect(() => console.log("Effect 1:", store.count));
+  effect(() => console.log("Effect 2:", store.count));
+});
+
+ctx(); // Dispose all effects at once
 ```
 
 ### `computed<T>(getter: () => T): () => T`
@@ -180,6 +202,106 @@ setScheduler((callback) => setTimeout(callback, 0));
 // Or use requestAnimationFrame for UI updates
 setScheduler((callback) => requestAnimationFrame(callback));
 ```
+
+### `scope(callback?, parent?): Scope`
+
+Creates a reactive scope for tracking effects. Effects created within a scope are automatically tracked and disposed together when the scope is disposed. This is useful for managing component lifecycles or grouping related effects.
+
+```js
+import { scope, effect, state } from "@slimlib/store";
+
+const store = state({ count: 0 });
+
+// Create a scope with callback
+const ctx = scope((onDispose) => {
+  effect(() => console.log(store.count));
+  
+  // Register cleanup to run when scope is disposed
+  onDispose(() => console.log("Scope disposed"));
+});
+
+// Extend the scope (add more effects)
+ctx((onDispose) => {
+  effect(() => console.log("Another effect:", store.count));
+});
+
+// Dispose all effects and run cleanup handlers
+ctx();
+```
+
+**Parameters:**
+- `callback` - Optional function receiving an `onDispose` callback for registering cleanup handlers
+- `parent` - Optional parent scope (defaults to `activeScope`). Pass `undefined` for a detached scope with no parent.
+
+**Returns:** A scope function (`ctx`) that:
+- `ctx(callback)` - Runs callback in scope context, returns `ctx` for chaining
+- `ctx()` - Disposes scope and all tracked effects, returns `undefined`
+
+#### Hierarchical Scopes
+
+Scopes can be nested. When a parent scope is disposed, all child scopes are also disposed:
+
+```js
+const outer = scope(() => {
+  effect(() => console.log("Outer effect"));
+  
+  // Inner scope automatically becomes child of outer
+  const inner = scope(() => {
+    effect(() => console.log("Inner effect"));
+  });
+});
+
+outer(); // Disposes both outer AND inner effects
+```
+
+Create a detached scope (no parent) by passing `undefined`:
+
+```js
+const detached = scope(() => {
+  effect(() => console.log("Detached"));
+}, undefined);
+```
+
+### `activeScope`
+
+A live binding export that contains the currently active scope (or `null` if none).
+
+```js
+import { activeScope, scope } from "@slimlib/store";
+
+console.log(activeScope); // null
+
+scope(() => {
+  console.log(activeScope); // the current scope
+});
+
+console.log(activeScope); // null
+```
+
+### `setActiveScope(scope?): void`
+
+Sets or clears the global active scope. Effects created outside of a `scope()` callback will be tracked to the active scope.
+
+```js
+import { setActiveScope, scope, effect, state } from "@slimlib/store";
+
+const store = state({ count: 0 });
+const appScope = scope();
+
+// Set as the default scope for all effects
+setActiveScope(appScope);
+
+// This effect is tracked to appScope
+effect(() => console.log(store.count));
+
+// Clear the active scope
+setActiveScope(undefined);
+
+// Dispose all effects
+appScope();
+```
+
+This is useful for frameworks that want a single root scope for all effects created during component initialization.
 
 ### `configure(options: StoreConfig): void`
 

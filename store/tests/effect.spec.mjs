@@ -1,6 +1,6 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { computed, effect, flushEffects, state } from '../src/index.js';
+import { computed, effect, flushEffects, scope, setActiveScope, state } from '../src/index.js';
 
 function flushPromises() {
     return new Promise(resolve => setTimeout(resolve));
@@ -16,6 +16,18 @@ async function flushAll() {
 }
 
 describe('effect', () => {
+    let testScope;
+
+    beforeEach(() => {
+        testScope = scope();
+        setActiveScope(testScope);
+    });
+
+    afterEach(() => {
+        testScope();
+        setActiveScope(undefined);
+    });
+
     it('runs effect on next microtask', async () => {
         const subscriber = vi.fn();
         const store = state({ count: 0 });

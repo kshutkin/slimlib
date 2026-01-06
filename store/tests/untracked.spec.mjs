@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { computed, effect, flushEffects, state, untracked } from '../src/index.js';
+import { computed, effect, flushEffects, scope, setActiveScope, state, untracked } from '../src/index.js';
 
 function flushPromises() {
     return new Promise(resolve => setTimeout(resolve));
@@ -15,6 +15,18 @@ async function flushAll() {
 }
 
 describe('untracked', () => {
+    let testScope;
+
+    beforeEach(() => {
+        testScope = scope();
+        setActiveScope(testScope);
+    });
+
+    afterEach(() => {
+        testScope();
+        setActiveScope(undefined);
+    });
+
     it('prevents dependency tracking', async () => {
         let runs = 0;
         const store = state({ a: 1, b: 2 });

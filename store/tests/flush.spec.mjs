@@ -1,13 +1,19 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { computed, effect, flushEffects, setScheduler, state } from '../src/index.js';
+import { computed, effect, flushEffects, scope, setActiveScope, setScheduler, state } from '../src/index.js';
+
+let testScope;
 
 // Ensure scheduler is reset before/after each test to avoid cross-test pollution
 beforeEach(() => {
     setScheduler(queueMicrotask);
+    testScope = scope();
+    setActiveScope(testScope);
 });
 
 afterEach(() => {
+    testScope();
+    setActiveScope(undefined);
     flushEffects();
     setScheduler(queueMicrotask);
 });

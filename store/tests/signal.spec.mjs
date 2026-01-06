@@ -1,6 +1,6 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { computed, effect, flushEffects, signal } from '../src/index.js';
+import { computed, effect, flushEffects, scope, setActiveScope, signal } from '../src/index.js';
 
 function flushPromises() {
     return new Promise(resolve => setTimeout(resolve));
@@ -15,6 +15,18 @@ async function flushAll() {
 }
 
 describe('signal', () => {
+    let testScope;
+
+    beforeEach(() => {
+        testScope = scope();
+        setActiveScope(testScope);
+    });
+
+    afterEach(() => {
+        testScope();
+        setActiveScope(undefined);
+    });
+
     describe('basic functionality', () => {
         it('creates a signal with initial value', () => {
             const s = signal(10);

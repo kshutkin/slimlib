@@ -12,8 +12,11 @@ const [
     equalsSymbol,
     valueSymbol,
     propertyDepsSymbol,
-] = /** @type {[symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol]}*/ (
-    Array.from({ length: 11 }, () => Symbol())
+    trackSymbol,
+    childrenSymbol,
+    disposedSymbol,
+] = /** @type {[symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol]}*/ (
+    Array.from({ length: 14 }, () => Symbol())
 );
 
 /**
@@ -72,14 +75,30 @@ const FLAG_CHECK_ONLY = FLAG_CHECK | FLAG_DIRTY | FLAG_EFFECT; // 11 - for check
 let currentComputing = null;
 /** @type {Set<Computed<any>>} */
 const batched = new Set();
-/**
- * Set holding strong references to active effects
- * Effects are added when created and removed when disposed
- * This prevents effects from being garbage collected while still active
- */
-const activeEffects = new Set();
 let flushScheduled = false;
 let tracked = true;
+
+/**
+ * @typedef {((callback?: (onDispose: () => void) => void) => Scope | undefined) & { [key: symbol]: any }} Scope
+ */
+
+/**
+ * Active scope for effect tracking
+ * When set, effects created will be tracked to this scope
+ * Can be set via setActiveScope() or automatically during scope() callbacks
+ * @type {Scope | null}
+ */
+export let activeScope = null;
+
+/**
+ * Set the active scope for effect tracking
+ * Effects created outside of a scope() callback will be tracked to this scope
+ * Pass undefined to clear the active scope
+ * @param {Scope | undefined} scope - The scope to set as active, or undefined to clear
+ */
+export const setActiveScope = scope => {
+    activeScope = scope ?? null;
+};
 
 /**
  * Global version counter - increments on every signal/state write
@@ -100,6 +119,103 @@ let scheduler = queueMicrotask;
  */
 export const setScheduler = newScheduler => {
     scheduler = newScheduler;
+};
+
+/**
+ * Creates a reactive scope for tracking effects
+ * Effects created within a scope callback are automatically tracked and disposed together
+ *
+ * @param {((onDispose: (cleanup: () => void) => void) => void) | undefined} [callback] - Optional callback to run in scope context
+ * @param {Scope | undefined | null} [parent=activeScope] - Parent scope (defaults to activeScope, pass undefined for no parent)
+ * @returns {Scope} A scope function that can extend the scope or dispose it
+ *
+ * @example
+ * // Create a scope with callback
+ * const ctx = scope((onDispose) => {
+ *   effect(() => { console.log('tracked'); });
+ *   onDispose(() => { console.log('cleanup'); });
+ * });
+ *
+ * // Extend the scope
+ * ctx((onDispose) => {
+ *   effect(() => { console.log('also tracked'); });
+ * });
+ *
+ * // Dispose all effects and run cleanup
+ * ctx();
+ */
+export const scope = (callback, parent = activeScope) => {
+    /** @type {Set<() => void>} */
+    const effects = new Set();
+    /** @type {Set<Scope>} */
+    const children = new Set();
+    /** @type {Array<() => void>} */
+    const cleanups = [];
+    let disposed = false;
+
+    /**
+     * Register a cleanup function to run when scope is disposed
+     * @param {() => void} cleanup
+     */
+    const onDispose = cleanup => {
+        if (disposed) throw new Error('Scope is disposed');
+        cleanups.push(cleanup);
+    };
+
+    /**
+     * @type {Scope}
+     */
+    const ctx = /** @type {Scope} */ (cb => {
+        if (disposed) throw new Error('Scope is disposed');
+
+        if (cb === undefined) {
+            // Dispose
+            disposed = true;
+
+            // Dispose children first (depth-first)
+            for (const child of children) {
+                child[disposedSymbol] = false; // Allow child disposal even if already marked
+                child();
+            }
+            children.clear();
+
+            // Stop all effects
+            for (const stop of effects) stop();
+            effects.clear();
+
+            // Run cleanup handlers
+            for (const cleanup of cleanups) cleanup();
+            cleanups.length = 0;
+
+            // Remove from parent
+            if (parent) parent[childrenSymbol].delete(ctx);
+
+            return undefined;
+        }
+
+        // Extend scope - run callback in this scope's context
+        const prev = activeScope;
+        activeScope = ctx;
+        try {
+            cb(onDispose);
+        } finally {
+            activeScope = prev;
+        }
+        return ctx;
+    });
+
+    // Internal symbols for effect tracking and child management
+    ctx[trackSymbol] = /** @param {() => void} dispose */ dispose => effects.add(dispose);
+    ctx[childrenSymbol] = children;
+    ctx[disposedSymbol] = disposed;
+
+    // Register with parent
+    if (parent) parent[childrenSymbol].add(ctx);
+
+    // Run initial callback if provided
+    if (callback) ctx(callback);
+
+    return ctx;
 };
 
 /**
@@ -444,20 +560,25 @@ export const effect = callback => {
     );
     comp[flagsSymbol] |= FLAG_EFFECT;
 
-    // Keep effect alive until disposed
-    activeEffects.add(comp);
+    // Dispose function for this effect
+    const dispose = () => {
+        // Run final cleanup
+        runCleanup();
+        clearSources(comp);
+        batched.delete(comp);
+    };
+
+    // Track to appropriate scope
+    const targetScope = activeScope;
+    if (targetScope) {
+        targetScope[trackSymbol](dispose);
+    }
 
     // Trigger first run via batched queue (node is already dirty from computed())
     scheduleEffect(comp);
 
     // Return dispose function
-    return () => {
-        // Run final cleanup
-        runCleanup();
-        clearSources(comp);
-        batched.delete(comp);
-        activeEffects.delete(comp);
-    };
+    return dispose;
 };
 
 /**

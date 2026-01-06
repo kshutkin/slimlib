@@ -1,6 +1,6 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { effect, flushEffects, state, unwrapValue } from '../src/index.js';
+import { effect, flushEffects, scope, setActiveScope, state, unwrapValue } from '../src/index.js';
 
 function flushPromises() {
     return new Promise(resolve => setTimeout(resolve));
@@ -16,6 +16,18 @@ async function flushAll() {
 }
 
 describe('store', () => {
+    let testScope;
+
+    beforeEach(() => {
+        testScope = scope();
+        setActiveScope(testScope);
+    });
+
+    afterEach(() => {
+        testScope();
+        setActiveScope(undefined);
+    });
+
     it('smoke', () => {
         expect(state).toBeDefined();
     });

@@ -3,11 +3,23 @@
  * Ensures the reactive system can handle all benchmark patterns
  */
 
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { computed, effect, flushEffects, signal } from '../src/index.js';
+import { computed, effect, flushEffects, scope, setActiveScope, signal } from '../src/index.js';
 
 describe('Benchmark Scenario Correctness', () => {
+    let testScope;
+
+    beforeEach(() => {
+        testScope = scope();
+        setActiveScope(testScope);
+    });
+
+    afterEach(() => {
+        testScope();
+        setActiveScope(undefined);
+    });
+
     it('deepPropagation', () => {
         const head = signal(0);
         /** @type {any} */
