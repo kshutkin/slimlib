@@ -1,0 +1,11 @@
+{
+    "files": [],
+    "references": [
+        { "path": "get-parameter-names" },
+        { "path": "injector" },
+        { "path": "list" },
+        { "path": "refine-partition" },
+        { "path": "smart-mock" },
+        { "path": "store" }
+    ]
+}

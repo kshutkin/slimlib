@@ -9,8 +9,10 @@
         "noUncheckedIndexedAccess": true,
         "declaration": true,
         "moduleResolution": "node",
+        "skipLibCheck": true,
         "allowJs": true,
         "checkJs": true,
-        "noEmit": true
+        "noEmit": true,
+        "composite": true
     }
 }
