@@ -1,11 +1,18 @@
 # Store
 
-Proxy-based reactive store with signals-like API for SPAs.
+Reactive state management for SPAs with automatic dependency tracking.
 
-1. Simple - automatic dependency tracking
-2. Fast - fine-grained updates, only re-run what depends on changed values
-3. Small
-4. TypeScript support
+## Why This Library
+
+- **Minimal footprint** - tiny bundle size with zero dependencies
+- **Automatic tracking** - no manual subscriptions, dependencies are tracked at runtime
+- **Fine-grained updates** - only computeds/effects that depend on changed values re-run
+- **Lazy computeds** - computed values are only calculated when read, not when dependencies change
+- **Batched updates** - multiple synchronous changes trigger a single effect execution
+- **Memory-safe** - uses WeakRef internally, unused computeds are garbage collected automatically
+- **Dual usage** - computeds work both reactively (in effects) and imperatively (on-demand reads)
+- **Proxy-based state** - mutate objects naturally, no setters or immutable updates required
+- **TypeScript support** - full type inference
 
 [Changelog](./CHANGELOG.md)
 
@@ -92,6 +99,36 @@ console.log(doubled()); // 12
 store.items.push(4);
 console.log(doubled()); // 20
 ```
+
+#### Reactive vs Imperative Usage
+
+Computeds support two usage patterns:
+
+**Reactive** - tracked by effects, automatically re-evaluated:
+
+```js
+const count = signal(0);
+const doubled = computed(() => count() * 2);
+
+effect(() => {
+  console.log(doubled()); // Re-runs when count changes
+});
+```
+
+**Imperative** - called directly from regular code on-demand:
+
+```js
+const count = signal(0);
+const doubled = computed(() => count() * 2);
+
+// No effect needed - just read when you want
+console.log(doubled()); // 0
+
+count.set(5);
+console.log(doubled()); // 10 - recomputes on demand
+```
+
+Both patterns can coexist. A computed stays connected to its sources as long as it's referenced, regardless of whether any effect tracks it. This allows computeds to be used as derived getters in imperative code while still participating in the reactive graph when needed.
 
 ### `signal<T>(initialValue?: T): (() => T) & { set: (value: T) => void }`
 
@@ -247,6 +284,10 @@ flushEffects(); // runs = 1
 store.value = 10;
 flushEffects(); // runs = 2 (not 3!)
 ```
+
+### Automatic Memory Management
+
+Computeds use WeakRef internally for dependency tracking. When a computed is no longer referenced anywhere in your code, it becomes eligible for garbage collection. Dead references are cleaned up lazily during dependency notification. No manual disposal is needed for computeds (effects still require explicit disposal via the returned function).
 
 ## Migration from v1.x
 
