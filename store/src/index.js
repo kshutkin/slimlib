@@ -101,17 +101,12 @@ export const setScheduler = newScheduler => {
 };
 
 /**
- * @template T
- * @typedef {T & {[unwrap]: T}} Unwrappable
- */
-
-/**
  * Unwraps a proxied value to get the underlying object
  * @template T
  * @param {T} value
  * @returns {T}
  */
-export const unwrapValue = value => (value != null && /** @type {Unwrappable<T>} */ (value)[unwrap]) || value;
+export const unwrapValue = value => (value != null && /** @type {Record<symbol, any>} */ (/** @type {unknown} */ (value))[unwrap]) || value;
 
 /**
  * Clear sources for a node starting from a specific index
@@ -308,8 +303,8 @@ export const state = (object = /** @type {any} */ ({})) => {
             set(target, p, newValue) {
                 const realValue = unwrapValue(newValue);
                 // Use direct property access instead of Reflect for performance
-                if (!Object.is(target[p], realValue)) {
-                    target[p] = realValue;
+                if (!Object.is(/** @type {Record<string | symbol, any>} */ (target)[p], realValue)) {
+                    /** @type {Record<string | symbol, any>} */ (target)[p] = realValue;
                     notifyPropertyDependents(target, p);
                 }
                 return true;
@@ -317,7 +312,7 @@ export const state = (object = /** @type {any} */ ({})) => {
             get(target, p) {
                 if (p === unwrap) return target;
                 // Use direct property access instead of Reflect for performance
-                const propValue = target[p];
+                const propValue = /** @type {Record<string | symbol, any>} */ (target)[p];
 
                 // Track dependency if we're inside an effect/computed
                 if (tracked && currentComputing) {
@@ -352,7 +347,7 @@ export const state = (object = /** @type {any} */ ({})) => {
                     if (!cached) {
                         cached = /** @param {...any} args */ (...args) => {
                             // Re-read the method in case it changed
-                            const method = /** @type {Function} */ (target[p]);
+                            const method = /** @type {Function} */ (/** @type {Record<string | symbol, any>} */ (target)[p]);
                             const result = method.apply(target, args.map(unwrapValue));
                             // Notify after function call (function may have mutated state)
                             // Only notify if we're NOT currently inside an effect/computed execution
