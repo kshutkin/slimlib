@@ -33,10 +33,32 @@ let debugConfigFlags = 0;
 /**
  * Configure debug behavior using a bitfield of flags
  * @param {number} flags - Bitfield of debug flags (e.g., WARN_ON_WRITE_IN_COMPUTED)
+ * @returns {void}
  */
 export const debugConfig = flags => {
     debugConfigFlags = flags | 0;
 };
+
+/**
+ * Cleanup function returned by effect callback
+ * @typedef {() => void} EffectCleanup
+ */
+
+/**
+ * Callback function for onDispose registration
+ * @typedef {(cleanup: () => void) => void} OnDisposeCallback
+ */
+
+/**
+ * Callback function passed to scope
+ * @typedef {(onDispose: OnDisposeCallback) => void} ScopeCallback
+ */
+
+/**
+ * Signal type - a callable that returns the current value with a set method
+ * @template T
+ * @typedef {(() => T) & { set: (value: T) => void }} Signal
+ */
 
 /**
  * Safely call each function in an iterable, logging any errors to console
@@ -96,7 +118,7 @@ let tracked = true;
  */
 
 /**
- * @typedef {((callback: (onDispose: (cleanup: () => void) => void) => void) => Scope) & (() => undefined)} ScopeFunction
+ * @typedef {((callback: ScopeCallback) => Scope) & (() => undefined)} ScopeFunction
  */
 
 /**
@@ -112,6 +134,7 @@ export let activeScope = undefined;
  * Effects created outside of a scope() callback will be tracked to this scope
  * Pass undefined to clear the active scope
  * @param {Scope | undefined} scope - The scope to set as active, or undefined to clear
+ * @returns {void}
  */
 export const setActiveScope = scope => {
     activeScope = scope;
@@ -133,6 +156,7 @@ let scheduler = queueMicrotask;
 /**
  * Set a custom scheduler function for effect execution
  * @param {(callback: () => void) => void} newScheduler - The new scheduler function
+ * @returns {void}
  */
 export const setScheduler = newScheduler => {
     scheduler = newScheduler;
@@ -142,7 +166,7 @@ export const setScheduler = newScheduler => {
  * Creates a reactive scope for tracking effects
  * Effects created within a scope callback are automatically tracked and disposed together
  *
- * @param {((onDispose: (cleanup: () => void) => void) => void) | undefined} [callback] - Optional callback to run in scope context
+ * @param {ScopeCallback} [callback] - Optional callback to run in scope context
  * @param {Scope | undefined | null} [parent=activeScope] - Parent scope (defaults to activeScope, pass undefined for no parent)
  * @returns {Scope} A scope function that can extend the scope or dispose it
  *
@@ -403,12 +427,25 @@ const markDependents = deps => {
 };
 
 /**
- * Creates a store
+ * Creates a store without an initial object
+ * @overload
+ * @returns {object}
+ */
+/**
+ * Creates a store with an initial object
  * @template {object} T
- * @param {T} [object={}]
+ * @overload
+ * @param {T} object - Object to make reactive
  * @returns {T}
  */
-export const state = (object = /** @type {any} */ ({})) => {
+/**
+ * Creates a store
+ * @template {object} T
+ * @param {T} [object] - Optional object to make reactive
+ * @returns {T}
+ */
+export function state(object) {
+    if (object === undefined) object = /** @type {T} */ ({});
     const proxiesCache = new WeakMap();
 
     /**
@@ -548,15 +585,15 @@ export const state = (object = /** @type {any} */ ({})) => {
     };
 
     return createProxy(object);
-};
+}
 
 /**
- * Creates a reactive effect that re-runs when its dependencies change
- * @param {() => void | (() => void)} callback - Effect function, can return cleanup
- * @returns {() => void} Dispose function
+ * Creates a reactive effect that runs when dependencies change
+ * @param {() => void | EffectCleanup} callback - Effect function, can optionally return a cleanup function
+ * @returns {() => void} Dispose function to stop the effect
  */
 export const effect = callback => {
-    /** @type {void | (() => void)} */
+    /** @type {void | EffectCleanup} */
     let cleanup;
 
     const runCleanup = () => {
@@ -764,12 +801,25 @@ export const computed = (getter, equals = Object.is) => {
 };
 
 /**
+ * Create a simple signal without an initial value
+ * @template T
+ * @overload
+ * @returns {Signal<T | undefined>}
+ */
+/**
+ * Create a simple signal with an initial value
+ * @template T
+ * @overload
+ * @param {T} initialValue - Initial value for the signal
+ * @returns {Signal<T>}
+ */
+/**
  * Create a simple signal
  * @template T
- * @param {T} [initialValue] - Optional initial value
- * @returns {(() => T) & { set: (value: T) => void }}
+ * @param {T} [initialValue] - Optional initial value for the signal
+ * @returns {Signal<T>}
  */
-export const signal = initialValue => {
+export function signal(initialValue) {
     let value = /** @type {T} */ (initialValue);
     /** @type {Set<WeakRef<Computed<any>>> | null} */
     let deps = null;
@@ -800,7 +850,7 @@ export const signal = initialValue => {
     };
 
     return read;
-};
+}
 
 /**
  * Execute without tracking dependencies
