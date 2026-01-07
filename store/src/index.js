@@ -39,6 +39,20 @@ export const debugConfig = flags => {
 };
 
 /**
+ * Safely call each function in an iterable, logging any errors to console
+ * @param {Iterable<() => void>} fns
+ */
+const safeForEach = fns => {
+    for (const fn of fns) {
+        try {
+            fn();
+        } catch (e) {
+            console.error(e);
+        }
+    }
+};
+
+/**
  * Warn if writing inside a computed (not an effect)
  * Only runs in DEV mode and when configured
  * @param {string} context - Description of where the write is happening
@@ -177,22 +191,14 @@ export const scope = (callback, parent = activeScope) => {
                 disposed = true;
 
                 // Dispose children first (depth-first)
-                for (const child of children) {
-                    child();
-                }
-                children.clear();
+                safeForEach(children);
 
                 // Stop all effects
-                for (const stop of effects) {
-                    stop();
-                }
+                safeForEach(effects);
                 effects.clear();
 
                 // Run cleanup handlers
-                for (const cleanup of cleanups) {
-                    cleanup();
-                }
-                cleanups.length = 0;
+                safeForEach(cleanups);
 
                 // Remove from parent
                 if (parent) {

@@ -580,4 +580,190 @@ describe('scope', () => {
             ctx3();
         });
     });
+
+    describe('error handling during disposal', () => {
+        it('continues disposing children even if one throws', () => {
+            /** @type {string[]} */
+            const order = [];
+            const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+            const outer = scope(() => {
+                scope(onDispose => {
+                    onDispose(() => {
+                        order.push('child1');
+                        throw new Error('child1 error');
+                    });
+                });
+                scope(onDispose => {
+                    onDispose(() => {
+                        order.push('child2');
+                    });
+                });
+                scope(onDispose => {
+                    onDispose(() => {
+                        order.push('child3');
+                    });
+                });
+            });
+
+            outer();
+            expect(order).toEqual(['child1', 'child2', 'child3']);
+            expect(consoleError).toHaveBeenCalledTimes(1);
+            expect(/** @type {Error} */ (/** @type {unknown[]} */ (consoleError.mock.calls[0])[0]).message).toBe('child1 error');
+
+            consoleError.mockRestore();
+        });
+
+        it('continues stopping effects even if one throws', async () => {
+            /** @type {string[]} */
+            const order = [];
+            const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+            const store = state({ count: 0 });
+
+            const ctx = scope(() => {
+                effect(() => {
+                    store.count;
+                    return () => {
+                        order.push('effect1');
+                        throw new Error('effect1 error');
+                    };
+                });
+                effect(() => {
+                    store.count;
+                    return () => {
+                        order.push('effect2');
+                    };
+                });
+            });
+
+            await flushAll();
+
+            ctx();
+            expect(order).toEqual(['effect1', 'effect2']);
+            expect(consoleError).toHaveBeenCalledTimes(1);
+            expect(/** @type {Error} */ (/** @type {unknown[]} */ (consoleError.mock.calls[0])[0]).message).toBe('effect1 error');
+
+            consoleError.mockRestore();
+        });
+
+        it('continues running cleanups even if one throws', () => {
+            /** @type {string[]} */
+            const order = [];
+            const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+            const ctx = scope(onDispose => {
+                onDispose(() => {
+                    order.push('cleanup1');
+                    throw new Error('cleanup1 error');
+                });
+                onDispose(() => {
+                    order.push('cleanup2');
+                });
+                onDispose(() => {
+                    order.push('cleanup3');
+                });
+            });
+
+            ctx();
+            expect(order).toEqual(['cleanup1', 'cleanup2', 'cleanup3']);
+            expect(consoleError).toHaveBeenCalledTimes(1);
+            expect(/** @type {Error} */ (/** @type {unknown[]} */ (consoleError.mock.calls[0])[0]).message).toBe('cleanup1 error');
+
+            consoleError.mockRestore();
+        });
+
+        it('logs all errors to console', () => {
+            /** @type {string[]} */
+            const order = [];
+            const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+            const ctx = scope(onDispose => {
+                onDispose(() => {
+                    order.push('cleanup1');
+                    throw new Error('error1');
+                });
+                onDispose(() => {
+                    order.push('cleanup2');
+                    throw new Error('error2');
+                });
+                onDispose(() => {
+                    order.push('cleanup3');
+                });
+            });
+
+            ctx();
+            expect(order).toEqual(['cleanup1', 'cleanup2', 'cleanup3']);
+            expect(consoleError).toHaveBeenCalledTimes(2);
+            expect(/** @type {Error} */ (/** @type {unknown[]} */ (consoleError.mock.calls[0])[0]).message).toBe('error1');
+            expect(/** @type {Error} */ (/** @type {unknown[]} */ (consoleError.mock.calls[1])[0]).message).toBe('error2');
+
+            consoleError.mockRestore();
+        });
+
+        it('logs errors from children, effects, and cleanups', async () => {
+            /** @type {string[]} */
+            const order = [];
+            const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+            const store = state({ count: 0 });
+
+            const outer = scope(() => {
+                scope(onDispose => {
+                    onDispose(() => {
+                        order.push('child');
+                        throw new Error('child error');
+                    });
+                });
+
+                effect(() => {
+                    store.count;
+                    return () => {
+                        order.push('effect');
+                        throw new Error('effect error');
+                    };
+                });
+            });
+
+            outer(onDispose => {
+                onDispose(() => {
+                    order.push('cleanup');
+                    throw new Error('cleanup error');
+                });
+            });
+
+            await flushAll();
+
+            outer();
+            expect(order).toEqual(['child', 'effect', 'cleanup']);
+            expect(consoleError).toHaveBeenCalledTimes(3);
+            expect(/** @type {Error} */ (/** @type {unknown[]} */ (consoleError.mock.calls[0])[0]).message).toBe('child error');
+            expect(/** @type {Error} */ (/** @type {unknown[]} */ (consoleError.mock.calls[1])[0]).message).toBe('effect error');
+            expect(/** @type {Error} */ (/** @type {unknown[]} */ (consoleError.mock.calls[2])[0]).message).toBe('cleanup error');
+
+            consoleError.mockRestore();
+        });
+
+        it('removes from parent even after errors', () => {
+            const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+            const parent = scope();
+            /** @type {() => void} */
+            let childRef = () => {};
+            parent(() => {
+                childRef = scope(onDispose => {
+                    onDispose(() => {
+                        throw new Error('cleanup error');
+                    });
+                });
+            });
+
+            // Child should be registered with parent initially
+            childRef();
+            expect(consoleError).toHaveBeenCalledTimes(1);
+
+            // Parent should still be able to dispose without issues
+            // (child already removed itself)
+            expect(() => parent()).not.toThrow();
+
+            consoleError.mockRestore();
+        });
+    });
 });
