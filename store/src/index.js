@@ -170,12 +170,16 @@ export const scope = (callback, parent = activeScope) => {
     const cleanups = [];
     let disposed = false;
 
+    const guard = () => {
+        if (disposed) throw new Error('Scope is disposed');
+    };
+
     /**
      * Register a cleanup function to run when scope is disposed
      * @param {() => void} cleanup
      */
     const onDispose = cleanup => {
-        if (disposed) throw new Error('Scope is disposed');
+        guard();
         cleanups.push(cleanup);
     };
 
@@ -184,7 +188,7 @@ export const scope = (callback, parent = activeScope) => {
      */
     const ctx = /** @type {Scope} */ (
         cb => {
-            if (disposed) throw new Error('Scope is disposed');
+            guard();
 
             if (cb === undefined) {
                 // Dispose
@@ -205,7 +209,7 @@ export const scope = (callback, parent = activeScope) => {
                     parent[childrenSymbol].delete(ctx);
                 }
 
-                return undefined;
+                return;
             }
 
             // Extend scope - run callback in this scope's context
