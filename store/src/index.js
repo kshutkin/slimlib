@@ -14,9 +14,8 @@ const [
     propertyDepsSymbol,
     trackSymbol,
     childrenSymbol,
-    disposedSymbol,
-] = /** @type {[symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol]}*/ (
-    Array.from({ length: 14 }, () => Symbol())
+] = /** @type {[symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol]}*/ (
+    Array.from({ length: 13 }, () => Symbol())
 );
 
 /**
@@ -179,7 +178,6 @@ export const scope = (callback, parent = activeScope) => {
 
                 // Dispose children first (depth-first)
                 for (const child of children) {
-                    child[disposedSymbol] = false; // Allow child disposal even if already marked
                     child();
                 }
                 children.clear();
@@ -219,7 +217,6 @@ export const scope = (callback, parent = activeScope) => {
     // Internal symbols for effect tracking and child management
     ctx[trackSymbol] = /** @param {() => void} dispose */ dispose => effects.add(dispose);
     ctx[childrenSymbol] = children;
-    ctx[disposedSymbol] = disposed;
 
     // Register with parent
     if (parent) parent[childrenSymbol].add(ctx);
