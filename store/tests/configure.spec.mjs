@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { computed, configure, effect, scope, setActiveScope, signal, state } from '../src/index.js';
+import { computed, debugConfig, effect, scope, setActiveScope, signal, state, WARN_ON_WRITE_IN_COMPUTED } from '../src/index.js';
 
-describe('configure', () => {
+describe('debugConfig', () => {
     /** @type {import('vitest').MockInstance<(message?: any, ...optionalParams: any[]) => void>} */
     let consoleWarnSpy;
     /** @type {ReturnType<typeof scope>} */
@@ -11,7 +11,7 @@ describe('configure', () => {
     beforeEach(() => {
         consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
         // Reset configuration before each test
-        configure({ warnOnWriteInComputed: false });
+        debugConfig(0);
         testScope = scope();
         setActiveScope(testScope);
     });
@@ -21,10 +21,10 @@ describe('configure', () => {
         setActiveScope(undefined);
         consoleWarnSpy.mockRestore();
         // Reset configuration after each test
-        configure({ warnOnWriteInComputed: false });
+        debugConfig(0);
     });
 
-    describe('warnOnWriteInComputed', () => {
+    describe('WARN_ON_WRITE_IN_COMPUTED', () => {
         it('should not warn by default when writing to signal inside computed', () => {
             const counter = signal(0);
             const other = signal(0);
@@ -40,7 +40,7 @@ describe('configure', () => {
         });
 
         it('should warn when enabled and writing to signal inside computed', () => {
-            configure({ warnOnWriteInComputed: true });
+            debugConfig(WARN_ON_WRITE_IN_COMPUTED);
 
             const counter = signal(0);
             const other = signal(0);
@@ -57,7 +57,7 @@ describe('configure', () => {
         });
 
         it('should warn when enabled and writing to state inside computed', () => {
-            configure({ warnOnWriteInComputed: true });
+            debugConfig(WARN_ON_WRITE_IN_COMPUTED);
 
             const counter = signal(0);
             const obj = state({ value: 0 });
@@ -74,7 +74,7 @@ describe('configure', () => {
         });
 
         it('should not warn when writing inside an effect', () => {
-            configure({ warnOnWriteInComputed: true });
+            debugConfig(WARN_ON_WRITE_IN_COMPUTED);
 
             const counter = signal(0);
             const other = signal(0);
@@ -89,7 +89,7 @@ describe('configure', () => {
         });
 
         it('should not warn when writing outside of computed/effect', () => {
-            configure({ warnOnWriteInComputed: true });
+            debugConfig(WARN_ON_WRITE_IN_COMPUTED);
 
             const counter = signal(0);
             counter.set(1);
@@ -98,7 +98,7 @@ describe('configure', () => {
         });
 
         it('should warn on state property deletion inside computed', () => {
-            configure({ warnOnWriteInComputed: true });
+            debugConfig(WARN_ON_WRITE_IN_COMPUTED);
 
             const counter = signal(0);
             /** @type {{ value: number, toDelete?: number }} */
@@ -116,7 +116,7 @@ describe('configure', () => {
         });
 
         it('should warn on Object.defineProperty inside computed', () => {
-            configure({ warnOnWriteInComputed: true });
+            debugConfig(WARN_ON_WRITE_IN_COMPUTED);
 
             const counter = signal(0);
             const obj = state({ value: 0 });
@@ -133,7 +133,7 @@ describe('configure', () => {
         });
 
         it('should be able to disable warnings after enabling them', () => {
-            configure({ warnOnWriteInComputed: true });
+            debugConfig(WARN_ON_WRITE_IN_COMPUTED);
 
             const counter = signal(0);
             const other = signal(0);
@@ -147,7 +147,7 @@ describe('configure', () => {
             expect(consoleWarnSpy).toHaveBeenCalledTimes(1);
 
             // Disable warnings
-            configure({ warnOnWriteInComputed: false });
+            debugConfig(0);
             consoleWarnSpy.mockClear();
 
             const comp2 = computed(() => {
@@ -160,7 +160,7 @@ describe('configure', () => {
         });
 
         it('should warn multiple times for multiple writes inside same computed', () => {
-            configure({ warnOnWriteInComputed: true });
+            debugConfig(WARN_ON_WRITE_IN_COMPUTED);
 
             const counter = signal(0);
             const other1 = signal(0);
@@ -178,7 +178,7 @@ describe('configure', () => {
         });
 
         it('should warn for nested computed writes', () => {
-            configure({ warnOnWriteInComputed: true });
+            debugConfig(WARN_ON_WRITE_IN_COMPUTED);
 
             const counter = signal(0);
             const other = signal(0);

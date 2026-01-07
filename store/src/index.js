@@ -20,23 +20,23 @@ const [
 );
 
 /**
- * Configuration options for the store
- * @typedef {Object} StoreConfig
- * @property {boolean} [warnOnWriteInComputed] - Warn when writing to signals/state inside a computed
+ * Debug configuration flag: Warn when writing to signals/state inside a computed
+ * @type {number}
  */
+export const WARN_ON_WRITE_IN_COMPUTED = 1 << 0;
 
 /**
- * Current configuration
- * @type {boolean}
+ * Current debug configuration bitfield
+ * @type {number}
  */
-let warnOnWriteInComputed = true;
+let debugConfigFlags = 0;
 
 /**
- * Configure the store behavior
- * @param {StoreConfig} options - Configuration options
+ * Configure debug behavior using a bitfield of flags
+ * @param {number} flags - Bitfield of debug flags (e.g., WARN_ON_WRITE_IN_COMPUTED)
  */
-export const configure = options => {
-    warnOnWriteInComputed = !!options.warnOnWriteInComputed;
+export const debugConfig = flags => {
+    debugConfigFlags = flags | 0;
 };
 
 /**
@@ -45,7 +45,7 @@ export const configure = options => {
  * @param {string} context - Description of where the write is happening
  */
 const warnIfWriteInComputed = context => {
-    if (DEV && warnOnWriteInComputed && currentComputing && !(currentComputing[flagsSymbol] & FLAG_EFFECT)) {
+    if (DEV && debugConfigFlags & WARN_ON_WRITE_IN_COMPUTED && currentComputing && !(currentComputing[flagsSymbol] & FLAG_EFFECT)) {
         console.warn(
             `[@slimlib/store] Writing to ${context} inside a computed is not recommended. ` +
                 `The computed will not automatically re-run when this value changes, which may lead to stale values.`
@@ -185,15 +185,21 @@ export const scope = (callback, parent = activeScope) => {
                 children.clear();
 
                 // Stop all effects
-                for (const stop of effects) stop();
+                for (const stop of effects) {
+                    stop();
+                }
                 effects.clear();
 
                 // Run cleanup handlers
-                for (const cleanup of cleanups) cleanup();
+                for (const cleanup of cleanups) {
+                    cleanup();
+                }
                 cleanups.length = 0;
 
                 // Remove from parent
-                if (parent) parent[childrenSymbol].delete(ctx);
+                if (parent) {
+                    parent[childrenSymbol].delete(ctx);
+                }
 
                 return undefined;
             }

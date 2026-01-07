@@ -303,23 +303,28 @@ appScope();
 
 This is useful for frameworks that want a single root scope for all effects created during component initialization.
 
-### `configure(options: StoreConfig): void`
+### `debugConfig(flags: number): void`
 
-Configure the store behavior. Currently supports the following options:
+Configure debug behavior using a bitfield of flags.
 
 ```js
-import { configure } from "@slimlib/store";
+import { debugConfig, WARN_ON_WRITE_IN_COMPUTED } from "@slimlib/store";
 
 // Enable warnings when writing to signals/state inside a computed
-configure({ warnOnWriteInComputed: true });
+debugConfig(WARN_ON_WRITE_IN_COMPUTED);
+
+// Disable all debug flags
+debugConfig(0);
 ```
 
-#### `warnOnWriteInComputed`
+#### `WARN_ON_WRITE_IN_COMPUTED`
 
 When enabled, logs a warning to the console if you write to a signal or state inside a computed. This helps catch a common mistake where the computed will not re-run when the written value changes, potentially leading to stale values.
 
 ```js
-configure({ warnOnWriteInComputed: true });
+import { debugConfig, WARN_ON_WRITE_IN_COMPUTED } from "@slimlib/store";
+
+debugConfig(WARN_ON_WRITE_IN_COMPUTED);
 
 const counter = signal(0);
 const other = signal(0);
@@ -629,17 +634,17 @@ If you're building a framework on top of this library and need Watcher-like func
 
 The library includes optional development-time warnings that help catch common mistakes. These warnings:
 
-1. **Are opt-in** - Disabled by default, enable via `configure()`
+1. **Are opt-in** - Disabled by default, enable via `debugConfig()`
 2. **Are DEV-only** - Only run when `esm-env`'s `DEV` flag is true
 3. **Are tree-shakeable** - Completely eliminated in production builds
 
 ### Enabling Warnings
 
 ```js
-import { configure } from "@slimlib/store";
+import { debugConfig, WARN_ON_WRITE_IN_COMPUTED } from "@slimlib/store";
 
 // Enable in your app's entry point
-configure({ warnOnWriteInComputed: true });
+debugConfig(WARN_ON_WRITE_IN_COMPUTED);
 ```
 
 ### Bundler Configuration
