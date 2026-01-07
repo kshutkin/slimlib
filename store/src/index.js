@@ -588,9 +588,8 @@ export const effect = callback => {
     };
 
     // Track to appropriate scope
-    const targetScope = activeScope;
-    if (targetScope) {
-        targetScope[trackSymbol](dispose);
+    if (activeScope) {
+        activeScope[trackSymbol](dispose);
     }
 
     // Trigger first run via batched queue (node is already dirty from computed())
