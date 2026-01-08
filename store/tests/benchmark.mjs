@@ -5,7 +5,14 @@
  * Based on https://github.com/milomg/js-reactivity-benchmark
  *
  * Run with: node tests/benchmark.mjs
+ *
+ * Options:
+ *   -n, --runs <number>   Number of times to rerun the entire benchmark (default: 1)
+ *   -f, --file <path>     CSV file to save/compare results
  */
+
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { parseArgs } from 'node:util';
 
 // ============================================================================
 // Framework Adapters
@@ -412,6 +419,7 @@ function pseudoRandom(seed = 0) {
 // Benchmark Runner
 // ============================================================================
 
+// Results: Map<testName, Map<frameworkName, number[]>> - stores all times across runs
 const results = new Map();
 
 async function runBenchmark(framework, name, setup, run, iterations = 1) {
@@ -448,7 +456,74 @@ async function runBenchmark(framework, name, setup, run, iterations = 1) {
     }
 
     if (!results.has(name)) results.set(name, new Map());
-    results.get(name).set(framework.name, fastestTime);
+    const testResults = results.get(name);
+    if (!testResults.has(framework.name)) testResults.set(framework.name, []);
+    testResults.get(framework.name).push(fastestTime);
+}
+
+// Calculate mean of an array
+function mean(arr) {
+    if (arr.length === 0) return 0;
+    return arr.reduce((a, b) => a + b, 0) / arr.length;
+}
+
+// Calculate variance of an array
+function variance(arr) {
+    if (arr.length < 2) return 0;
+    const m = mean(arr);
+    return arr.reduce((sum, val) => sum + (val - m) ** 2, 0) / (arr.length - 1);
+}
+
+// Calculate standard deviation
+function stddev(arr) {
+    return Math.sqrt(variance(arr));
+}
+
+// Parse CSV file and return Map<testName, Map<frameworkName, {mean, variance, n}>>
+function parseCSV(content) {
+    const lines = content.trim().split('\n');
+    if (lines.length < 2) return new Map();
+
+    const header = lines[0].split(',');
+    // Extract framework names from header (every 3rd column after test name is mean)
+    const fwNames = header.slice(1).filter((_, i) => i % 3 === 0);
+
+    const data = new Map();
+    for (let i = 1; i < lines.length; i++) {
+        const cols = lines[i].split(',');
+        const testName = cols[0];
+        const testData = new Map();
+        for (let j = 0; j < fwNames.length; j++) {
+            const meanVal = parseFloat(cols[1 + j * 3]) || 0;
+            const varVal = parseFloat(cols[2 + j * 3]) || 0;
+            const nVal = parseInt(cols[3 + j * 3], 10) || 1;
+            testData.set(fwNames[j], { mean: meanVal, variance: varVal, n: nVal });
+        }
+        data.set(testName, testData);
+    }
+    return data;
+}
+
+// Check if difference is statistically significant using Welch's t-test approximation
+function isSignificant(mean1, var1, n1, mean2, var2, n2) {
+    if (n1 < 2 || n2 < 2) return false;
+    if (var1 === 0 && var2 === 0) return mean1 !== mean2;
+
+    const se = Math.sqrt(var1 / n1 + var2 / n2);
+    if (se === 0) return mean1 !== mean2;
+
+    const t = Math.abs(mean1 - mean2) / se;
+
+    // Approximate degrees of freedom (Welch-Satterthwaite)
+    const num = (var1 / n1 + var2 / n2) ** 2;
+    const denom = (var1 / n1) ** 2 / (n1 - 1) + (var2 / n2) ** 2 / (n2 - 1);
+    const df = denom > 0 ? num / denom : 1;
+
+    // Critical t-value approximation for alpha=0.05, two-tailed
+    // Using approximation: t_crit ≈ 1.96 for large df, higher for small df
+    const tCrit = df > 30 ? 1.96 : df > 10 ? 2.1 : df > 5 ? 2.5 : 2.8;
+
+    return t > tCrit;
 }
 
 // ============================================================================
@@ -1021,57 +1096,191 @@ const dynamicGraphConfigs = [
 ];
 
 async function main() {
+    // Parse command line arguments
+    const { values: args } = parseArgs({
+        options: {
+            runs: {
+                type: 'string',
+                short: 'n',
+                default: '1',
+            },
+            file: {
+                type: 'string',
+                short: 'f',
+            },
+        },
+        strict: false,
+        allowPositionals: true,
+    });
+
+    const numRuns = Math.max(1, parseInt(args.runs, 10) || 1);
+    const outputFile = args.file;
+
     console.log('='.repeat(70));
     console.log('Multi-Framework Reactivity Benchmark');
     console.log('='.repeat(70));
     console.log('');
     console.log('Frameworks:', frameworks.map(f => f.name).join(', '));
+    console.log('Number of runs:', numRuns);
+    if (outputFile) {
+        console.log('Output file:', outputFile);
+    }
     console.log('');
 
-    for (const benchmark of benchmarks) {
-        process.stdout.write(`Running ${benchmark.name}...`);
-        for (const framework of frameworks) {
-            try {
-                await benchmark(framework);
-            } catch (e) {
-                console.error(`\n  Error in ${framework.name}: ${e.message}`);
-            }
+    // Run benchmarks numRuns times
+    for (let run = 0; run < numRuns; run++) {
+        if (numRuns > 1) {
+            console.log(`\n--- Run ${run + 1} of ${numRuns} ---\n`);
         }
-        console.log(' done');
-    }
 
-    for (const [name, ...args] of dynamicGraphConfigs) {
-        process.stdout.write(`Running ${name}...`);
-        for (const framework of frameworks) {
-            try {
-                await dynamicGraph(framework, name, ...args);
-            } catch (e) {
-                console.error(`\n  Error in ${framework.name}: ${e.message}`);
+        for (const benchmark of benchmarks) {
+            process.stdout.write(`Running ${benchmark.name}...`);
+            for (const framework of frameworks) {
+                try {
+                    await benchmark(framework);
+                } catch (e) {
+                    console.error(`\n  Error in ${framework.name}: ${e.message}`);
+                }
             }
+            console.log(' done');
         }
-        console.log(' done');
+
+        for (const [name, ...benchArgs] of dynamicGraphConfigs) {
+            process.stdout.write(`Running ${name}...`);
+            for (const framework of frameworks) {
+                try {
+                    await dynamicGraph(framework, name, ...benchArgs);
+                } catch (e) {
+                    console.error(`\n  Error in ${framework.name}: ${e.message}`);
+                }
+            }
+            console.log(' done');
+        }
     }
 
     console.log('');
     console.log('='.repeat(70));
     console.log('Results (time in ms, lower is better)');
+    if (numRuns > 1) {
+        console.log('Format: mean ± stddev');
+    }
     console.log('='.repeat(70));
     console.log('');
 
     // Print header
     const fwNames = frameworks.map(f => f.name);
     const colWidth = Math.max(30, ...fwNames.map(n => n.length + 2));
-    console.log('Test'.padEnd(colWidth) + fwNames.map(n => n.padStart(18)).join(''));
-    console.log('-'.repeat(colWidth + fwNames.length * 18));
+    const dataColWidth = numRuns > 1 ? 22 : 18;
+    console.log('Test'.padEnd(colWidth) + fwNames.map(n => n.padStart(dataColWidth)).join(''));
+    console.log('-'.repeat(colWidth + fwNames.length * dataColWidth));
 
-    // Print results
+    // Compute stats and print results
+    const stats = new Map(); // Map<testName, Map<frameworkName, {mean, variance, n}>>
+
     for (const [testName, testResults] of results) {
+        const testStats = new Map();
         let row = testName.padEnd(colWidth);
+
         for (const fwName of fwNames) {
-            const time = testResults.get(fwName);
-            row += (time !== undefined ? time.toFixed(2) : 'N/A').padStart(18);
+            const times = testResults.get(fwName);
+            if (times && times.length > 0) {
+                const m = mean(times);
+                const v = variance(times);
+                const sd = stddev(times);
+                testStats.set(fwName, { mean: m, variance: v, n: times.length });
+
+                if (numRuns > 1) {
+                    row += `${m.toFixed(2)} ± ${sd.toFixed(2)}`.padStart(dataColWidth);
+                } else {
+                    row += m.toFixed(2).padStart(dataColWidth);
+                }
+            } else {
+                testStats.set(fwName, { mean: 0, variance: 0, n: 0 });
+                row += 'N/A'.padStart(dataColWidth);
+            }
         }
+
+        stats.set(testName, testStats);
         console.log(row);
+    }
+
+    // Handle file output/comparison
+    if (outputFile) {
+        const fileExists = existsSync(outputFile);
+
+        if (fileExists) {
+            // Read existing file and compare
+            console.log('');
+            console.log('='.repeat(70));
+            console.log('Comparison with previous results');
+            console.log('='.repeat(70));
+            console.log('');
+
+            const existingContent = readFileSync(outputFile, 'utf-8');
+            const existingData = parseCSV(existingContent);
+
+            let hasSignificantChanges = false;
+
+            for (const [testName, testStats] of stats) {
+                const existingTest = existingData.get(testName);
+                if (!existingTest) {
+                    console.log(`  NEW: ${testName}`);
+                    hasSignificantChanges = true;
+                    continue;
+                }
+
+                for (const [fwName, currentStats] of testStats) {
+                    const existingStats = existingTest.get(fwName);
+                    if (!existingStats) continue;
+
+                    const significant = isSignificant(
+                        currentStats.mean,
+                        currentStats.variance,
+                        currentStats.n,
+                        existingStats.mean,
+                        existingStats.variance,
+                        existingStats.n
+                    );
+
+                    if (significant) {
+                        hasSignificantChanges = true;
+                        const diff = currentStats.mean - existingStats.mean;
+                        const pctChange = existingStats.mean !== 0 ? ((diff / existingStats.mean) * 100).toFixed(1) : 'N/A';
+                        const direction = diff > 0 ? 'SLOWER' : 'FASTER';
+                        console.log(
+                            `  ${direction}: ${testName} [${fwName}]: ${existingStats.mean.toFixed(2)} -> ${currentStats.mean.toFixed(2)} (${pctChange}%)`
+                        );
+                    }
+                }
+            }
+
+            if (!hasSignificantChanges) {
+                console.log('  No statistically significant changes detected.');
+            }
+        } else {
+            // Create new file with results
+            const headerCols = ['test'];
+            for (const fwName of fwNames) {
+                headerCols.push(`${fwName}_mean`, `${fwName}_variance`, `${fwName}_n`);
+            }
+
+            const csvLines = [headerCols.join(',')];
+
+            for (const [testName, testStats] of stats) {
+                const row = [testName];
+                for (const fwName of fwNames) {
+                    const s = testStats.get(fwName);
+                    row.push(s ? s.mean.toFixed(4) : '');
+                    row.push(s ? s.variance.toFixed(4) : '');
+                    row.push(s ? s.n : '');
+                }
+                csvLines.push(row.join(','));
+            }
+
+            writeFileSync(outputFile, csvLines.join('\n') + '\n');
+            console.log('');
+            console.log(`Results saved to: ${outputFile}`);
+        }
     }
 
     console.log('');
@@ -1079,12 +1288,22 @@ async function main() {
     console.log('CSV Output');
     console.log('='.repeat(70));
     console.log('');
-    console.log(['test', ...fwNames].join(','));
-    for (const [testName, testResults] of results) {
-        const values = fwNames.map(n => {
-            const t = testResults.get(n);
-            return t !== undefined ? t.toFixed(2) : '';
-        });
+
+    // CSV header with mean and variance columns
+    const csvHeaderCols = ['test'];
+    for (const fwName of fwNames) {
+        csvHeaderCols.push(`${fwName}_mean`);
+        if (numRuns > 1) csvHeaderCols.push(`${fwName}_variance`);
+    }
+    console.log(csvHeaderCols.join(','));
+
+    for (const [testName, testStats] of stats) {
+        const values = [];
+        for (const fwName of fwNames) {
+            const s = testStats.get(fwName);
+            values.push(s && s.n > 0 ? s.mean.toFixed(2) : '');
+            if (numRuns > 1) values.push(s && s.n > 0 ? s.variance.toFixed(4) : '');
+        }
         console.log([testName, ...values].join(','));
     }
 }
