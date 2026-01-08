@@ -475,6 +475,7 @@ function variance(arr) {
 }
 
 // Calculate standard deviation
+// biome-ignore lint/correctness/noUnusedVariables: was used
 function stddev(arr) {
     return Math.sqrt(variance(arr));
 }
@@ -519,9 +520,10 @@ function isSignificant(mean1, var1, n1, mean2, var2, n2) {
     const denom = (var1 / n1) ** 2 / (n1 - 1) + (var2 / n2) ** 2 / (n2 - 1);
     const df = denom > 0 ? num / denom : 1;
 
-    // Critical t-value approximation for alpha=0.05, two-tailed
-    // Using approximation: t_crit ≈ 1.96 for large df, higher for small df
-    const tCrit = df > 30 ? 1.96 : df > 10 ? 2.1 : df > 5 ? 2.5 : 2.8;
+    // Better t-critical approximation for alpha=0.05, two-tailed
+    // Based on approximation: t ≈ z + (z³ + z) / (4 * df) where z = 1.96
+    const z = 1.96;
+    const tCrit = z + (z * z * z + z) / (4 * df);
 
     return t > tCrit;
 }
@@ -1164,153 +1166,132 @@ async function main() {
         }
     }
 
-    console.log('');
-    console.log('='.repeat(70));
-    console.log('Results (time in ms, lower is better)');
-    if (numRuns > 1) {
-        console.log('Format: mean ± stddev');
-    }
-    console.log('='.repeat(70));
-    console.log('');
-
-    // Print header
     const fwNames = frameworks.map(f => f.name);
-    const colWidth = Math.max(30, ...fwNames.map(n => n.length + 2));
-    const dataColWidth = numRuns > 1 ? 22 : 18;
-    console.log('Test'.padEnd(colWidth) + fwNames.map(n => n.padStart(dataColWidth)).join(''));
-    console.log('-'.repeat(colWidth + fwNames.length * dataColWidth));
 
-    // Compute stats and print results
+    // Compute stats
     const stats = new Map(); // Map<testName, Map<frameworkName, {mean, variance, n}>>
 
     for (const [testName, testResults] of results) {
         const testStats = new Map();
-        let row = testName.padEnd(colWidth);
 
         for (const fwName of fwNames) {
             const times = testResults.get(fwName);
             if (times && times.length > 0) {
                 const m = mean(times);
                 const v = variance(times);
-                const sd = stddev(times);
                 testStats.set(fwName, { mean: m, variance: v, n: times.length });
-
-                if (numRuns > 1) {
-                    row += `${m.toFixed(2)} ± ${sd.toFixed(2)}`.padStart(dataColWidth);
-                } else {
-                    row += m.toFixed(2).padStart(dataColWidth);
-                }
             } else {
                 testStats.set(fwName, { mean: 0, variance: 0, n: 0 });
-                row += 'N/A'.padStart(dataColWidth);
             }
         }
 
         stats.set(testName, testStats);
-        console.log(row);
     }
 
-    // Handle file output/comparison
-    if (outputFile) {
-        const fileExists = existsSync(outputFile);
+    // Check if we're comparing with existing file
+    const fileExists = outputFile && existsSync(outputFile);
 
-        if (fileExists) {
-            // Read existing file and compare
-            console.log('');
-            console.log('='.repeat(70));
-            console.log('Comparison with previous results');
-            console.log('='.repeat(70));
-            console.log('');
+    if (fileExists) {
+        // Read existing file and compare - only show statistically significant results
+        console.log('');
+        console.log('='.repeat(70));
+        console.log('Statistically Significant Changes');
+        console.log('='.repeat(70));
+        console.log('');
 
-            const existingContent = readFileSync(outputFile, 'utf-8');
-            const existingData = parseCSV(existingContent);
+        const existingContent = readFileSync(outputFile, 'utf-8');
+        const existingData = parseCSV(existingContent);
 
-            let hasSignificantChanges = false;
+        let hasSignificantChanges = false;
 
-            for (const [testName, testStats] of stats) {
-                const existingTest = existingData.get(testName);
-                if (!existingTest) {
-                    console.log(`  NEW: ${testName}`);
+        for (const [testName, testStats] of stats) {
+            const existingTest = existingData.get(testName);
+            if (!existingTest) {
+                console.log(`  NEW: ${testName}`);
+                hasSignificantChanges = true;
+                continue;
+            }
+
+            for (const [fwName, currentStats] of testStats) {
+                const existingStats = existingTest.get(fwName);
+                if (!existingStats) continue;
+
+                const significant = isSignificant(
+                    currentStats.mean,
+                    currentStats.variance,
+                    currentStats.n,
+                    existingStats.mean,
+                    existingStats.variance,
+                    existingStats.n
+                );
+
+                if (significant) {
                     hasSignificantChanges = true;
-                    continue;
-                }
-
-                for (const [fwName, currentStats] of testStats) {
-                    const existingStats = existingTest.get(fwName);
-                    if (!existingStats) continue;
-
-                    const significant = isSignificant(
-                        currentStats.mean,
-                        currentStats.variance,
-                        currentStats.n,
-                        existingStats.mean,
-                        existingStats.variance,
-                        existingStats.n
+                    const diff = currentStats.mean - existingStats.mean;
+                    const pctChange = existingStats.mean !== 0 ? ((diff / existingStats.mean) * 100).toFixed(1) : 'N/A';
+                    const direction = diff > 0 ? 'SLOWER' : 'FASTER';
+                    console.log(
+                        `  ${direction}: ${testName} [${fwName}]: ${existingStats.mean.toFixed(2)} -> ${currentStats.mean.toFixed(2)} (${pctChange}%)`
                     );
-
-                    if (significant) {
-                        hasSignificantChanges = true;
-                        const diff = currentStats.mean - existingStats.mean;
-                        const pctChange = existingStats.mean !== 0 ? ((diff / existingStats.mean) * 100).toFixed(1) : 'N/A';
-                        const direction = diff > 0 ? 'SLOWER' : 'FASTER';
-                        console.log(
-                            `  ${direction}: ${testName} [${fwName}]: ${existingStats.mean.toFixed(2)} -> ${currentStats.mean.toFixed(2)} (${pctChange}%)`
-                        );
-                    }
                 }
             }
+        }
 
-            if (!hasSignificantChanges) {
-                console.log('  No statistically significant changes detected.');
-            }
-        } else {
-            // Create new file with results
-            const headerCols = ['test'];
+        if (!hasSignificantChanges) {
+            console.log('  No statistically significant changes detected.');
+        }
+    } else {
+        // No file to compare - show only mean times
+        console.log('');
+        console.log('='.repeat(70));
+        console.log('Results (mean time in ms, lower is better)');
+        console.log('='.repeat(70));
+        console.log('');
+
+        const colWidth = Math.max(30, ...fwNames.map(n => n.length + 2));
+        const dataColWidth = 18;
+        console.log('Test'.padEnd(colWidth) + fwNames.map(n => n.padStart(dataColWidth)).join(''));
+        console.log('-'.repeat(colWidth + fwNames.length * dataColWidth));
+
+        for (const [testName, testStats] of stats) {
+            let row = testName.padEnd(colWidth);
+
             for (const fwName of fwNames) {
-                headerCols.push(`${fwName}_mean`, `${fwName}_variance`, `${fwName}_n`);
-            }
-
-            const csvLines = [headerCols.join(',')];
-
-            for (const [testName, testStats] of stats) {
-                const row = [testName];
-                for (const fwName of fwNames) {
-                    const s = testStats.get(fwName);
-                    row.push(s ? s.mean.toFixed(4) : '');
-                    row.push(s ? s.variance.toFixed(4) : '');
-                    row.push(s ? s.n : '');
+                const s = testStats.get(fwName);
+                if (s && s.n > 0) {
+                    row += s.mean.toFixed(2).padStart(dataColWidth);
+                } else {
+                    row += 'N/A'.padStart(dataColWidth);
                 }
-                csvLines.push(row.join(','));
             }
 
-            writeFileSync(outputFile, csvLines.join('\n') + '\n');
-            console.log('');
-            console.log(`Results saved to: ${outputFile}`);
+            console.log(row);
         }
     }
 
-    console.log('');
-    console.log('='.repeat(70));
-    console.log('CSV Output');
-    console.log('='.repeat(70));
-    console.log('');
-
-    // CSV header with mean and variance columns
-    const csvHeaderCols = ['test'];
-    for (const fwName of fwNames) {
-        csvHeaderCols.push(`${fwName}_mean`);
-        if (numRuns > 1) csvHeaderCols.push(`${fwName}_variance`);
-    }
-    console.log(csvHeaderCols.join(','));
-
-    for (const [testName, testStats] of stats) {
-        const values = [];
+    // Save results to file if specified (only when not comparing)
+    if (outputFile && !fileExists) {
+        const headerCols = ['test'];
         for (const fwName of fwNames) {
-            const s = testStats.get(fwName);
-            values.push(s && s.n > 0 ? s.mean.toFixed(2) : '');
-            if (numRuns > 1) values.push(s && s.n > 0 ? s.variance.toFixed(4) : '');
+            headerCols.push(`${fwName}_mean`, `${fwName}_variance`, `${fwName}_n`);
         }
-        console.log([testName, ...values].join(','));
+
+        const csvLines = [headerCols.join(',')];
+
+        for (const [testName, testStats] of stats) {
+            const row = [testName];
+            for (const fwName of fwNames) {
+                const s = testStats.get(fwName);
+                row.push(s ? s.mean.toFixed(4) : '');
+                row.push(s ? s.variance.toFixed(4) : '');
+                row.push(s ? s.n : '');
+            }
+            csvLines.push(row.join(','));
+        }
+
+        writeFileSync(outputFile, csvLines.join('\n') + '\n');
+        console.log('');
+        console.log(`Results saved to: ${outputFile}`);
     }
 }
 
