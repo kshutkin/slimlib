@@ -6,7 +6,6 @@ const [
     dependencies,
     flagsSymbol,
     skippedDeps,
-    weakRefSymbol,
     lastGlobalVersionSymbol,
     getterSymbol,
     equalsSymbol,
@@ -14,6 +13,7 @@ const [
     propertyDepsSymbol,
     trackSymbol,
     childrenSymbol,
+    versionSymbol,
 ] = /** @type {[symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol]}*/ (
     Array.from({ length: 13 }, () => Symbol())
 );
@@ -92,14 +92,16 @@ const warnIfWriteInComputed = context => {
 const FLAG_DIRTY = 1 << 0; // 1 - definitely needs recomputation
 const FLAG_CHECK = 1 << 1; // 2 - might need recomputation, check sources first
 const FLAG_COMPUTING = 1 << 2; // 4 - currently executing
-const FLAG_EFFECT = 1 << 3; // 8 - is an effect (eager execution)
+const FLAG_EFFECT = 1 << 3; // 8 - is an effect (eager execution, always live)
 const FLAG_HAS_VALUE = 1 << 4; // 16 - has a cached value
 const FLAG_HAS_ERROR = 1 << 5; // 32 - has a cached error (per TC39 Signals proposal)
+const FLAG_LIVE = 1 << 6; // 64 - computed is live (has live dependents)
 
 // Pre-combined flags for faster checks
 const FLAG_NEEDS_WORK = FLAG_DIRTY | FLAG_CHECK; // 3 - needs recomputation
 const FLAG_COMPUTING_EFFECT = FLAG_COMPUTING | FLAG_EFFECT; // 12 - computing effect
 const FLAG_CHECK_ONLY = FLAG_CHECK | FLAG_DIRTY | FLAG_EFFECT; // 11 - for checking if only CHECK is set
+const FLAG_IS_LIVE = FLAG_EFFECT | FLAG_LIVE; // 72 - either an effect or live computed
 
 /**
  * @template T
@@ -270,27 +272,61 @@ export const scope = (callback, parent = activeScope) => {
 export const unwrapValue = value => (value != null && /** @type {Record<symbol, any>} */ (/** @type {unknown} */ (value))[unwrap]) || value;
 
 /**
+ * Make a computed live - register it with all its sources
+ * Called when a live consumer starts reading this computed
+ * @param {Computed<any>} node
+ */
+const makeLive = node => {
+    node[flagsSymbol] |= FLAG_LIVE;
+    for (const { deps, node: sourceNode } of node[sources]) {
+        deps.add(node);
+        if (sourceNode && !(sourceNode[flagsSymbol] & FLAG_IS_LIVE)) {
+            makeLive(sourceNode);
+        }
+    }
+};
+
+/**
+ * Make a computed non-live - unregister it from all its sources
+ * Called when all live consumers stop depending on this computed
+ * @param {Computed<any>} node
+ */
+const makeNonLive = node => {
+    node[flagsSymbol] &= ~FLAG_LIVE;
+    for (const { deps, node: sourceNode } of node[sources]) {
+        deps.delete(node);
+        const sf = sourceNode?.[flagsSymbol];
+        if (sf & FLAG_LIVE && !(sf & FLAG_EFFECT) && !sourceNode[dependencies].size) {
+            makeNonLive(sourceNode);
+        }
+    }
+};
+
+/**
  * Clear sources for a node starting from a specific index
  * @param {Computed<any>} node
  * @param {number} fromIndex - Index to start clearing from (default 0 clears all)
  */
 const clearSources = (node, fromIndex = 0) => {
     const sourcesArray = node[sources];
-    const weakRef = node[weakRefSymbol];
-    const len = sourcesArray.length;
-    for (let i = fromIndex; i < len; i++) {
-        const deps = sourcesArray[i].deps;
+    const isLive = node[flagsSymbol] & FLAG_IS_LIVE;
+
+    for (let i = fromIndex; i < sourcesArray.length; i++) {
+        const { deps, node: sourceNode } = sourcesArray[i];
+
         // Check if this deps is retained (exists in kept portion) - avoid removing shared deps
-        // This is rare (reading same property multiple times), so linear scan is acceptable
-        let isRetained = false;
-        for (let j = 0; j < fromIndex; j++) {
-            if (sourcesArray[j].deps === deps) {
-                isRetained = true;
-                break;
-            }
+        let retained = false;
+        for (let j = 0; j < fromIndex && !retained; j++) {
+            retained = sourcesArray[j].deps === deps;
         }
-        if (!isRetained) {
-            deps.delete(weakRef);
+
+        if (isLive && !retained) {
+            deps.delete(node);
+            // If source is a computed, check if it became non-live
+            const sourceNodeFlag = sourceNode?.[flagsSymbol];
+            if (sourceNodeFlag & FLAG_LIVE && !(sourceNodeFlag & FLAG_EFFECT) && !sourceNode[dependencies].size) {
+                makeNonLive(sourceNode);
+            }
         }
     }
     sourcesArray.length = fromIndex;
@@ -324,106 +360,66 @@ const scheduleFlush = () => {
 
 /**
  * Track a dependency between currentComputing and a deps Set
- * Uses WeakRef to allow automatic GC of unused computeds
- * @param {Set<WeakRef<Computed<any>>>} deps - The dependency set to track (holds WeakRefs)
+ * Uses liveness tracking - only live consumers register with sources
+ * @param {Set<Computed<any>>} deps - The dependency set to track
  * @param {Computed<any>} [sourceNode] - The computed node being accessed (if any)
  */
 const trackDependency = (deps, sourceNode) => {
     // Callers guarantee tracked && currentComputing are true
     const node = /** @type {Computed<any>} */ (currentComputing);
-
     const sourcesArray = node[sources];
     const skipIndex = node[skippedDeps];
 
     if (sourcesArray[skipIndex]?.deps !== deps) {
         // Different dependency - clear old ones from this point and rebuild
-        if (skipIndex < sourcesArray.length) {
-            clearSources(node, skipIndex);
-        }
-        // Use cached WeakRef from the node (create lazily on first use)
-        let weakRef = node[weakRefSymbol];
-        if (!weakRef) {
-            weakRef = new WeakRef(node);
-            node[weakRefSymbol] = weakRef;
-        }
-        sourcesArray.push({ deps, node: sourceNode });
-        deps.add(weakRef);
-    }
-    // If reusing existing entry, weakRef is already in deps
+        if (skipIndex < sourcesArray.length) clearSources(node, skipIndex);
 
+        // Push source entry - version will be updated after source computes
+        sourcesArray.push({ deps, node: sourceNode, version: 0 });
+
+        // Only register with source if we're live
+        if (node[flagsSymbol] & FLAG_IS_LIVE) {
+            deps.add(node);
+            // If source is a computed that's not live, make it live
+            if (sourceNode && !(sourceNode[flagsSymbol] & FLAG_IS_LIVE)) {
+                makeLive(sourceNode);
+            }
+        }
+    }
     ++node[skippedDeps];
 };
 
 /**
- * Schedule an effect for execution
- * @param {Computed<any>} node
- */
-const scheduleEffect = node => {
-    batched.add(node);
-    scheduleFlush();
-};
-
-/**
  * Mark a node as needing check (eager propagation with equality cutoff)
- * Marks the node and recursively marks all dependents in a single traversal
  * @param {Computed<any>} node
  */
 const markNeedsCheck = node => {
     const flags = node[flagsSymbol];
-
-    // Don't mark nodes that are currently computing - they'll handle their own state
-    // Exception: effects that have store changes during execution should still be scheduled for re-run
     if ((flags & FLAG_COMPUTING_EFFECT) === FLAG_COMPUTING_EFFECT) {
-        // Computing effect with store change - schedule re-run
         node[flagsSymbol] = flags | FLAG_DIRTY;
-        scheduleEffect(node);
-        return;
-    }
-
-    if (flags & FLAG_COMPUTING) {
-        // Computing but not an effect - just return
-        return;
-    }
-
-    // Only propagate if node is clean (no dirty or check flags set)
-    if (!(flags & FLAG_NEEDS_WORK)) {
+        batched.add(node);
+        scheduleFlush();
+    } else if (!(flags & (FLAG_COMPUTING | FLAG_NEEDS_WORK))) {
         node[flagsSymbol] = flags | FLAG_CHECK;
-
-        // Schedule execution for effects
         if (flags & FLAG_EFFECT) {
-            scheduleEffect(node);
+            batched.add(node);
+            scheduleFlush();
         }
-
-        // Recursively mark ALL dependents (single traversal optimization)
-        markDependents(node[dependencies]);
-    }
-};
-
-/**
- * Iterate over a WeakRef set, calling callback for each live dep and cleaning up dead ones
- * @param {Set<WeakRef<Computed<any>>>} deps - The dependency set to iterate (holds WeakRefs)
- * @param {(dep: Computed<any>) => void} callback - Function to call for each live dependency
- */
-const forEachDep = (deps, callback) => {
-    for (const weakRef of deps) {
-        const dep = weakRef.deref();
-        if (dep) {
-            callback(dep);
-        } else {
-            // Computed was GC'd, clean up dead WeakRef
-            deps.delete(weakRef);
+        for (const dep of node[dependencies]) {
+            markNeedsCheck(dep);
         }
     }
 };
 
 /**
  * Mark all dependents in a Set as needing check
- * Unified notification function for both computed and state dependencies
- * @param {Set<WeakRef<Computed<any>>>} deps - The dependency set to notify (holds WeakRefs)
+ * @param {Set<Computed<any>>} deps - The dependency set to notify
  */
 const markDependents = deps => {
     globalVersion++;
-    forEachDep(deps, markNeedsCheck);
+    for (const dep of deps) {
+        markNeedsCheck(dep);
+    }
 };
 
 /**
@@ -454,21 +450,15 @@ export function state(object) {
      * @param {string | symbol} [property] - If provided, notifies only this property's dependents. If omitted, notifies all properties' dependents.
      */
     const notifyPropertyDependents = (target, property) => {
-        const propsMap = /** @type {Map<string | symbol, Set<WeakRef<Computed<any>>>> | undefined} */ (
+        const propsMap = /** @type {Map<string | symbol, Set<Computed<any>>> | undefined} */ (
             /** @type {any} */ (target)[propertyDepsSymbol]
         );
-        if (propsMap) {
-            if (property !== undefined) {
-                // Notify specific property
-                const deps = propsMap.get(property);
-                if (deps) {
-                    markDependents(deps);
-                }
-            } else {
-                // Notify all properties
-                for (const deps of propsMap.values()) {
-                    markDependents(deps);
-                }
+        if (!propsMap) return;
+        // If property specified, notify just that property; otherwise notify all
+        const depsToNotify = property !== undefined ? [propsMap.get(property)] : propsMap.values();
+        for (const deps of depsToNotify) {
+            if (deps) {
+                markDependents(deps);
             }
         }
     };
@@ -506,24 +496,20 @@ export function state(object) {
                 // Track dependency if we're inside an effect/computed
                 if (tracked && currentComputing) {
                     // Get or create the Map for this target (stored as non-enumerable property)
-                    let propsMap = /** @type {Map<string | symbol, Set<WeakRef<Computed<any>>>> | undefined} */ (
+                    let propsMap = /** @type {Map<string | symbol, Set<Computed<any>>> | undefined} */ (
                         /** @type {any} */ (target)[propertyDepsSymbol]
                     );
                     if (!propsMap) {
                         propsMap = new Map();
-                        Object.defineProperty(target, propertyDepsSymbol, {
-                            value: propsMap,
-                            enumerable: false,
-                            configurable: false,
-                            writable: false,
-                        });
+                        Object.defineProperty(target, propertyDepsSymbol, { value: propsMap });
                     }
 
                     // Get or create the Set for this property
                     let deps = propsMap.get(p);
+
                     if (!deps) {
-                        deps = new Set();
-                        propsMap.set(p, deps);
+                        // biome-ignore lint/suspicious/noAssignInExpressions: optimization
+                        propsMap.set(p, (deps = new Set()));
                     }
 
                     // Bidirectional linking with optimization
@@ -531,13 +517,14 @@ export function state(object) {
                 }
 
                 // Fast path for primitives (most common case)
-                if (propValue === null || (typeof propValue !== 'object' && typeof propValue !== 'function')) {
+                const propertyType = typeof propValue;
+                if (propValue === null || (propertyType !== 'object' && propertyType !== 'function')) {
                     return propValue;
                 }
 
                 // Functions are wrapped to apply with correct `this` (target, not proxy)
                 // After function call, notify dependents (function may have mutated internal state)
-                if (typeof propValue === 'function') {
+                if (propertyType === 'function') {
                     // Check cache first to avoid creating new function on every access
                     let cached = methodCache.get(p);
                     if (!cached) {
@@ -596,18 +583,14 @@ export const effect = callback => {
     /** @type {void | EffectCleanup} */
     let cleanup;
 
-    const runCleanup = () => {
-        if (typeof cleanup === 'function') {
-            cleanup();
-        }
-    };
-
     // Effects use a custom equals that always returns false to ensure they always run
     const comp = /** @type {Computed<void | (() => void)>} */ (
         computed(
             () => {
                 // Run previous cleanup if it exists
-                runCleanup();
+                if (typeof cleanup === 'function') {
+                    cleanup();
+                }
                 // Run the callback and store new cleanup
                 cleanup = callback();
             },
@@ -618,8 +601,9 @@ export const effect = callback => {
 
     // Dispose function for this effect
     const dispose = () => {
-        // Run final cleanup
-        runCleanup();
+        if (typeof cleanup === 'function') {
+            cleanup();
+        }
         clearSources(comp);
         batched.delete(comp);
     };
@@ -630,7 +614,8 @@ export const effect = callback => {
     }
 
     // Trigger first run via batched queue (node is already dirty from computed())
-    scheduleEffect(comp);
+    batched.add(comp);
+    scheduleFlush();
 
     // Return dispose function
     return dispose;
@@ -649,6 +634,7 @@ function computedRead() {
     }
 
     let flags = this[flagsSymbol];
+    const sourcesArray = this[sources];
 
     // Cycle detection: if this computed is already being computed, we have a cycle
     // This matches TC39 Signals proposal behavior: throw an error on cyclic reads
@@ -665,14 +651,35 @@ function computedRead() {
         return this[valueSymbol];
     }
 
+    const len = sourcesArray.length;
+
+    // For non-live computeds with stale globalVersion: poll sources to check if recomputation needed
+    // This is the "pull" part of the push/pull algorithm - non-live nodes poll instead of receiving notifications
+    if (!(flags & FLAG_NEEDS_WORK) && flags & (FLAG_HAS_VALUE | FLAG_HAS_ERROR) && !(flags & FLAG_IS_LIVE)) {
+        // Check if we have any state sources (no node means state/signal source)
+        let hasStateSources = false;
+        for (let i = 0; i < len; i++) {
+            if (!sourcesArray[i].node) {
+                hasStateSources = true;
+                break;
+            }
+        }
+
+        if (hasStateSources) {
+            // Has state sources - can't poll them, must recompute
+            flags |= FLAG_DIRTY;
+        } else {
+            // Only computed sources - mark as CHECK to poll them below
+            flags |= FLAG_CHECK;
+        }
+        this[flagsSymbol] = flags;
+    }
+
     // For CHECK state, verify if sources actually changed before recomputing
     // This preserves the equality cutoff optimization with eager marking
     // Only do this for non-effects that ONLY have computed sources (with nodes)
     // Effects should always run when marked, and state deps have no node to check
     if ((flags & (FLAG_CHECK_ONLY | FLAG_HAS_VALUE)) === (FLAG_CHECK | FLAG_HAS_VALUE)) {
-        const sourcesArray = this[sources];
-        const len = sourcesArray.length;
-
         // Fast path: check if all sources have nodes (are computed, not state)
         // Do this inline to avoid separate loop
         let allComputed = len > 0;
@@ -688,19 +695,28 @@ function computedRead() {
             // Inline untracked to avoid function call overhead
             const prevTracked = tracked;
             tracked = false;
+            let sourceChanged = false;
             try {
                 for (let i = 0; i < len; i++) {
+                    const sourceEntry = sourcesArray[i];
+                    const sourceNode = sourceEntry.node;
                     // Access source to trigger its recomputation if needed
-                    sourcesArray[i].node();
+                    sourceNode();
+                    // Check if source version changed (meaning its value changed)
+                    if (sourceEntry.version !== sourceNode[versionSymbol]) {
+                        sourceChanged = true;
+                        sourceEntry.version = sourceNode[versionSymbol];
+                    }
                 }
             } finally {
                 tracked = prevTracked;
             }
-            // If we're still CHECK after checking all sources, no source changed value
-            // We can safely mark as clean and skip recomputation
-            flags = this[flagsSymbol];
-            if ((flags & FLAG_NEEDS_WORK) === FLAG_CHECK) {
-                this[flagsSymbol] = flags & ~FLAG_CHECK;
+            // If source changed, mark as dirty to force recomputation
+            // Otherwise, clear CHECK flag since sources are unchanged
+            if (sourceChanged) {
+                this[flagsSymbol] = (this[flagsSymbol] & ~FLAG_CHECK) | FLAG_DIRTY;
+            } else {
+                this[flagsSymbol] &= ~FLAG_CHECK;
             }
         }
     }
@@ -729,27 +745,21 @@ function computedRead() {
 
             if (changed) {
                 this[valueSymbol] = newValue;
-                // Set has value flag and clear error flag (single bitmask operation)
+                // Increment version to indicate value changed (for polling)
+                this[versionSymbol]++;
                 this[flagsSymbol] = (this[flagsSymbol] | FLAG_HAS_VALUE) & ~FLAG_HAS_ERROR;
-                // Value changed - mark dependents as DIRTY (not just CHECK)
-                // so they know they definitely need to recompute
-                forEachDep(this[dependencies], dep => {
+                // Mark CHECK-only dependents as DIRTY
+                for (const dep of this[dependencies]) {
                     const depFlags = dep[flagsSymbol];
                     if ((depFlags & (FLAG_COMPUTING | FLAG_NEEDS_WORK)) === FLAG_CHECK) {
                         dep[flagsSymbol] = depFlags | FLAG_DIRTY;
                     }
-                });
+                }
             } else if (wasDirty) {
-                // Was dirty (first computation) but value matches
-                // Still need to mark as having a value
                 this[flagsSymbol] |= FLAG_HAS_VALUE;
             }
-            // If value unchanged and was only checking, don't propagate
 
-            // Check if we were marked dirty during computation
-            // If so, keep dirty flag, otherwise clear computing
-            const endFlags = this[flagsSymbol];
-            this[flagsSymbol] = endFlags & ~FLAG_COMPUTING;
+            this[flagsSymbol] &= ~FLAG_COMPUTING;
 
             // Update last seen global version
             this[lastGlobalVersionSymbol] = globalVersion;
@@ -757,15 +767,27 @@ function computedRead() {
             // Per TC39 Signals proposal: cache the error and mark as clean with error flag
             // The error will be rethrown on subsequent reads until a dependency changes
             // Reuse valueSymbol for error storage since a computed can't have both value and error
+            // Increment version since the result changed (to error)
+            this[versionSymbol]++;
             this[valueSymbol] = e;
             this[flagsSymbol] = (this[flagsSymbol] & ~(FLAG_COMPUTING | FLAG_NEEDS_WORK | FLAG_HAS_VALUE)) | FLAG_HAS_ERROR;
             this[lastGlobalVersionSymbol] = globalVersion;
         } finally {
             currentComputing = prev;
             tracked = prevTracked;
+            // Update source versions now that all sources have computed
+            // This ensures we capture the version AFTER recomputation, not before
+            const skipped = this[skippedDeps];
+            const updateLen = Math.min(skipped, sourcesArray.length);
+            for (let i = 0; i < updateLen; i++) {
+                const entry = sourcesArray[i];
+                if (entry.node) {
+                    entry.version = entry.node[versionSymbol];
+                }
+            }
             // Clean up any excess sources that weren't reused
-            if (this[sources].length > this[skippedDeps]) {
-                clearSources(this, this[skippedDeps]);
+            if (sourcesArray.length > skipped) {
+                clearSources(this, skipped);
             }
         }
     }
@@ -796,6 +818,7 @@ export const computed = (getter, equals = Object.is) => {
     context[skippedDeps] = 0;
     context[getterSymbol] = getter;
     context[equalsSymbol] = equals;
+    context[versionSymbol] = 0;
 
     return context;
 };
@@ -821,7 +844,7 @@ export const computed = (getter, equals = Object.is) => {
  */
 export function signal(initialValue) {
     let value = /** @type {T} */ (initialValue);
-    /** @type {Set<WeakRef<Computed<any>>> | null} */
+    /** @type {Set<Computed<any>> | null} */
     let deps = null;
 
     /**
@@ -831,7 +854,7 @@ export function signal(initialValue) {
     const read = () => {
         // Fast path: if not tracked or no current computing, skip tracking
         if (tracked && currentComputing) {
-            if (!deps) deps = new Set();
+            deps ||= new Set();
             trackDependency(deps);
         }
         return value;
