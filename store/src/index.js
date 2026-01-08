@@ -691,18 +691,13 @@ function computedRead() {
             }
             // If source changed, mark as dirty to force recomputation
             // Otherwise, clear CHECK flag since sources are unchanged
-            if (sourceChanged) {
-                this[flagsSymbol] = (flags & ~FLAG_CHECK) | FLAG_DIRTY;
-            } else {
-                this[flagsSymbol] = flags & ~FLAG_CHECK;
-            }
+            this[flagsSymbol] = flags = (flags & ~FLAG_CHECK) | (sourceChanged ? FLAG_DIRTY : 0);
         }
     }
 
     // Recompute if dirty or check (sources actually changed)
     // Note: FLAG_COMPUTING check is now redundant here since we throw above,
     // but kept for safety in case of future refactoring
-    flags = this[flagsSymbol];
     if (flags & FLAG_NEEDS_WORK) {
         const wasDirty = (flags & FLAG_DIRTY) !== 0;
         this[flagsSymbol] = (flags & ~FLAG_NEEDS_WORK) | FLAG_COMPUTING;
