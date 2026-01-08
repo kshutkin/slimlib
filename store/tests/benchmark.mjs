@@ -487,7 +487,11 @@ function parseCSV(content) {
 
     const header = lines[0].split(',');
     // Extract framework names from header (every 3rd column after test name is mean)
-    const fwNames = header.slice(1).filter((_, i) => i % 3 === 0);
+    // Strip the '_mean' suffix to match the framework names used in the current run
+    const fwNames = header
+        .slice(1)
+        .filter((_, i) => i % 3 === 0)
+        .map(n => n.replace('_mean', ''));
 
     const data = new Map();
     for (let i = 1; i < lines.length; i++) {

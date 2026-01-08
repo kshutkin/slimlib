@@ -35,7 +35,7 @@ describe('store', () => {
 
     it('creates empty state when called without argument', async () => {
         // This covers line 504: state() without argument
-        const store = state();
+        const store = /** @type{{dynamicProp: string}} */ (state());
         expect(store).toBeDefined();
         expect(typeof store).toBe('object');
 

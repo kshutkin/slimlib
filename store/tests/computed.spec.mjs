@@ -888,9 +888,7 @@ describe('computed', () => {
         // computed is currently computing and we try to mark it
         const store = state({ value: 1, trigger: 0 });
 
-        let computeCount = 0;
         const comp = computed(() => {
-            computeCount++;
             const val = store.value;
             // Reading trigger here, but we'll change it during another computed's execution
             store.trigger;
