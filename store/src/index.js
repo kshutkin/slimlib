@@ -692,9 +692,9 @@ function computedRead() {
             // If source changed, mark as dirty to force recomputation
             // Otherwise, clear CHECK flag since sources are unchanged
             if (sourceChanged) {
-                this[flagsSymbol] = (this[flagsSymbol] & ~FLAG_CHECK) | FLAG_DIRTY;
+                this[flagsSymbol] = (flags & ~FLAG_CHECK) | FLAG_DIRTY;
             } else {
-                this[flagsSymbol] &= ~FLAG_CHECK;
+                this[flagsSymbol] = flags & ~FLAG_CHECK;
             }
         }
     }
