@@ -1149,8 +1149,8 @@ async function main() {
                 }
             }
             // Allow GC to run between benchmarks
-            await new Promise(r => setImmediate(r));
-            if (globalThis.gc) gc();
+            // await new Promise(r => setImmediate(r));
+            // if (globalThis.gc) gc();
             console.log(' done');
         }
 
@@ -1164,8 +1164,8 @@ async function main() {
                 }
             }
             // Allow GC to run between benchmarks
-            await new Promise(r => setImmediate(r));
-            if (globalThis.gc) gc();
+            // await new Promise(r => setImmediate(r));
+            // if (globalThis.gc) gc();
             console.log(' done');
         }
     }
@@ -1293,7 +1293,7 @@ async function main() {
             csvLines.push(row.join(','));
         }
 
-        writeFileSync(outputFile, csvLines.join('\n') + '\n');
+        writeFileSync(outputFile, `${csvLines.join('\n')}\n`);
         console.log('');
         console.log(`Results saved to: ${outputFile}`);
     }

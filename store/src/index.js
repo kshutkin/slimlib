@@ -171,21 +171,6 @@ export const setScheduler = newScheduler => {
  * @param {ScopeCallback} [callback] - Optional callback to run in scope context
  * @param {Scope | undefined | null} [parent=activeScope] - Parent scope (defaults to activeScope, pass undefined for no parent)
  * @returns {Scope} A scope function that can extend the scope or dispose it
- *
- * @example
- * // Create a scope with callback
- * const ctx = scope((onDispose) => {
- *   effect(() => { console.log('tracked'); });
- *   onDispose(() => { console.log('cleanup'); });
- * });
- *
- * // Extend the scope
- * ctx((onDispose) => {
- *   effect(() => { console.log('also tracked'); });
- * });
- *
- * // Dispose all effects and run cleanup
- * ctx();
  */
 export const scope = (callback, parent = activeScope) => {
     /** @type {Set<() => void>} */
@@ -372,7 +357,9 @@ const trackDependency = (deps, sourceNode) => {
 
     if (sourcesArray[skipIndex]?.deps !== deps) {
         // Different dependency - clear old ones from this point and rebuild
-        if (skipIndex < sourcesArray.length) clearSources(node, skipIndex);
+        if (skipIndex < sourcesArray.length) {
+            clearSources(node, skipIndex);
+        }
 
         // Push source entry - version will be updated after source computes
         sourcesArray.push({ deps, node: sourceNode, version: 0 });
@@ -440,8 +427,7 @@ const markDependents = deps => {
  * @param {T} [object] - Optional object to make reactive
  * @returns {T}
  */
-export function state(object) {
-    if (object === undefined) object = /** @type {T} */ ({});
+export function state(object = /** @type {T} */ ({})) {
     const proxiesCache = new WeakMap();
 
     /**
@@ -658,21 +644,14 @@ function computedRead() {
     if (!(flags & FLAG_NEEDS_WORK) && flags & (FLAG_HAS_VALUE | FLAG_HAS_ERROR) && !(flags & FLAG_IS_LIVE)) {
         // Check if we have any state sources (no node means state/signal source)
         let hasStateSources = false;
-        for (let i = 0; i < len; i++) {
-            if (!sourcesArray[i].node) {
+        for (const source of sourcesArray) {
+            if (!source.node) {
                 hasStateSources = true;
                 break;
             }
         }
 
-        if (hasStateSources) {
-            // Has state sources - can't poll them, must recompute
-            flags |= FLAG_DIRTY;
-        } else {
-            // Only computed sources - mark as CHECK to poll them below
-            flags |= FLAG_CHECK;
-        }
-        this[flagsSymbol] = flags;
+        this[flagsSymbol] = flags |= hasStateSources ? FLAG_DIRTY : FLAG_CHECK;
     }
 
     // For CHECK state, verify if sources actually changed before recomputing
@@ -697,8 +676,7 @@ function computedRead() {
             tracked = false;
             let sourceChanged = false;
             try {
-                for (let i = 0; i < len; i++) {
-                    const sourceEntry = sourcesArray[i];
+                for (const sourceEntry of sourcesArray) {
                     const sourceNode = sourceEntry.node;
                     // Access source to trigger its recomputation if needed
                     sourceNode();

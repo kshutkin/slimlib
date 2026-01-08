@@ -68,7 +68,7 @@ function loadPreviousResults(filePath) {
  * Save results to JSON file
  */
 function saveResults(filePath, results) {
-    writeFileSync(filePath, JSON.stringify(results, null, 2) + '\n');
+    writeFileSync(filePath, `${JSON.stringify(results, null, 2)}\n`);
 }
 
 /**
