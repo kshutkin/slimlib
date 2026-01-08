@@ -34,7 +34,7 @@
     "scripts": {
         "build": "dts-buddy",
         "test": "vitest run --coverage --config ../vitest.config.mjs",
-        "bench": "node tests/benchmark.mjs -n 10 -f ./results.csv",
+        "bench": "node --expose-gc tests/benchmark.mjs -n 10 -f ./results.csv",
         "prepack": "pkgprn"
     },
     "dependencies": {

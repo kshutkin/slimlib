@@ -70,7 +70,7 @@ const slimlibFramework = {
 };
 
 const slimlibFrameworkProxy = {
-    name: '@slimlib/store (proxy value)',
+    name: '@slimlib/store (proxy)',
     signal: initial => {
         const s = slimlibState({ value: initial });
         return {
@@ -1142,6 +1142,9 @@ async function main() {
                     console.error(`\n  Error in ${framework.name}: ${e.message}`);
                 }
             }
+            // Allow GC to run between benchmarks
+            await new Promise(r => setImmediate(r));
+            if (globalThis.gc) gc();
             console.log(' done');
         }
 
@@ -1154,6 +1157,9 @@ async function main() {
                     console.error(`\n  Error in ${framework.name}: ${e.message}`);
                 }
             }
+            // Allow GC to run between benchmarks
+            await new Promise(r => setImmediate(r));
+            if (globalThis.gc) gc();
             console.log(' done');
         }
     }
