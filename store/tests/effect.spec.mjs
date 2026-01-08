@@ -705,4 +705,32 @@ describe('effect', () => {
         await flushAll();
         expect(effectRuns).toBe(4);
     });
+
+    it('does not call truthy non-function return value as cleanup', async () => {
+        const store = state({ count: 0 });
+        let runs = 0;
+
+        // Effect returns a truthy non-function value (an object)
+        // If cleanup?.() was used instead of typeof check, this would throw
+        // "cleanup is not a function" when the effect re-runs
+        // @ts-expect-error
+        effect(() => {
+            store.count;
+            runs++;
+            return { notAFunction: true }; // truthy but not callable
+        });
+
+        await flushAll();
+        expect(runs).toBe(1);
+
+        // This should NOT throw - the typeof check should prevent calling the object
+        store.count = 1;
+        await flushAll();
+        expect(runs).toBe(2);
+
+        // Also test with other truthy non-function values
+        store.count = 2;
+        await flushAll();
+        expect(runs).toBe(3);
+    });
 });
