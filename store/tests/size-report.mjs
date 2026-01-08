@@ -27,7 +27,9 @@ const SOURCE_FILE = join(__dirname, '../src/index.js');
  * Get the compressed size using terser
  */
 async function getCompressedSize(filePath) {
-    const source = readFileSync(filePath, 'utf-8');
+    let source = readFileSync(filePath, 'utf-8');
+
+    source = source.replace("import { DEV } from 'esm-env';", 'const DEV = 0;');
 
     const result = await minify(source, {
         compress: {

@@ -1,0 +1,56 @@
+/**
+ * @import { Computed, EffectCleanup } from './index.js'
+ */
+
+import { computed } from './computed.js';
+import { clearSources, scheduleFlush } from './core.js';
+import { FLAG_EFFECT } from './flags.js';
+import { activeScope, batched } from './globals.js';
+import { flagsSymbol, trackSymbol } from './symbols.js';
+
+/**
+ * Creates a reactive effect that runs when dependencies change
+ * @param {() => void | EffectCleanup} callback - Effect function, can optionally return a cleanup function
+ * @returns {() => void} Dispose function to stop the effect
+ */
+export const effect = callback => {
+    /** @type {void | EffectCleanup} */
+    let cleanup;
+
+    // Effects use a custom equals that always returns false to ensure they always run
+    const comp = /** @type {Computed<void | (() => void)>} */ (
+        computed(
+            () => {
+                // Run previous cleanup if it exists
+                if (typeof cleanup === 'function') {
+                    cleanup();
+                }
+                // Run the callback and store new cleanup
+                cleanup = callback();
+            },
+            () => false
+        )
+    );
+    comp[flagsSymbol] |= FLAG_EFFECT;
+
+    // Dispose function for this effect
+    const dispose = () => {
+        if (typeof cleanup === 'function') {
+            cleanup();
+        }
+        clearSources(comp);
+        batched.delete(comp);
+    };
+
+    // Track to appropriate scope
+    if (activeScope) {
+        activeScope[trackSymbol](dispose);
+    }
+
+    // Trigger first run via batched queue (node is already dirty from computed())
+    batched.add(comp);
+    scheduleFlush();
+
+    // Return dispose function
+    return dispose;
+};
