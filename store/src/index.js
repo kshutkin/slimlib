@@ -263,7 +263,7 @@ export const unwrapValue = value => (value != null && /** @type {Record<symbol, 
  */
 const makeLive = node => {
     node[flagsSymbol] |= FLAG_LIVE;
-    for (const { deps, node: sourceNode } of node[sources]) {
+    for (const { d: deps, n: sourceNode } of node[sources]) {
         deps.add(node);
         if (sourceNode && !(sourceNode[flagsSymbol] & FLAG_IS_LIVE)) {
             makeLive(sourceNode);
@@ -278,10 +278,10 @@ const makeLive = node => {
  */
 const makeNonLive = node => {
     node[flagsSymbol] &= ~FLAG_LIVE;
-    for (const { deps, node: sourceNode } of node[sources]) {
+    for (const { d: deps, n: sourceNode } of node[sources]) {
         deps.delete(node);
-        const sf = sourceNode?.[flagsSymbol];
-        if (sf & FLAG_LIVE && !(sf & FLAG_EFFECT) && !sourceNode[dependencies].size) {
+        const sourceNodeFlag = sourceNode?.[flagsSymbol];
+        if (sourceNodeFlag & FLAG_LIVE && !(sourceNodeFlag & FLAG_EFFECT) && !sourceNode[dependencies].size) {
             makeNonLive(sourceNode);
         }
     }
@@ -297,12 +297,12 @@ const clearSources = (node, fromIndex = 0) => {
     const isLive = node[flagsSymbol] & FLAG_IS_LIVE;
 
     for (let i = fromIndex; i < sourcesArray.length; i++) {
-        const { deps, node: sourceNode } = sourcesArray[i];
+        const { d: deps, n: sourceNode } = sourcesArray[i];
 
         // Check if this deps is retained (exists in kept portion) - avoid removing shared deps
         let retained = false;
         for (let j = 0; j < fromIndex && !retained; j++) {
-            retained = sourcesArray[j].deps === deps;
+            retained = sourcesArray[j].d === deps;
         }
 
         if (isLive && !retained) {
@@ -355,14 +355,14 @@ const trackDependency = (deps, sourceNode) => {
     const sourcesArray = node[sources];
     const skipIndex = node[skippedDeps];
 
-    if (sourcesArray[skipIndex]?.deps !== deps) {
+    if (sourcesArray[skipIndex]?.d !== deps) {
         // Different dependency - clear old ones from this point and rebuild
         if (skipIndex < sourcesArray.length) {
             clearSources(node, skipIndex);
         }
 
         // Push source entry - version will be updated after source computes
-        sourcesArray.push({ deps, node: sourceNode, version: 0 });
+        sourcesArray.push({ d: deps, n: sourceNode, v: 0 });
 
         // Only register with source if we're live
         if (node[flagsSymbol] & FLAG_IS_LIVE) {
@@ -645,7 +645,7 @@ function computedRead() {
         // Check if we have any state sources (no node means state/signal source)
         let hasStateSources = false;
         for (const source of sourcesArray) {
-            if (!source.node) {
+            if (!source.n) {
                 hasStateSources = true;
                 break;
             }
@@ -663,7 +663,7 @@ function computedRead() {
         // Do this inline to avoid separate loop
         let allComputed = len > 0;
         for (let i = 0; i < len && allComputed; i++) {
-            if (!sourcesArray[i].node) {
+            if (!sourcesArray[i].n) {
                 allComputed = false;
             }
         }
@@ -677,13 +677,13 @@ function computedRead() {
             let sourceChanged = false;
             try {
                 for (const sourceEntry of sourcesArray) {
-                    const sourceNode = sourceEntry.node;
+                    const sourceNode = sourceEntry.n;
                     // Access source to trigger its recomputation if needed
                     sourceNode();
                     // Check if source version changed (meaning its value changed)
-                    if (sourceEntry.version !== sourceNode[versionSymbol]) {
+                    if (sourceEntry.v !== sourceNode[versionSymbol]) {
                         sourceChanged = true;
-                        sourceEntry.version = sourceNode[versionSymbol];
+                        sourceEntry.v = sourceNode[versionSymbol];
                     }
                 }
             } finally {
@@ -759,8 +759,8 @@ function computedRead() {
             const updateLen = Math.min(skipped, sourcesArray.length);
             for (let i = 0; i < updateLen; i++) {
                 const entry = sourcesArray[i];
-                if (entry.node) {
-                    entry.version = entry.node[versionSymbol];
+                if (entry.n) {
+                    entry.v = entry.n[versionSymbol];
                 }
             }
             // Clean up any excess sources that weren't reused
