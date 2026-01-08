@@ -1,5 +1,5 @@
 /**
- * @import { Computed, Scope, ScopeCallback } from './index.js'
+ * @import { Computed, Scope } from './index.js'
  */
 
 // Global state
