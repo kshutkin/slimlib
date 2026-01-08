@@ -33,6 +33,27 @@ describe('store', () => {
         expect(state).toBeDefined();
     });
 
+    it('creates empty state when called without argument', async () => {
+        // This covers line 504: state() without argument
+        const store = state();
+        expect(store).toBeDefined();
+        expect(typeof store).toBe('object');
+
+        // Should be reactive
+        let effectValue;
+        const dispose = effect(() => {
+            effectValue = store.dynamicProp;
+        });
+        await flushAll();
+        expect(effectValue).toBeUndefined();
+
+        store.dynamicProp = 'test';
+        await flushAll();
+        expect(effectValue).toBe('test');
+
+        dispose();
+    });
+
     describe('change detection', () => {
         it('string', async () => {
             const subscriber = vi.fn();

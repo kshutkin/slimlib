@@ -850,7 +850,132 @@ describe('computed', () => {
         expect(conditional()).toBe(oldValue);
     });
 
-    it('reading same property multiple times then changing pattern preserves reactivity', () => {
+    it('computed becomes live after being read non-live first (exercises makeLive recursion)', async () => {
+        // This test covers the recursive makeLive call when a computed
+        // that has already been computed (has sources) becomes live later
+        const store = state({ value: 1 });
+
+        // Create a chain of computeds
+        const a = computed(() => store.value + 1);
+        const b = computed(() => a() + 1);
+        const c = computed(() => b() + 1);
+
+        // Read them all non-live first (no effect) - this populates their sources
+        expect(c()).toBe(4);
+        expect(b()).toBe(3);
+        expect(a()).toBe(2);
+
+        // Now create an effect that reads the end of the chain
+        // This should make c live, which should recursively make b and a live
+        let effectValue = 0;
+        const dispose = effect(() => {
+            effectValue = c();
+        });
+
+        await flushAll();
+        expect(effectValue).toBe(4);
+
+        // Change the source - the effect should be notified through the live chain
+        store.value = 10;
+        await flushAll();
+        expect(effectValue).toBe(13);
+
+        dispose();
+    });
+
+    it('computed reading state that changes during computation is not re-marked (markNeedsCheck computing branch)', async () => {
+        // This test covers the branch in markNeedsCheck where a non-effect
+        // computed is currently computing and we try to mark it
+        const store = state({ value: 1, trigger: 0 });
+
+        let computeCount = 0;
+        const comp = computed(() => {
+            computeCount++;
+            const val = store.value;
+            // Reading trigger here, but we'll change it during another computed's execution
+            store.trigger;
+            return val * 2;
+        });
+
+        // Create another computed that modifies state when read
+        const modifier = computed(() => {
+            // This will try to mark comp, but comp might be computing
+            store.trigger = store.trigger + 1;
+            return comp();
+        });
+
+        // Read through the modifier - this exercises the path where
+        // comp is computing and trigger change tries to mark it
+        expect(modifier()).toBe(2);
+
+        // The computed should work correctly
+        store.value = 5;
+        expect(modifier()).toBe(10);
+    });
+
+    it('live computed that modifies its own dependency during computation is not re-marked', async () => {
+        // This test specifically covers line 447: a non-effect computed is computing
+        // and a state change tries to mark it via markNeedsCheck
+        // The computed must be LIVE (in deps) for markNeedsCheck to be called on it
+        const store = state({ value: 1 });
+
+        let computeCount = 0;
+        const selfModifying = computed(() => {
+            computeCount++;
+            const val = store.value;
+            // Modify the same state we just read - this triggers markNeedsCheck
+            // on ourselves while we're still computing
+            if (val < 10) {
+                store.value = val + 1;
+            }
+            return val;
+        });
+
+        // Create an effect to make selfModifying live
+        let effectValue = 0;
+        const dispose = effect(() => {
+            effectValue = selfModifying();
+        });
+
+        await flushAll();
+        // The computed ran once, modified state, but wasn't re-marked during computation
+        expect(effectValue).toBe(1);
+        expect(computeCount).toBe(1);
+
+        // Now the state is 2, so next read will see 2
+        store.value = 5;
+        await flushAll();
+        expect(effectValue).toBe(5);
+
+        dispose();
+    });
+
+    it('non-live computed chain with source change exercises sourceChanged branch', () => {
+        // This test covers the sourceChanged branch in the polling verification
+        // for non-live computeds with only computed sources
+        const store = state({ value: 1 });
+
+        // Create a chain of computeds (none are live - no effect)
+        const a = computed(() => store.value * 2);
+        const b = computed(() => a() + 10);
+
+        // First read - both compute
+        expect(b()).toBe(12); // (1 * 2) + 10
+
+        // Change the source state
+        store.value = 5;
+
+        // Read b again - it's non-live, has only computed sources
+        // b will poll a, a will recompute (state source), version changes
+        // b sees sourceChanged = true, marks itself dirty, recomputes
+        expect(b()).toBe(20); // (5 * 2) + 10
+
+        // Verify the chain continues to work
+        store.value = 10;
+        expect(b()).toBe(30); // (10 * 2) + 10
+    });
+
+    it('reading same property multiple times then changing pattern preserves reactivity', async () => {
         // This test covers the isRetained check in clearSources (lines 90-96)
         // When a computed reads the same property multiple times, duplicate deps entries are created.
         // When the dependency pattern changes, clearSources must not remove the WeakRef from a deps
