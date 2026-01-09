@@ -4,7 +4,7 @@
 
 import { computed } from './computed.js';
 import { clearSources, scheduleFlush } from './core.js';
-import { registerEffect, unregisterEffect } from './debug.js';
+import { registerEffect, unregisterEffect, warnIfNoActiveScope } from './debug.js';
 import { FLAG_EFFECT } from './flags.js';
 import { activeScope, batched } from './globals.js';
 import { flagsSymbol, trackSymbol } from './symbols.js';
@@ -20,6 +20,9 @@ export const effect = callback => {
 
     // Register effect for GC tracking (only in DEV mode)
     const gcToken = registerEffect();
+
+    // Warn if effect is created without an active scope (only in DEV mode when enabled)
+    warnIfNoActiveScope(activeScope);
 
     // Effects use a custom equals that always returns false to ensure they always run
     const comp = /** @type {Computed<void | (() => void)>} */ (

@@ -10,6 +10,7 @@ import {
     setActiveScope,
     signal,
     state,
+    WARN_ON_UNTRACKED_EFFECT,
     WARN_ON_WRITE_IN_COMPUTED,
 } from '../src/index.js';
 
@@ -373,6 +374,106 @@ describe('debugConfig', () => {
 
             // The warning should include stack trace info
             expect(consoleWarnSpy).toHaveBeenCalledWith(expect.stringContaining('Effect was created at:'));
+        });
+    });
+
+    describe('WARN_ON_UNTRACKED_EFFECT', () => {
+        it('should not warn by default when effect is created without active scope', async () => {
+            // Clear active scope
+            setActiveScope(undefined);
+
+            const store = state({ count: 0 });
+            const dispose = effect(() => {
+                store.count;
+            });
+
+            await flushAll();
+
+            // No warning should be triggered by default
+            expect(consoleWarnSpy).not.toHaveBeenCalled();
+
+            dispose();
+            setActiveScope(testScope);
+        });
+
+        it('should warn when enabled and effect is created without active scope', async () => {
+            debugConfig(WARN_ON_UNTRACKED_EFFECT);
+
+            // Clear active scope
+            setActiveScope(undefined);
+
+            const store = state({ count: 0 });
+            const dispose = effect(() => {
+                store.count;
+            });
+
+            await flushAll();
+
+            // Warning should be triggered
+            expect(consoleWarnSpy).toHaveBeenCalledTimes(1);
+            expect(consoleWarnSpy).toHaveBeenCalledWith(expect.stringContaining('Effect created without an active scope'));
+
+            dispose();
+            setActiveScope(testScope);
+        });
+
+        it('should not warn when enabled and effect is created with active scope', async () => {
+            debugConfig(WARN_ON_UNTRACKED_EFFECT);
+
+            // testScope is already active from beforeEach
+            const store = state({ count: 0 });
+            const dispose = effect(() => {
+                store.count;
+            });
+
+            await flushAll();
+
+            // No warning should be triggered since there's an active scope
+            expect(consoleWarnSpy).not.toHaveBeenCalled();
+
+            dispose();
+        });
+
+        it('should not warn when disabled after being enabled', async () => {
+            debugConfig(WARN_ON_UNTRACKED_EFFECT);
+            debugConfig(0); // Disable
+
+            // Clear active scope
+            setActiveScope(undefined);
+
+            const store = state({ count: 0 });
+            const dispose = effect(() => {
+                store.count;
+            });
+
+            await flushAll();
+
+            // No warning should be triggered
+            expect(consoleWarnSpy).not.toHaveBeenCalled();
+
+            dispose();
+            setActiveScope(testScope);
+        });
+
+        it('should work with other flags combined', async () => {
+            debugConfig(WARN_ON_UNTRACKED_EFFECT | SUPPRESS_EFFECT_GC_WARNING);
+
+            // Clear active scope
+            setActiveScope(undefined);
+
+            const store = state({ count: 0 });
+            const dispose = effect(() => {
+                store.count;
+            });
+
+            await flushAll();
+
+            // Warning should be triggered for untracked effect
+            expect(consoleWarnSpy).toHaveBeenCalledTimes(1);
+            expect(consoleWarnSpy).toHaveBeenCalledWith(expect.stringContaining('Effect created without an active scope'));
+
+            dispose();
+            setActiveScope(testScope);
         });
     });
 });

@@ -380,6 +380,32 @@ debugConfig(WARN_ON_WRITE_IN_COMPUTED | SUPPRESS_EFFECT_GC_WARNING);
 
 **Note**: This warning uses `FinalizationRegistry` internally and only runs in development mode. The entire mechanism is eliminated in production builds.
 
+#### `WARN_ON_UNTRACKED_EFFECT`
+
+When enabled, warns when effects are created without an active scope. This is an allowed pattern, but teams may choose to enforce scope usage for better effect lifecycle management.
+
+```js
+import { debugConfig, WARN_ON_UNTRACKED_EFFECT } from "@slimlib/store";
+
+debugConfig(WARN_ON_UNTRACKED_EFFECT);
+
+// ⚠️ This will now trigger a warning:
+const dispose = effect(() => {
+  console.log("No active scope!");
+});
+
+// No warning when using a scope:
+const ctx = scope(() => {
+  effect(() => {
+    console.log("Tracked by scope");
+  });
+});
+```
+
+This warning is disabled by default because creating effects without a scope is a valid pattern - developers simply need to manage the dispose function manually. However, teams that prefer all effects to be tracked by scopes can enable this warning to enforce that convention.
+
+**Note**: This warning only runs in development mode and is completely eliminated in production builds.
+
 ### `untracked<T>(callback: () => T): T`
 
 Execute a callback without tracking dependencies.
@@ -682,6 +708,7 @@ The library includes development-time warnings that help catch common mistakes. 
 | ---------------------------- | ----------- | --------------------------------------- |
 | Effect GC'd without disposal | **Enabled** | `SUPPRESS_EFFECT_GC_WARNING` to disable |
 | Writing in computed          | Disabled    | `WARN_ON_WRITE_IN_COMPUTED` to enable   |
+| Effect without active scope  | Disabled    | `WARN_ON_UNTRACKED_EFFECT` to enable    |
 
 ### Configuring Warnings
 
@@ -689,17 +716,25 @@ The library includes development-time warnings that help catch common mistakes. 
 import {
   debugConfig,
   WARN_ON_WRITE_IN_COMPUTED,
+  WARN_ON_UNTRACKED_EFFECT,
   SUPPRESS_EFFECT_GC_WARNING,
 } from "@slimlib/store";
 
 // Enable write-in-computed warnings
 debugConfig(WARN_ON_WRITE_IN_COMPUTED);
 
+// Warn when effects are created without a scope
+debugConfig(WARN_ON_UNTRACKED_EFFECT);
+
 // Suppress GC warnings (e.g., in tests)
 debugConfig(SUPPRESS_EFFECT_GC_WARNING);
 
 // Combine flags
-debugConfig(WARN_ON_WRITE_IN_COMPUTED | SUPPRESS_EFFECT_GC_WARNING);
+debugConfig(
+  WARN_ON_WRITE_IN_COMPUTED |
+    WARN_ON_UNTRACKED_EFFECT |
+    SUPPRESS_EFFECT_GC_WARNING
+);
 
 // Reset to defaults
 debugConfig(0);

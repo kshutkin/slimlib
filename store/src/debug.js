@@ -17,6 +17,13 @@ export const WARN_ON_WRITE_IN_COMPUTED = 1 << 0;
 export const SUPPRESS_EFFECT_GC_WARNING = 1 << 1;
 
 /**
+ * Debug configuration flag: Warn when effects are created without an active scope
+ * This is an allowed pattern, but teams may choose to enforce scope usage for better effect lifecycle management
+ * @type {number}
+ */
+export const WARN_ON_UNTRACKED_EFFECT = 1 << 2;
+
+/**
  * Current debug configuration bitfield
  * @type {number}
  */
@@ -88,10 +95,8 @@ export const registerEffect = DEV
     ? () => {
           const token = {};
           // Capture stack trace at effect creation for better debugging
-          const stack = new Error().stack || '';
-          // Remove the first two lines (Error + registerEffect call) to get to the actual effect() call
-          const stackLines = stack.split('\n');
-          const relevantStack = stackLines.slice(3).join('\n');
+          // Remove the first few lines (Error + registerEffect call) to get to the actual effect() call
+          const relevantStack = String(new Error().stack).split('\n').slice(3).join('\n');
           effectRegistry?.register(token, relevantStack, token);
           return token;
       }
@@ -104,8 +109,22 @@ export const registerEffect = DEV
  */
 export const unregisterEffect = DEV
     ? /** @param {object | undefined} token */ token => {
-          if (token) {
-              effectRegistry?.unregister(token);
+          effectRegistry?.unregister(/** @type {WeakKey}*/ (token));
+      }
+    : () => {};
+
+/**
+ * Warn if an effect is created without an active scope.
+ * Only runs in DEV mode and when WARN_ON_UNTRACKED_EFFECT is enabled.
+ * @param {import('./index.js').Scope | undefined} activeScope - The current active scope
+ */
+export const warnIfNoActiveScope = DEV
+    ? /** @param {import('./index.js').Scope | undefined} activeScope */ activeScope => {
+          if (debugConfigFlags & WARN_ON_UNTRACKED_EFFECT && !activeScope) {
+              console.warn(
+                  `[@slimlib/store] Effect created without an active scope. ` +
+                      `Consider using scope() or setActiveScope() to track effects for proper lifecycle management.`
+              );
           }
       }
     : () => {};
