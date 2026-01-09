@@ -9,11 +9,31 @@ import {
     FLAG_NEEDS_WORK,
 } from './flags.js';
 import { currentComputing, flushScheduled, incrementGlobalVersion, scheduler, setFlushScheduled } from './globals.js';
-import { dependencies, flagsSymbol, skippedDeps, sources, unwrap } from './symbols.js';
+import { deps, depsTail, flagsSymbol, subs, subsTail, unwrap } from './symbols.js';
 
 /**
  * @template T
  * @typedef {import('./index.js').Computed<T>} Computed
+ */
+
+/**
+ * Link structure - participates in TWO doubly-linked lists:
+ * 1. The subscriber's "deps" list (what it depends on)
+ * 2. The dependency's "subs" list (who depends on it)
+ *
+ * @typedef {Object} Link
+ * @property {number} v - Version for staleness checking
+ * @property {Computed<any> | SignalNode} dep - The dependency (source being read)
+ * @property {Computed<any>} sub - The subscriber (node doing the reading)
+ * @property {Link | undefined} prevDep - Previous link in deps list
+ * @property {Link | undefined} nextDep - Next link in deps list
+ * @property {Link | undefined} prevSub - Previous link in subs list (only used when live)
+ * @property {Link | undefined} nextSub - Next link in subs list (only used when live)
+ */
+
+/**
+ * Signal node structure for linked list tracking
+ * @typedef {{ [key: symbol]: Link | undefined }} SignalNode
  */
 
 /** @type {Set<Computed<any>>} */
@@ -28,64 +48,220 @@ export let batched = new Set();
 export const unwrapValue = value => (value != null && /** @type {Record<symbol, any>} */ (/** @type {unknown} */ (value))[unwrap]) || value;
 
 /**
- * Make a computed live - register it with all its sources
+ * Add a link to the subs list of a dependency
+ * This creates the "reverse" reference from source to subscriber
+ *
+ * @param {Link} link - The link to add to the subs list
+ */
+const addToSubs = link => {
+    const dep = link.dep;
+    const prevSubLink = dep[subsTail];
+
+    link.prevSub = prevSubLink;
+    link.nextSub = undefined;
+
+    if (prevSubLink !== undefined) {
+        prevSubLink.nextSub = link;
+    } else {
+        dep[subs] = link;
+    }
+    dep[subsTail] = link;
+};
+
+/**
+ * Remove a link from the subs list of a dependency
+ *
+ * @param {Link} link - The link to remove from the subs list
+ */
+const removeFromSubs = link => {
+    const dep = link.dep;
+    const prevSub = link.prevSub;
+    const nextSub = link.nextSub;
+
+    if (nextSub !== undefined) {
+        nextSub.prevSub = prevSub;
+    } else {
+        dep[subsTail] = prevSub;
+    }
+
+    if (prevSub !== undefined) {
+        prevSub.nextSub = nextSub;
+    } else {
+        dep[subs] = nextSub;
+    }
+
+    link.prevSub = undefined;
+    link.nextSub = undefined;
+};
+
+/**
+ * Create or reuse a link between a dependency and subscriber.
+ * The link is always inserted into the sub's deps list.
+ * It is only added to the dep's subs list if the subscriber is live.
+ *
+ * @param {Computed<any> | SignalNode} dep - The dependency being read
+ * @param {Computed<any>} sub - The subscriber doing the reading
+ * @param {number} version - Version number for staleness tracking
+ */
+export const link = (dep, sub, version) => {
+    const prevDepLink = sub[depsTail];
+
+    // Fast path: if we just linked this same dep, skip
+    if (prevDepLink !== undefined && prevDepLink.dep === dep) {
+        return;
+    }
+
+    // Check if next link in deps list is the same dep (reuse existing link)
+    const nextDepLink = prevDepLink !== undefined ? prevDepLink.nextDep : sub[deps];
+    if (nextDepLink !== undefined && nextDepLink.dep === dep) {
+        nextDepLink.v = version;
+        sub[depsTail] = nextDepLink;
+        return;
+    }
+
+    // Create new link
+    /** @type {Link} */
+    const newLink = {
+        v: version,
+        dep,
+        sub,
+        prevDep: prevDepLink,
+        nextDep: nextDepLink,
+        prevSub: undefined,
+        nextSub: undefined,
+    };
+
+    // Update depsTail for subscriber
+    sub[depsTail] = newLink;
+
+    // Insert into deps list
+    if (nextDepLink !== undefined) {
+        nextDepLink.prevDep = newLink;
+    }
+    if (prevDepLink !== undefined) {
+        prevDepLink.nextDep = newLink;
+    } else {
+        sub[deps] = newLink;
+    }
+
+    // Only add to subs list if subscriber is live
+    if (sub[flagsSymbol] & FLAG_IS_LIVE) {
+        addToSubs(newLink);
+    }
+};
+
+/**
+ * Remove a link from the deps list and optionally from the subs list
+ *
+ * @param {Link} linkToRemove - The link to remove
+ * @param {Computed<any>} sub - The subscriber
+ * @param {boolean} isLive - Whether the subscriber is/was live
+ * @returns {Link | undefined} - The next link in deps list (for iteration)
+ */
+export const unlink = (linkToRemove, sub, isLive) => {
+    const prevDep = linkToRemove.prevDep;
+    const nextDep = linkToRemove.nextDep;
+
+    // Remove from deps list
+    if (nextDep !== undefined) {
+        nextDep.prevDep = prevDep;
+    } else {
+        sub[depsTail] = prevDep;
+    }
+    if (prevDep !== undefined) {
+        prevDep.nextDep = nextDep;
+    } else {
+        sub[deps] = nextDep;
+    }
+
+    // Remove from subs list if was live
+    if (isLive) {
+        const dep = linkToRemove.dep;
+        removeFromSubs(linkToRemove);
+
+        // Check if dep became unwatched and should become non-live
+        if (dep[subs] === undefined && dep[flagsSymbol] !== undefined) {
+            const depFlags = dep[flagsSymbol];
+            if (depFlags & FLAG_LIVE && !(depFlags & FLAG_EFFECT)) {
+                makeNonLive(/** @type {Computed<any>} */ (dep));
+            }
+        }
+    }
+
+    return nextDep;
+};
+
+/**
+ * Make a computed live - add all its dep links to their subs lists
  * Called when a live consumer starts reading this computed
  * @param {Computed<any>} node
  */
 export const makeLive = node => {
     node[flagsSymbol] |= FLAG_LIVE;
-    for (const { d: deps, n: sourceNode } of node[sources]) {
-        deps.add(node);
-        if (sourceNode && !(sourceNode[flagsSymbol] & FLAG_IS_LIVE)) {
-            makeLive(sourceNode);
+    let linkIter = node[deps];
+    while (linkIter !== undefined) {
+        // Add this link to the dep's subs list
+        addToSubs(linkIter);
+
+        // If dep is a computed that's not live, make it live recursively
+        const dep = linkIter.dep;
+        if (dep[flagsSymbol] !== undefined && !(dep[flagsSymbol] & FLAG_IS_LIVE)) {
+            makeLive(/** @type {Computed<any>} */ (dep));
         }
+        linkIter = linkIter.nextDep;
     }
 };
 
 /**
- * Make a computed non-live - unregister it from all its sources
+ * Make a computed non-live - remove all its dep links from their subs lists
  * Called when all live consumers stop depending on this computed
  * @param {Computed<any>} node
  */
 export const makeNonLive = node => {
     node[flagsSymbol] &= ~FLAG_LIVE;
-    for (const { d: deps, n: sourceNode } of node[sources]) {
-        deps.delete(node);
-        const sourceNodeFlag = sourceNode?.[flagsSymbol];
-        if (sourceNodeFlag & FLAG_LIVE && !(sourceNodeFlag & FLAG_EFFECT) && !sourceNode[dependencies].size) {
-            makeNonLive(sourceNode);
+    let linkIter = node[deps];
+    while (linkIter !== undefined) {
+        const dep = linkIter.dep;
+        // Remove from subs list
+        removeFromSubs(linkIter);
+
+        // If dep is a live computed (not effect) with no more subs, make it non-live
+        const depFlags = dep[flagsSymbol];
+        if (depFlags !== undefined && depFlags & FLAG_LIVE && !(depFlags & FLAG_EFFECT)) {
+            if (dep[subs] === undefined) {
+                makeNonLive(/** @type {Computed<any>} */ (dep));
+            }
         }
+        linkIter = linkIter.nextDep;
     }
 };
 
 /**
- * Clear sources for a node starting from a specific index
+ * Clear sources for a node - removes all links after depsTail
+ * This is called after recomputation to clean up stale dependencies
  * @param {Computed<any>} node
- * @param {number} fromIndex - Index to start clearing from (default 0 clears all)
  */
-export const clearSources = (node, fromIndex = 0) => {
-    const sourcesArray = node[sources];
-    const isLive = node[flagsSymbol] & FLAG_IS_LIVE;
-
-    for (let i = fromIndex; i < sourcesArray.length; i++) {
-        const { d: deps, n: sourceNode } = sourcesArray[i];
-
-        // Check if this deps is retained (exists in kept portion) - avoid removing shared deps
-        let retained = false;
-        for (let j = 0; j < fromIndex && !retained; j++) {
-            retained = sourcesArray[j].d === deps;
-        }
-
-        if (isLive && !retained) {
-            deps.delete(node);
-            // If source is a computed, check if it became non-live
-            const sourceNodeFlag = sourceNode?.[flagsSymbol];
-            if (sourceNodeFlag & FLAG_LIVE && !(sourceNodeFlag & FLAG_EFFECT) && !sourceNode[dependencies].size) {
-                makeNonLive(sourceNode);
-            }
-        }
+export const clearSources = node => {
+    const tail = node[depsTail];
+    const isLive = !!(node[flagsSymbol] & FLAG_IS_LIVE);
+    let linkToClear = tail !== undefined ? tail.nextDep : node[deps];
+    while (linkToClear !== undefined) {
+        linkToClear = unlink(linkToClear, node, isLive);
     }
-    sourcesArray.length = fromIndex;
+};
+
+/**
+ * Clear ALL sources for a node - removes all links
+ * This is called when disposing an effect or fully cleaning up a node
+ * @param {Computed<any>} node
+ */
+export const clearAllSources = node => {
+    const isLive = !!(node[flagsSymbol] & FLAG_IS_LIVE);
+    node[depsTail] = undefined;
+    let linkToClear = node[deps];
+    while (linkToClear !== undefined) {
+        linkToClear = unlink(linkToClear, node, isLive);
+    }
 };
 
 /**
@@ -116,36 +292,25 @@ export const scheduleFlush = () => {
 };
 
 /**
- * Track a dependency between currentComputing and a deps Set
+ * Track a dependency between currentComputing and a source node
  * Uses liveness tracking - only live consumers register with sources
- * @param {Set<Computed<any>>} deps - The dependency set to track
- * @param {Computed<any>} [sourceNode] - The computed node being accessed (if any)
+ * @param {Computed<any> | SignalNode} sourceNode - The source node being accessed
+ * @param {number} [version=0] - Version for the link (default 0)
  */
-export const trackDependency = (deps, sourceNode) => {
+export const trackDependency = (sourceNode, version = 0) => {
     // Callers guarantee tracked && currentComputing are true
     const node = /** @type {Computed<any>} */ (currentComputing);
-    const sourcesArray = node[sources];
-    const skipIndex = node[skippedDeps];
 
-    if (sourcesArray[skipIndex]?.d !== deps) {
-        // Different dependency - clear old ones from this point and rebuild
-        if (skipIndex < sourcesArray.length) {
-            clearSources(node, skipIndex);
-        }
+    // Create the link between source and subscriber
+    link(sourceNode, node, version);
 
-        // Push source entry - version will be updated after source computes
-        sourcesArray.push({ d: deps, n: sourceNode, v: 0 });
-
-        // Only register with source if we're live
-        if (node[flagsSymbol] & FLAG_IS_LIVE) {
-            deps.add(node);
-            // If source is a computed that's not live, make it live
-            if (sourceNode && !(sourceNode[flagsSymbol] & FLAG_IS_LIVE)) {
-                makeLive(sourceNode);
-            }
+    // If we're live, ensure source is also live (for computed sources)
+    if (node[flagsSymbol] & FLAG_IS_LIVE) {
+        const sourceFlags = sourceNode[flagsSymbol];
+        if (sourceFlags !== undefined && !(sourceFlags & FLAG_IS_LIVE)) {
+            makeLive(/** @type {Computed<any>} */ (sourceNode));
         }
     }
-    ++node[skippedDeps];
 };
 
 /**
@@ -164,19 +329,24 @@ export const markNeedsCheck = node => {
             batched.add(node);
             scheduleFlush();
         }
-        for (const dep of node[dependencies]) {
-            markNeedsCheck(dep);
+        // Iterate through subs linked list
+        let linkIter = node[subs];
+        while (linkIter !== undefined) {
+            markNeedsCheck(linkIter.sub);
+            linkIter = linkIter.nextSub;
         }
     }
 };
 
 /**
- * Mark all dependents in a Set as needing check
- * @param {Set<Computed<any>>} deps - The dependency set to notify
+ * Mark all dependents of a node as needing check
+ * @param {Computed<any> | SignalNode} node - The node whose dependents should be notified
  */
-export const markDependents = deps => {
+export const markDependents = node => {
     incrementGlobalVersion();
-    for (const dep of deps) {
-        markNeedsCheck(dep);
+    let linkIter = node[subs];
+    while (linkIter !== undefined) {
+        markNeedsCheck(linkIter.sub);
+        linkIter = linkIter.nextSub;
     }
 };

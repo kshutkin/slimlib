@@ -11,13 +11,14 @@ import {
 } from './flags.js';
 import { currentComputing, globalVersion, setCurrentComputing, setTracked, tracked } from './globals.js';
 import {
-    dependencies,
+    deps,
+    depsTail,
     equalsSymbol,
     flagsSymbol,
     getterSymbol,
     lastGlobalVersionSymbol,
-    skippedDeps,
-    sources,
+    subs,
+    subsTail,
     valueSymbol,
     versionSymbol,
 } from './symbols.js';
@@ -25,6 +26,10 @@ import {
 /**
  * @template T
  * @typedef {import('./index.js').Computed<T>} Computed
+ */
+
+/**
+ * @typedef {import('./core.js').Link} Link
  */
 
 /**
@@ -36,11 +41,10 @@ import {
 function computedRead() {
     // Track if someone is reading us
     if (tracked && currentComputing) {
-        trackDependency(this[dependencies], this);
+        trackDependency(this, this[versionSymbol]);
     }
 
     let flags = this[flagsSymbol];
-    const sourcesArray = this[sources];
 
     // Cycle detection: if this computed is already being computed, we have a cycle
     // This matches TC39 Signals proposal behavior: throw an error on cyclic reads
@@ -63,13 +67,15 @@ function computedRead() {
     // For non-live computeds with stale globalVersion: poll sources to check if recomputation needed
     // This is the "pull" part of the push/pull algorithm - non-live nodes poll instead of receiving notifications
     if (!(flags & FLAG_NEEDS_WORK) && flags & (FLAG_HAS_VALUE | FLAG_HAS_ERROR) && !(flags & FLAG_IS_LIVE)) {
-        // Check if we have any state sources (no node means state/signal source)
+        // Check if we have any state sources (signal nodes have no flagsSymbol)
         let hasStateSources = false;
-        for (const source of sourcesArray) {
-            if (!source.n) {
+        let linkIter = this[deps];
+        while (linkIter !== undefined) {
+            if (linkIter.dep[flagsSymbol] === undefined) {
                 hasStateSources = true;
                 break;
             }
+            linkIter = linkIter.nextDep;
         }
 
         if (hasStateSources) {
@@ -85,16 +91,18 @@ function computedRead() {
     // Only do this for non-effects that ONLY have computed sources (with nodes)
     // Effects should always run when marked, and state deps have no node to check
     if ((flags & (FLAG_CHECK_ONLY | FLAG_HAS_VALUE)) === (FLAG_CHECK | FLAG_HAS_VALUE)) {
-        // Check if all sources have nodes (are computed, not state)
+        // Check if all sources have flags (are computed, not signals)
         // Skip this loop if we already verified above (allComputedVerified)
         let allComputed = allComputedVerified;
-        if (!allComputed && sourcesArray.length > 0) {
+        if (!allComputed) {
             allComputed = true;
-            for (const source of sourcesArray) {
-                if (!source.n) {
+            let linkIter = this[deps];
+            while (linkIter !== undefined) {
+                if (linkIter.dep[flagsSymbol] === undefined) {
                     allComputed = false;
                     break;
                 }
+                linkIter = linkIter.nextDep;
             }
         }
 
@@ -106,15 +114,17 @@ function computedRead() {
             setTracked(false);
             let sourceChanged = false;
             try {
-                for (const sourceEntry of sourcesArray) {
-                    const sourceNode = sourceEntry.n;
+                let linkIter = this[deps];
+                while (linkIter !== undefined) {
+                    const sourceNode = /** @type {Computed<any>} */ (linkIter.dep);
                     // Access source to trigger its recomputation if needed
                     sourceNode();
                     // Check if source version changed (meaning its value changed)
-                    if (sourceEntry.v !== sourceNode[versionSymbol]) {
+                    if (linkIter.v !== sourceNode[versionSymbol]) {
                         sourceChanged = true;
-                        sourceEntry.v = sourceNode[versionSymbol];
+                        linkIter.v = sourceNode[versionSymbol];
                     }
+                    linkIter = linkIter.nextDep;
                 }
             } finally {
                 setTracked(prevTracked);
@@ -132,8 +142,8 @@ function computedRead() {
         const wasDirty = (flags & FLAG_DIRTY) !== 0;
         this[flagsSymbol] = (flags & ~FLAG_NEEDS_WORK) | FLAG_COMPUTING;
 
-        // Reset skipped deps counter for this recomputation
-        this[skippedDeps] = 0;
+        // Reset depsTail for tracking - will be rebuilt during computation
+        this[depsTail] = undefined;
 
         const prev = currentComputing;
         const prevTracked = tracked;
@@ -151,12 +161,15 @@ function computedRead() {
                 // Increment version to indicate value changed (for polling)
                 this[versionSymbol]++;
                 this[flagsSymbol] = (this[flagsSymbol] | FLAG_HAS_VALUE) & ~FLAG_HAS_ERROR;
-                // Mark CHECK-only dependents as DIRTY
-                for (const dep of this[dependencies]) {
+                // Mark CHECK-only dependents as DIRTY via subs linked list
+                let linkIter = this[subs];
+                while (linkIter !== undefined) {
+                    const dep = linkIter.sub;
                     const depFlags = dep[flagsSymbol];
                     if ((depFlags & (FLAG_COMPUTING | FLAG_NEEDS_WORK)) === FLAG_CHECK) {
                         dep[flagsSymbol] = depFlags | FLAG_DIRTY;
                     }
+                    linkIter = linkIter.nextSub;
                 }
             } else if (wasDirty) {
                 this[flagsSymbol] |= FLAG_HAS_VALUE;
@@ -180,18 +193,22 @@ function computedRead() {
             setTracked(prevTracked);
             // Update source versions now that all sources have computed
             // This ensures we capture the version AFTER recomputation, not before
-            const skipped = this[skippedDeps];
-            const updateLen = Math.min(skipped, sourcesArray.length);
-            for (let i = 0; i < updateLen; i++) {
-                const entry = sourcesArray[i];
-                if (entry.n) {
-                    entry.v = entry.n[versionSymbol];
+            let linkIter = this[deps];
+            const tail = this[depsTail];
+            while (linkIter !== undefined) {
+                const dep = linkIter.dep;
+                // Only update version for computed sources (those with versionSymbol)
+                if (dep[versionSymbol] !== undefined) {
+                    linkIter.v = dep[versionSymbol];
                 }
+                // Stop at depsTail - everything after is stale
+                if (linkIter === tail) {
+                    break;
+                }
+                linkIter = linkIter.nextDep;
             }
-            // Clean up any excess sources that weren't reused
-            if (sourcesArray.length > skipped) {
-                clearSources(this, skipped);
-            }
+            // Clean up any stale sources that weren't reused
+            clearSources(this);
         }
     }
 
@@ -214,11 +231,14 @@ export const computed = (getter, equals = Object.is) => {
     // Create callable that invokes computedRead with itself as `this`
     const context = /** @type {Computed<T>} */ (() => computedRead.call(context));
 
-    // Initialize all properties directly on the callable (no prototype needed)
-    context[sources] = [];
-    context[dependencies] = new Set();
+    // Initialize linked list pointers for dependencies (what this node depends on)
+    context[deps] = undefined;
+    context[depsTail] = undefined;
+    // Initialize linked list pointers for subscribers (who depends on this node)
+    context[subs] = undefined;
+    context[subsTail] = undefined;
+    // Initialize other properties
     context[flagsSymbol] = FLAG_DIRTY;
-    context[skippedDeps] = 0;
     context[getterSymbol] = getter;
     context[equalsSymbol] = equals;
     context[versionSymbol] = 0;

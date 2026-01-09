@@ -3,7 +3,7 @@
  */
 
 import { computed } from './computed.js';
-import { batched, clearSources, scheduleFlush } from './core.js';
+import { batched, clearAllSources, scheduleFlush } from './core.js';
 import { registerEffect, unregisterEffect, warnIfNoActiveScope } from './debug.js';
 import { FLAG_EFFECT } from './flags.js';
 import { activeScope } from './globals.js';
@@ -47,7 +47,7 @@ export const effect = callback => {
         if (typeof cleanup === 'function') {
             cleanup();
         }
-        clearSources(comp);
+        clearAllSources(comp);
         batched.delete(comp);
     };
 

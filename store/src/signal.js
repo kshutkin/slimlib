@@ -5,6 +5,11 @@
 import { markDependents, trackDependency } from './core.js';
 import { warnIfWriteInComputed } from './debug.js';
 import { currentComputing, tracked } from './globals.js';
+import { subs, subsTail } from './symbols.js';
+
+/**
+ * @typedef {import('./core.js').SignalNode} SignalNode
+ */
 
 /**
  * Create a simple signal without an initial value
@@ -27,8 +32,15 @@ import { currentComputing, tracked } from './globals.js';
  */
 export function signal(initialValue) {
     let value = /** @type {T} */ (initialValue);
-    /** @type {Set<Computed<any>> | null} */
-    let deps = null;
+
+    /**
+     * Signal node for linked list tracking
+     * @type {SignalNode}
+     */
+    const node = {
+        [subs]: undefined,
+        [subsTail]: undefined,
+    };
 
     /**
      * Read the signal value and track dependency
@@ -37,8 +49,7 @@ export function signal(initialValue) {
     const read = () => {
         // Fast path: if not tracked or no current computing, skip tracking
         if (tracked && currentComputing) {
-            deps ||= new Set();
-            trackDependency(deps);
+            trackDependency(node);
         }
         return value;
     };
@@ -51,7 +62,7 @@ export function signal(initialValue) {
         warnIfWriteInComputed('signal');
         if (!Object.is(value, newValue)) {
             value = newValue;
-            if (deps) markDependents(deps);
+            markDependents(node);
         }
     };
 

@@ -1,11 +1,15 @@
 import { markDependents, trackDependency, unwrapValue } from './core.js';
 import { warnIfWriteInComputed } from './debug.js';
 import { currentComputing, tracked } from './globals.js';
-import { propertyDepsSymbol, unwrap } from './symbols.js';
+import { propertyDepsSymbol, subs, subsTail, unwrap } from './symbols.js';
 
 /**
  * @template T
  * @typedef {import('./index.js').Computed<T>} Computed
+ */
+
+/**
+ * @typedef {import('./core.js').SignalNode} SignalNode
  */
 
 /**
@@ -35,15 +39,17 @@ export function state(object = /** @type {T} */ ({})) {
      * @param {string | symbol} [property] - If provided, notifies only this property's dependents. If omitted, notifies all properties' dependents.
      */
     const notifyPropertyDependents = (target, property) => {
-        const propsMap = /** @type {Map<string | symbol, Set<Computed<any>>> | undefined} */ (
-            /** @type {any} */ (target)[propertyDepsSymbol]
-        );
+        const propsMap = /** @type {Map<string | symbol, SignalNode> | undefined} */ (/** @type {any} */ (target)[propertyDepsSymbol]);
         if (!propsMap) return;
         // If property specified, notify just that property; otherwise notify all
-        const depsToNotify = property !== undefined ? [propsMap.get(property)] : propsMap.values();
-        for (const deps of depsToNotify) {
-            if (deps) {
-                markDependents(deps);
+        if (property !== undefined) {
+            const node = propsMap.get(property);
+            if (node) {
+                markDependents(node);
+            }
+        } else {
+            for (const node of propsMap.values()) {
+                markDependents(node);
             }
         }
     };
@@ -81,7 +87,7 @@ export function state(object = /** @type {T} */ ({})) {
                 // Track dependency if we're inside an effect/computed
                 if (tracked && currentComputing) {
                     // Get or create the Map for this target (stored as non-enumerable property)
-                    let propsMap = /** @type {Map<string | symbol, Set<Computed<any>>> | undefined} */ (
+                    let propsMap = /** @type {Map<string | symbol, SignalNode> | undefined} */ (
                         /** @type {any} */ (target)[propertyDepsSymbol]
                     );
                     if (!propsMap) {
@@ -89,16 +95,20 @@ export function state(object = /** @type {T} */ ({})) {
                         Object.defineProperty(target, propertyDepsSymbol, { value: propsMap });
                     }
 
-                    // Get or create the Set for this property
-                    let deps = propsMap.get(p);
+                    // Get or create the node for this property
+                    let node = propsMap.get(p);
 
-                    if (!deps) {
-                        // biome-ignore lint/suspicious/noAssignInExpressions: optimization
-                        propsMap.set(p, (deps = new Set()));
+                    if (!node) {
+                        // Create a new SignalNode for this property
+                        node = {
+                            [subs]: undefined,
+                            [subsTail]: undefined,
+                        };
+                        propsMap.set(p, node);
                     }
 
                     // Bidirectional linking with optimization
-                    trackDependency(deps);
+                    trackDependency(node);
                 }
 
                 // Fast path for primitives (most common case)
