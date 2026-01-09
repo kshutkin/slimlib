@@ -4,6 +4,7 @@
 
 import { computed } from './computed.js';
 import { clearSources, scheduleFlush } from './core.js';
+import { registerEffect, unregisterEffect } from './debug.js';
 import { FLAG_EFFECT } from './flags.js';
 import { activeScope, batched } from './globals.js';
 import { flagsSymbol, trackSymbol } from './symbols.js';
@@ -16,6 +17,9 @@ import { flagsSymbol, trackSymbol } from './symbols.js';
 export const effect = callback => {
     /** @type {void | EffectCleanup} */
     let cleanup;
+
+    // Register effect for GC tracking (only in DEV mode)
+    const gcToken = registerEffect();
 
     // Effects use a custom equals that always returns false to ensure they always run
     const comp = /** @type {Computed<void | (() => void)>} */ (
@@ -35,6 +39,8 @@ export const effect = callback => {
 
     // Dispose function for this effect
     const dispose = () => {
+        // Unregister from GC tracking (only in DEV mode)
+        unregisterEffect(gcToken);
         if (typeof cleanup === 'function') {
             cleanup();
         }

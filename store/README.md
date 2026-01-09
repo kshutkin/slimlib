@@ -215,7 +215,7 @@ const store = state({ count: 0 });
 // Create a scope with callback
 const ctx = scope((onDispose) => {
   effect(() => console.log(store.count));
-  
+
   // Register cleanup to run when scope is disposed
   onDispose(() => console.log("Scope disposed"));
 });
@@ -230,10 +230,12 @@ ctx();
 ```
 
 **Parameters:**
+
 - `callback` - Optional function receiving an `onDispose` callback for registering cleanup handlers
 - `parent` - Optional parent scope (defaults to `activeScope`). Pass `undefined` for a detached scope with no parent.
 
 **Returns:** A scope function (`ctx`) that:
+
 - `ctx(callback)` - Runs callback in scope context, returns `ctx` for chaining
 - `ctx()` - Disposes scope and all tracked effects, returns `undefined`
 
@@ -244,7 +246,7 @@ Scopes can be nested. When a parent scope is disposed, all child scopes are also
 ```js
 const outer = scope(() => {
   effect(() => console.log("Outer effect"));
-  
+
   // Inner scope automatically becomes child of outer
   const inner = scope(() => {
     effect(() => console.log("Inner effect"));
@@ -338,6 +340,45 @@ const doubled = computed(() => {
 **Note**: This warning only appears in development mode (when `esm-env`'s `DEV` flag is true). In production builds, the warning code is completely eliminated via dead code elimination when bundlers replace the `DEV` constant with `false`.
 
 For zero-cost production builds, configure your bundler to replace the `DEV` constant. With Vite/Rollup, this happens automatically based on the build mode.
+
+#### `SUPPRESS_EFFECT_GC_WARNING`
+
+By default in development mode, the library warns when an effect is garbage collected without being properly disposed. This helps detect memory leaks where effects are created but never cleaned up.
+
+```js
+// ⚠️ This will trigger a warning in dev mode:
+(() => {
+  const store = state({ count: 0 });
+  effect(() => {
+    console.log(store.count);
+  });
+  // dispose function is not stored or called!
+})();
+// When the scope exits, the effect's dispose function becomes unreachable
+// and will be garbage collected, triggering a warning.
+```
+
+The warning includes a stack trace showing where the orphaned effect was created, making it easy to track down the issue.
+
+To suppress this warning (e.g., in tests or when intentionally letting effects be GC'd), use the `SUPPRESS_EFFECT_GC_WARNING` flag:
+
+```js
+import { debugConfig, SUPPRESS_EFFECT_GC_WARNING } from "@slimlib/store";
+
+// Suppress the GC warning
+debugConfig(SUPPRESS_EFFECT_GC_WARNING);
+
+// Combine with other flags
+debugConfig(WARN_ON_WRITE_IN_COMPUTED | SUPPRESS_EFFECT_GC_WARNING);
+```
+
+**Best Practice**: Always properly dispose effects by either:
+
+- Calling the returned dispose function
+- Creating effects within a `scope()` that gets disposed
+- Using `setActiveScope()` to track effects to a parent scope
+
+**Note**: This warning uses `FinalizationRegistry` internally and only runs in development mode. The entire mechanism is eliminated in production builds.
 
 ### `untracked<T>(callback: () => T): T`
 
@@ -577,33 +618,33 @@ This library is designed with the [TC39 Signals proposal](https://github.com/tc3
 
 ### What's Implemented
 
-| Feature | Status | Notes |
-|---------|--------|-------|
-| Lazy computed evaluation | ✅ | Computeds only evaluate when read |
-| Glitch-free execution | ✅ | No intermediate states exposed |
-| Error caching | ✅ | Errors cached and rethrown until dependency changes |
-| Cycle detection | ✅ | Throws `"Detected cycle in computations."` |
-| Custom equality | ✅ | Via second argument to `computed()` |
-| Untrack | ✅ | `untracked()` function |
-| Automatic GC | ✅ | WeakRef-based, no manual disposal for computeds |
+| Feature                  | Status | Notes                                               |
+| ------------------------ | ------ | --------------------------------------------------- |
+| Lazy computed evaluation | ✅     | Computeds only evaluate when read                   |
+| Glitch-free execution    | ✅     | No intermediate states exposed                      |
+| Error caching            | ✅     | Errors cached and rethrown until dependency changes |
+| Cycle detection          | ✅     | Throws `"Detected cycle in computations."`          |
+| Custom equality          | ✅     | Via second argument to `computed()`                 |
+| Untrack                  | ✅     | `untracked()` function                              |
+| Automatic GC             | ✅     | WeakRef-based, no manual disposal for computeds     |
 
 ### Additional Features (Not in TC39)
 
-| Feature | Notes |
-|---------|-------|
-| `effect()` | TC39 leaves effects to frameworks; we provide a built-in implementation |
-| `state()` | Proxy-based reactive stores for deep reactivity |
-| `setScheduler()` | Custom effect scheduling |
-| `flushEffects()` | Synchronous effect execution |
+| Feature          | Notes                                                                   |
+| ---------------- | ----------------------------------------------------------------------- |
+| `effect()`       | TC39 leaves effects to frameworks; we provide a built-in implementation |
+| `state()`        | Proxy-based reactive stores for deep reactivity                         |
+| `setScheduler()` | Custom effect scheduling                                                |
+| `flushEffects()` | Synchronous effect execution                                            |
 
 ### What's Not Implemented
 
-| Feature | Reason |
-|---------|--------|
-| `Signal.subtle.Watcher` | Effects are built-in; no need to expose low-level Watcher API |
-| `watched`/`unwatched` callbacks | Not needed for current use cases |
-| Introspection APIs | `introspectSources`, `introspectSinks`, etc. not exposed |
-| Frozen state | See below |
+| Feature                         | Reason                                                        |
+| ------------------------------- | ------------------------------------------------------------- |
+| `Signal.subtle.Watcher`         | Effects are built-in; no need to expose low-level Watcher API |
+| `watched`/`unwatched` callbacks | Not needed for current use cases                              |
+| Introspection APIs              | `introspectSources`, `introspectSinks`, etc. not exposed      |
+| Frozen state                    | See below                                                     |
 
 ### Frozen State Considerations
 
@@ -632,19 +673,36 @@ If you're building a framework on top of this library and need Watcher-like func
 
 ## Development Warnings
 
-The library includes optional development-time warnings that help catch common mistakes. These warnings:
+The library includes development-time warnings that help catch common mistakes. These warnings:
 
-1. **Are opt-in** - Disabled by default, enable via `debugConfig()`
-2. **Are DEV-only** - Only run when `esm-env`'s `DEV` flag is true
-3. **Are tree-shakeable** - Completely eliminated in production builds
+1. **Are DEV-only** - Only run when `esm-env`'s `DEV` flag is true
+2. **Are tree-shakeable** - Completely eliminated in production builds
 
-### Enabling Warnings
+| Warning                      | Default     | Flag                                    |
+| ---------------------------- | ----------- | --------------------------------------- |
+| Effect GC'd without disposal | **Enabled** | `SUPPRESS_EFFECT_GC_WARNING` to disable |
+| Writing in computed          | Disabled    | `WARN_ON_WRITE_IN_COMPUTED` to enable   |
+
+### Configuring Warnings
 
 ```js
-import { debugConfig, WARN_ON_WRITE_IN_COMPUTED } from "@slimlib/store";
+import {
+  debugConfig,
+  WARN_ON_WRITE_IN_COMPUTED,
+  SUPPRESS_EFFECT_GC_WARNING,
+} from "@slimlib/store";
 
-// Enable in your app's entry point
+// Enable write-in-computed warnings
 debugConfig(WARN_ON_WRITE_IN_COMPUTED);
+
+// Suppress GC warnings (e.g., in tests)
+debugConfig(SUPPRESS_EFFECT_GC_WARNING);
+
+// Combine flags
+debugConfig(WARN_ON_WRITE_IN_COMPUTED | SUPPRESS_EFFECT_GC_WARNING);
+
+// Reset to defaults
+debugConfig(0);
 ```
 
 ### Bundler Configuration

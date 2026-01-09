@@ -1,6 +1,50 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { computed, debugConfig, effect, scope, setActiveScope, signal, state, WARN_ON_WRITE_IN_COMPUTED } from '../src/index.js';
+import {
+    computed,
+    debugConfig,
+    effect,
+    flushEffects,
+    SUPPRESS_EFFECT_GC_WARNING,
+    scope,
+    setActiveScope,
+    signal,
+    state,
+    WARN_ON_WRITE_IN_COMPUTED,
+} from '../src/index.js';
+
+function flushPromises() {
+    return new Promise(resolve => setTimeout(resolve));
+}
+
+async function flushAll() {
+    await Promise.resolve();
+    flushEffects();
+    await flushPromises();
+}
+
+/**
+ * Force garbage collection
+ * Requires --expose-gc flag to be passed to Node.js
+ */
+function forceGC() {
+    if (typeof global.gc === 'function') {
+        global.gc();
+    } else {
+        throw new Error('GC is not exposed. Run with --expose-gc flag.');
+    }
+}
+
+/**
+ * Allocate memory to help trigger GC
+ */
+function allocateMemory() {
+    const arrays = [];
+    for (let i = 0; i < 100; i++) {
+        arrays.push(new Array(10000).fill(i));
+    }
+    return arrays;
+}
 
 describe('debugConfig', () => {
     /** @type {import('vitest').MockInstance<(message?: any, ...optionalParams: any[]) => void>} */
@@ -195,6 +239,140 @@ describe('debugConfig', () => {
             outer();
 
             expect(consoleWarnSpy).toHaveBeenCalledTimes(1);
+        });
+    });
+
+    describe('SUPPRESS_EFFECT_GC_WARNING', () => {
+        /**
+         * Helper to aggressively trigger GC and wait for finalization callbacks.
+         * FinalizationRegistry callbacks are non-deterministic, so we need multiple attempts.
+         */
+        async function triggerGCAndWait() {
+            for (let i = 0; i < 10; i++) {
+                allocateMemory();
+                forceGC();
+                await flushAll();
+                await new Promise(resolve => setTimeout(resolve, 10));
+            }
+            // Extra wait for finalization callbacks to be scheduled and run
+            await new Promise(resolve => setTimeout(resolve, 100));
+        }
+
+        it("should warn by default when effect is GC'd without being disposed", async () => {
+            // Clear active scope so the effect's dispose function isn't tracked
+            // This allows the dispose function (and its gcToken) to be GC'd
+            setActiveScope(undefined);
+
+            // Create an effect in an isolated scope that will be GC'd
+            (() => {
+                const store = state({ count: 0 });
+                effect(() => {
+                    store.count;
+                });
+                // Don't call dispose - let it be GC'd
+            })();
+
+            // Restore test scope
+            setActiveScope(testScope);
+
+            await flushAll();
+
+            // Force GC multiple times and wait for finalization callbacks
+            await triggerGCAndWait();
+
+            // The warning should have been triggered
+            expect(consoleWarnSpy).toHaveBeenCalledWith(expect.stringContaining('Effect was garbage collected without being disposed'));
+        });
+
+        it('should not warn when effect is properly disposed', async () => {
+            const store = state({ count: 0 });
+            const dispose = effect(() => {
+                store.count;
+            });
+
+            await flushAll();
+
+            // Properly dispose the effect
+            dispose();
+
+            // Force GC multiple times and wait
+            await triggerGCAndWait();
+
+            // No warning should have been triggered
+            expect(consoleWarnSpy).not.toHaveBeenCalled();
+        });
+
+        it('should not warn when effect is disposed by scope', async () => {
+            const innerScope = scope();
+            setActiveScope(innerScope);
+
+            const store = state({ count: 0 });
+            effect(() => {
+                store.count;
+            });
+
+            setActiveScope(testScope);
+
+            await flushAll();
+
+            // Dispose the scope (which disposes the effect)
+            innerScope();
+
+            // Force GC multiple times and wait
+            await triggerGCAndWait();
+
+            // No warning should have been triggered
+            expect(consoleWarnSpy).not.toHaveBeenCalled();
+        });
+
+        it('should not warn when SUPPRESS_EFFECT_GC_WARNING is set', async () => {
+            debugConfig(SUPPRESS_EFFECT_GC_WARNING);
+
+            // Clear active scope so the effect's dispose function isn't tracked
+            setActiveScope(undefined);
+
+            // Create an effect that will be GC'd without being disposed
+            (() => {
+                const store = state({ count: 0 });
+                effect(() => {
+                    store.count;
+                });
+            })();
+
+            // Restore test scope
+            setActiveScope(testScope);
+
+            await flushAll();
+
+            // Force GC multiple times and wait
+            await triggerGCAndWait();
+
+            // No warning should have been triggered because it's suppressed
+            expect(consoleWarnSpy).not.toHaveBeenCalled();
+        });
+
+        it('should include stack trace in warning message', async () => {
+            // Clear active scope so the effect's dispose function isn't tracked
+            setActiveScope(undefined);
+
+            // Create an effect that will be GC'd
+            (() => {
+                const store = state({ count: 0 });
+                effect(() => {
+                    store.count;
+                });
+            })();
+
+            // Restore test scope
+            setActiveScope(testScope);
+
+            await flushAll();
+
+            // Force GC multiple times and wait for finalization callbacks
+            await triggerGCAndWait();
+
+            // The warning should include stack trace info
+            expect(consoleWarnSpy).toHaveBeenCalledWith(expect.stringContaining('Effect was created at:'));
         });
     });
 });
