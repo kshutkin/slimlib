@@ -1251,7 +1251,7 @@ async function main() {
     console.log('='.repeat(70));
     console.log('');
     console.log('  Rank  Framework'.padEnd(35) + 'Avg Rank'.padStart(12) + 'Total Score'.padStart(14) + 'Tests'.padStart(10));
-    console.log('  ' + '-'.repeat(66));
+    console.log(`  ${'-'.repeat(66)}`);
 
     for (let i = 0; i < rankings.length; i++) {
         const r = rankings[i];
