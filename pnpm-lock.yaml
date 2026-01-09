@@ -77,9 +77,6 @@ importers:
       svelte:
         specifier: ^5.0.0
         version: 5.46.1
-      terser:
-        specifier: ^5.39.0
-        version: 5.44.1
 
 packages:
 
@@ -2080,7 +2077,8 @@ snapshots:
     dependencies:
       fill-range: 7.1.1
 
-  buffer-from@1.1.2: {}
+  buffer-from@1.1.2:
+    optional: true
 
   chai@6.2.2: {}
 
@@ -2112,7 +2110,8 @@ snapshots:
       delayed-stream: 1.0.0
     optional: true
 
-  commander@2.20.3: {}
+  commander@2.20.3:
+    optional: true
 
   cross-spawn@5.1.0:
     dependencies:
@@ -2671,8 +2670,10 @@ snapshots:
     dependencies:
       buffer-from: 1.1.2
       source-map: 0.6.1
+    optional: true
 
-  source-map@0.6.1: {}
+  source-map@0.6.1:
+    optional: true
 
   spawndamnit@2.0.0:
     dependencies:
@@ -2730,6 +2731,7 @@ snapshots:
       acorn: 8.15.0
       commander: 2.20.3
       source-map-support: 0.5.21
+    optional: true
 
   tinybench@2.9.0: {}
 

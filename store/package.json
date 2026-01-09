@@ -35,7 +35,6 @@
         "build": "dts-buddy",
         "test": "vitest run --coverage --config ../vitest.config.mjs",
         "bench": "node tests/benchmark.mjs -n 10 -f ./results.csv",
-        "size": "node tests/size-report.mjs -f ./size-results.json",
         "prepack": "pkgprn"
     },
     "dependencies": {
@@ -49,7 +48,6 @@
         "alien-signals": "^1.0.13",
         "rxjs": "^7.8.0",
         "solid-js": "^1.9.5",
-        "svelte": "^5.0.0",
-        "terser": "^5.39.0"
+        "svelte": "^5.0.0"
     }
 }
