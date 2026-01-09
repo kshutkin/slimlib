@@ -3,10 +3,10 @@
  */
 
 import { computed } from './computed.js';
-import { clearSources, scheduleFlush } from './core.js';
+import { batched, clearSources, scheduleFlush } from './core.js';
 import { registerEffect, unregisterEffect, warnIfNoActiveScope } from './debug.js';
 import { FLAG_EFFECT } from './flags.js';
-import { activeScope, batched } from './globals.js';
+import { activeScope } from './globals.js';
 import { flagsSymbol, trackSymbol } from './symbols.js';
 
 /**

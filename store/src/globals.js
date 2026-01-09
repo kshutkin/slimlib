@@ -14,9 +14,6 @@ export const setCurrentComputing = node => {
     currentComputing = node;
 };
 
-/** @type {Set<Computed<any>>} */
-export const batched = new Set();
-
 export let flushScheduled = false;
 
 /**

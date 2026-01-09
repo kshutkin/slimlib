@@ -8,13 +8,16 @@ import {
     FLAG_LIVE,
     FLAG_NEEDS_WORK,
 } from './flags.js';
-import { batched, currentComputing, flushScheduled, incrementGlobalVersion, scheduler, setFlushScheduled } from './globals.js';
+import { currentComputing, flushScheduled, incrementGlobalVersion, scheduler, setFlushScheduled } from './globals.js';
 import { dependencies, flagsSymbol, skippedDeps, sources, unwrap } from './symbols.js';
 
 /**
  * @template T
  * @typedef {import('./index.js').Computed<T>} Computed
  */
+
+/** @type {Set<Computed<any>>} */
+export let batched = new Set();
 
 /**
  * Unwraps a proxied value to get the underlying object
@@ -92,8 +95,9 @@ export const clearSources = (node, fromIndex = 0) => {
  */
 export const flushEffects = () => {
     setFlushScheduled(false);
-    const nodes = [...batched];
-    batched.clear();
+    // Swap the batched set to avoid array spread allocation
+    const nodes = batched;
+    batched = new Set();
     for (const node of nodes) {
         // Access node to trigger recomputation for effects
         // This will also clear the dirty flag

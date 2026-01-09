@@ -57,7 +57,8 @@ function computedRead() {
         return this[valueSymbol];
     }
 
-    const len = sourcesArray.length;
+    // Track if we've already verified all sources are computed (to avoid redundant loop)
+    let allComputedVerified = false;
 
     // For non-live computeds with stale globalVersion: poll sources to check if recomputation needed
     // This is the "pull" part of the push/pull algorithm - non-live nodes poll instead of receiving notifications
@@ -71,7 +72,12 @@ function computedRead() {
             }
         }
 
-        this[flagsSymbol] = flags |= hasStateSources ? FLAG_DIRTY : FLAG_CHECK;
+        if (hasStateSources) {
+            this[flagsSymbol] = flags |= FLAG_DIRTY;
+        } else {
+            this[flagsSymbol] = flags |= FLAG_CHECK;
+            allComputedVerified = true; // We just verified all sources are computed
+        }
     }
 
     // For CHECK state, verify if sources actually changed before recomputing
@@ -79,12 +85,16 @@ function computedRead() {
     // Only do this for non-effects that ONLY have computed sources (with nodes)
     // Effects should always run when marked, and state deps have no node to check
     if ((flags & (FLAG_CHECK_ONLY | FLAG_HAS_VALUE)) === (FLAG_CHECK | FLAG_HAS_VALUE)) {
-        // Fast path: check if all sources have nodes (are computed, not state)
-        // Do this inline to avoid separate loop
-        let allComputed = len > 0;
-        for (let i = 0; i < len && allComputed; i++) {
-            if (!sourcesArray[i].n) {
-                allComputed = false;
+        // Check if all sources have nodes (are computed, not state)
+        // Skip this loop if we already verified above (allComputedVerified)
+        let allComputed = allComputedVerified;
+        if (!allComputed && sourcesArray.length > 0) {
+            allComputed = true;
+            for (const source of sourcesArray) {
+                if (!source.n) {
+                    allComputed = false;
+                    break;
+                }
             }
         }
 

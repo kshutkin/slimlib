@@ -116,7 +116,11 @@ export function state(object = /** @type {T} */ ({})) {
                         cached = /** @param {...any} args */ (...args) => {
                             // Re-read the method in case it changed
                             const method = /** @type {Function} */ (/** @type {Record<string | symbol, any>} */ (target)[p]);
-                            const result = method.apply(target, args.map(unwrapValue));
+                            // Unwrap in-place - args is already a new array from rest params
+                            for (let i = 0; i < args.length; ++i) {
+                                args[i] = unwrapValue(args[i]);
+                            }
+                            const result = method.apply(target, args);
                             // Notify after function call (function may have mutated state)
                             // Only notify if we're NOT currently inside an effect/computed execution
                             // to avoid infinite loops when reading during effect
