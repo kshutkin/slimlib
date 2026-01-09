@@ -1192,6 +1192,80 @@ async function main() {
         stats.set(testName, testStats);
     }
 
+    // Calculate framework rankings across all benchmarks
+    // For each test, rank frameworks by mean time (lower is better)
+    // Each framework gets points equal to their rank (1st = 1 point, 2nd = 2 points, etc.)
+    // Lower total score = better overall performance
+    const frameworkScores = new Map(); // Map<frameworkName, {totalRank, testCount}>
+    for (const fwName of fwNames) {
+        frameworkScores.set(fwName, { totalRank: 0, testCount: 0 });
+    }
+
+    for (const [_testName, testStats] of stats) {
+        // Get all frameworks with valid results for this test
+        const validResults = [];
+        for (const [fwName, s] of testStats) {
+            if (s && s.n > 0 && s.mean > 0) {
+                validResults.push({ name: fwName, mean: s.mean });
+            }
+        }
+
+        // Sort by mean time (ascending - faster is better)
+        validResults.sort((a, b) => a.mean - b.mean);
+
+        // Assign ranks (1-based, handle ties by giving same rank)
+        let currentRank = 1;
+        for (let i = 0; i < validResults.length; i++) {
+            // Handle ties - if same mean as previous, use same rank
+            if (i > 0 && Math.abs(validResults[i].mean - validResults[i - 1].mean) < 0.0001) {
+                // Same rank as previous
+            } else {
+                currentRank = i + 1;
+            }
+            const score = frameworkScores.get(validResults[i].name);
+            score.totalRank += currentRank;
+            score.testCount++;
+        }
+    }
+
+    // Calculate average rank and prepare for display
+    const rankings = [];
+    for (const [fwName, score] of frameworkScores) {
+        if (score.testCount > 0) {
+            rankings.push({
+                name: fwName,
+                totalRank: score.totalRank,
+                testCount: score.testCount,
+                avgRank: score.totalRank / score.testCount,
+            });
+        }
+    }
+
+    // Sort by total rank (ascending - lower is better)
+    rankings.sort((a, b) => a.totalRank - b.totalRank);
+
+    // Print Framework Rankings section
+    console.log('');
+    console.log('='.repeat(70));
+    console.log('Framework Rankings (by average rank across all benchmarks)');
+    console.log('='.repeat(70));
+    console.log('');
+    console.log('  Rank  Framework'.padEnd(35) + 'Avg Rank'.padStart(12) + 'Total Score'.padStart(14) + 'Tests'.padStart(10));
+    console.log('  ' + '-'.repeat(66));
+
+    for (let i = 0; i < rankings.length; i++) {
+        const r = rankings[i];
+        const position = `  ${(i + 1).toString().padEnd(4)}`;
+        const name = r.name.padEnd(27);
+        const avgRank = r.avgRank.toFixed(2).padStart(12);
+        const totalScore = r.totalRank.toString().padStart(14);
+        const testCount = r.testCount.toString().padStart(10);
+        console.log(`${position}  ${name}${avgRank}${totalScore}${testCount}`);
+    }
+
+    console.log('');
+    console.log('  (Lower average rank = better overall performance)');
+
     // Check if we're comparing with existing file
     const fileExists = outputFile && existsSync(outputFile);
 
