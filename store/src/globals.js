@@ -2,18 +2,6 @@
  * @import { Computed, Scope } from './index.js'
  */
 
-// Global state
-/** @type {Computed<any> | null} */
-export let currentComputing = null;
-
-/**
- * Set the current computing node
- * @param {Computed<any> | null} node
- */
-export const setCurrentComputing = node => {
-    currentComputing = node;
-};
-
 export let flushScheduled = false;
 
 /**
@@ -22,16 +10,6 @@ export let flushScheduled = false;
  */
 export const setFlushScheduled = value => {
     flushScheduled = value;
-};
-
-export let tracked = true;
-
-/**
- * Set the tracked flag
- * @param {boolean} value
- */
-export const setTracked = value => {
-    tracked = value;
 };
 
 /**

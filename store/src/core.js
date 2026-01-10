@@ -1,3 +1,4 @@
+import { currentComputing } from './computed.js';
 import {
     FLAG_CHECK,
     FLAG_COMPUTING,
@@ -8,7 +9,7 @@ import {
     FLAG_LIVE,
     FLAG_NEEDS_WORK,
 } from './flags.js';
-import { currentComputing, flushScheduled, incrementGlobalVersion, scheduler, setFlushScheduled } from './globals.js';
+import { flushScheduled, incrementGlobalVersion, scheduler, setFlushScheduled } from './globals.js';
 import { dependencies, flagsSymbol, skippedDeps, sources, unwrap } from './symbols.js';
 
 /**

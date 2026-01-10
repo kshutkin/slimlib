@@ -1,7 +1,7 @@
 import { DEV } from 'esm-env';
 
+import { currentComputing } from './computed.js';
 import { FLAG_EFFECT } from './flags.js';
-import { currentComputing } from './globals.js';
 import { flagsSymbol } from './symbols.js';
 
 /**
