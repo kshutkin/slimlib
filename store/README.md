@@ -9,7 +9,7 @@ Reactive state management for SPAs with automatic dependency tracking.
 - **Fine-grained updates** - only computeds/effects that depend on changed values re-run
 - **Lazy computeds** - computed values are only calculated when read, not when dependencies change
 - **Batched updates** - multiple synchronous changes trigger a single effect execution
-- **Memory-safe** - uses WeakRef internally, unused computeds are garbage collected automatically
+- **Memory-safe** - uses liveness tracking internally, unused computeds are garbage collected automatically
 - **Dual usage** - computeds work both reactively (in effects) and imperatively (on-demand reads)
 - **Proxy-based state** - mutate objects naturally, no setters or immutable updates required
 - **TypeScript support** - full type inference
@@ -51,7 +51,9 @@ dispose();
 
 ## API
 
-### `state<T>(object?: T): T`
+### Reactive Primitives
+
+#### `state<T>(object?: T): T`
 
 Creates a reactive store from an object. Returns a proxy that tracks property access for dependency tracking.
 
@@ -62,53 +64,29 @@ store.user.name = "Jane"; // Triggers effects that depend on user.name
 store.items.push("item"); // Triggers effects that depend on items
 ```
 
-### `effect(callback: () => void | (() => void)): () => void`
+#### `signal<T>(initialValue?: T): (() => T) & { set: (value: T) => void }`
 
-Creates a reactive effect that runs when its dependencies change. Returns a dispose function.
-
-- Effects run on the next microtask (not synchronously) by default
-- Multiple synchronous changes are automatically batched
-- Callback can return a cleanup function
-- **Important**: If not created within a scope, you must hold a reference to the dispose function to prevent the effect from being garbage collected
+Creates a simple reactive signal. Returns a function to read the value with a `set` method to update it.
 
 ```js
-import { effect, state } from "@slimlib/store";
+import { signal, effect } from "@slimlib/store";
 
-const store = state({ count: 0 });
+const count = signal(0);
 
-// Hold the dispose function to prevent GC
-const dispose = effect(() => {
-  console.log(store.count);
-
-  // Optional: return cleanup function
-  return () => {
-    console.log("Cleaning up...");
-  };
+effect(() => {
+  console.log("Count:", count());
 });
 
-store.count = 1; // Effect runs after microtask
-
-dispose(); // Stop the effect, run cleanup
+count.set(5); // Effect runs after microtask
+console.log(count()); // 5
 ```
 
-For managing multiple effects, use a [scope](#scopecallback-parent-scope):
-
-```js
-import { scope, effect, state } from "@slimlib/store";
-
-const store = state({ count: 0 });
-
-const ctx = scope(() => {
-  effect(() => console.log("Effect 1:", store.count));
-  effect(() => console.log("Effect 2:", store.count));
-});
-
-ctx(); // Dispose all effects at once
-```
-
-### `computed<T>(getter: () => T): () => T`
+#### `computed<T>(getter: () => T, equals?: (a: T, b: T) => boolean): () => T`
 
 Creates a computed value that is lazily evaluated and cached until dependencies change. Returns a function that retrieves the computed value.
+
+- `getter` - Function that computes the value
+- `equals` - Optional equality function (defaults to `Object.is`). Return `true` if values are equal (skip update).
 
 ```js
 const store = state({ items: [1, 2, 3] });
@@ -122,7 +100,7 @@ store.items.push(4);
 console.log(doubled()); // 20
 ```
 
-#### Reactive vs Imperative Usage
+##### Reactive vs Imperative Usage
 
 Computeds support two usage patterns:
 
@@ -152,58 +130,54 @@ console.log(doubled()); // 10 - recomputes on demand
 
 Both patterns can coexist. A computed stays connected to its sources as long as it's referenced, regardless of whether any effect tracks it. This allows computeds to be used as derived getters in imperative code while still participating in the reactive graph when needed.
 
-### `signal<T>(initialValue?: T): (() => T) & { set: (value: T) => void }`
+#### `effect(callback: () => void | EffectCleanup): () => void`
 
-Creates a simple reactive signal. Returns a function to read the value with a `set` method to update it.
+Creates a reactive effect that runs when its dependencies change. Returns a dispose function.
 
-```js
-import { signal, effect } from "@slimlib/store";
-
-const count = signal(0);
-
-effect(() => {
-  console.log("Count:", count());
-});
-
-count.set(5); // Effect runs after microtask
-console.log(count()); // 5
-```
-
-### `flushEffects(): void`
-
-Immediately executes all pending effects without waiting for the next microtask. Useful for testing or when you need synchronous effect execution.
+- `callback` - Effect function that optionally returns a cleanup function (`EffectCleanup = () => void`)
+- Effects run on the next microtask (not synchronously) by default
+- Multiple synchronous changes are automatically batched
+- The cleanup function runs before each re-execution and when the effect is disposed
+- **Important**: If not created within a scope, you must hold a reference to the dispose function to prevent the effect from being garbage collected
 
 ```js
+import { effect, state } from "@slimlib/store";
+
 const store = state({ count: 0 });
 
-let runs = 0;
-effect(() => {
-  store.count;
-  runs++;
+// Hold the dispose function to prevent GC
+const dispose = effect(() => {
+  console.log(store.count);
+
+  // Optional: return cleanup function
+  return () => {
+    console.log("Cleaning up...");
+  };
 });
 
-flushEffects(); // runs = 1 (initial run)
+store.count = 1; // Effect runs after microtask
 
-store.count = 1;
-store.count = 2;
-flushEffects(); // runs = 2 (batched update executed immediately)
+dispose(); // Stop the effect, run cleanup
 ```
 
-### `setScheduler(fn: (callback: () => void) => void): void`
-
-Sets a custom scheduler function for effect execution. By default, effects are scheduled using `queueMicrotask`. You can replace it with any function that accepts a callback.
+For managing multiple effects, use a `scope`:
 
 ```js
-import { setScheduler } from "@slimlib/store";
+import { scope, effect, state } from "@slimlib/store";
 
-// Use setTimeout instead of queueMicrotask
-setScheduler((callback) => setTimeout(callback, 0));
+const store = state({ count: 0 });
 
-// Or use requestAnimationFrame for UI updates
-setScheduler((callback) => requestAnimationFrame(callback));
+const ctx = scope(() => {
+  effect(() => console.log("Effect 1:", store.count));
+  effect(() => console.log("Effect 2:", store.count));
+});
+
+ctx(); // Dispose all effects at once
 ```
 
-### `scope(callback?, parent?): Scope`
+### Scope Management
+
+#### `scope(callback?, parent?): Scope`
 
 Creates a reactive scope for tracking effects. Effects created within a scope are automatically tracked and disposed together when the scope is disposed. This is useful for managing component lifecycles or grouping related effects.
 
@@ -239,7 +213,7 @@ ctx();
 - `ctx(callback)` - Runs callback in scope context, returns `ctx` for chaining
 - `ctx()` - Disposes scope and all tracked effects, returns `undefined`
 
-#### Hierarchical Scopes
+##### Hierarchical Scopes
 
 Scopes can be nested. When a parent scope is disposed, all child scopes are also disposed:
 
@@ -264,7 +238,7 @@ const detached = scope(() => {
 }, undefined);
 ```
 
-### `activeScope`
+#### `activeScope`
 
 A live binding export that contains the currently active scope (or `undefined` if none).
 
@@ -280,7 +254,7 @@ scope(() => {
 console.log(activeScope); // undefined
 ```
 
-### `setActiveScope(scope?): void`
+#### `setActiveScope(scope?): void`
 
 Sets or clears the global active scope. Effects created outside of a `scope()` callback will be tracked to the active scope.
 
@@ -305,7 +279,74 @@ appScope();
 
 This is useful for frameworks that want a single root scope for all effects created during component initialization.
 
-### `debugConfig(flags: number): void`
+### Scheduling and Execution
+
+#### `flushEffects(): void`
+
+Immediately executes all pending effects without waiting for the next microtask. Useful for testing or when you need synchronous effect execution.
+
+```js
+const store = state({ count: 0 });
+
+let runs = 0;
+effect(() => {
+  store.count;
+  runs++;
+});
+
+flushEffects(); // runs = 1 (initial run)
+
+store.count = 1;
+store.count = 2;
+flushEffects(); // runs = 2 (batched update executed immediately)
+```
+
+#### `setScheduler(fn: (callback: () => void) => void): void`
+
+Sets a custom scheduler function for effect execution. By default, effects are scheduled using `queueMicrotask`. You can replace it with any function that accepts a callback.
+
+```js
+import { setScheduler } from "@slimlib/store";
+
+// Use setTimeout instead of queueMicrotask
+setScheduler((callback) => setTimeout(callback, 0));
+
+// Or use requestAnimationFrame for UI updates
+setScheduler((callback) => requestAnimationFrame(callback));
+```
+
+### Utilities
+
+#### `untracked<T>(callback: () => T): T`
+
+Execute a callback without tracking dependencies.
+
+```js
+const store = state({ a: 1, b: 2 });
+
+effect(() => {
+  console.log(store.a); // Tracked - effect re-runs when a changes
+
+  const b = untracked(() => store.b); // Not tracked
+  console.log(b);
+});
+
+store.b = 10; // Effect does NOT re-run
+store.a = 5; // Effect re-runs
+```
+
+#### `unwrapValue<T>(value: T): T`
+
+Gets the underlying raw object from a proxy.
+
+```js
+const store = state({ data: { x: 1 } });
+const raw = unwrapValue(store); // Returns the original object
+```
+
+### Debug Configuration
+
+#### `debugConfig(flags: number): void`
 
 Configure debug behavior using a bitfield of flags.
 
@@ -319,7 +360,7 @@ debugConfig(WARN_ON_WRITE_IN_COMPUTED);
 debugConfig(0);
 ```
 
-#### `WARN_ON_WRITE_IN_COMPUTED`
+##### `WARN_ON_WRITE_IN_COMPUTED`
 
 When enabled, logs a warning to the console if you write to a signal or state inside a computed. This helps catch a common mistake where the computed will not re-run when the written value changes, potentially leading to stale values.
 
@@ -341,7 +382,7 @@ const doubled = computed(() => {
 
 For zero-cost production builds, configure your bundler to replace the `DEV` constant. With Vite/Rollup, this happens automatically based on the build mode.
 
-#### `SUPPRESS_EFFECT_GC_WARNING`
+##### `SUPPRESS_EFFECT_GC_WARNING`
 
 By default in development mode, the library warns when an effect is garbage collected without being properly disposed. This helps detect memory leaks where effects are created but never cleaned up.
 
@@ -380,7 +421,7 @@ debugConfig(WARN_ON_WRITE_IN_COMPUTED | SUPPRESS_EFFECT_GC_WARNING);
 
 **Note**: This warning uses `FinalizationRegistry` internally and only runs in development mode. The entire mechanism is eliminated in production builds.
 
-#### `WARN_ON_UNTRACKED_EFFECT`
+##### `WARN_ON_UNTRACKED_EFFECT`
 
 When enabled, warns when effects are created without an active scope. This is an allowed pattern, but teams may choose to enforce scope usage for better effect lifecycle management.
 
@@ -405,33 +446,6 @@ const ctx = scope(() => {
 This warning is disabled by default because creating effects without a scope is a valid pattern - developers simply need to manage the dispose function manually. However, teams that prefer all effects to be tracked by scopes can enable this warning to enforce that convention.
 
 **Note**: This warning only runs in development mode and is completely eliminated in production builds.
-
-### `untracked<T>(callback: () => T): T`
-
-Execute a callback without tracking dependencies.
-
-```js
-const store = state({ a: 1, b: 2 });
-
-effect(() => {
-  console.log(store.a); // Tracked - effect re-runs when a changes
-
-  const b = untracked(() => store.b); // Not tracked
-  console.log(b);
-});
-
-store.b = 10; // Effect does NOT re-run
-store.a = 5; // Effect re-runs
-```
-
-### `unwrapValue<T>(value: T): T`
-
-Gets the underlying raw object from a proxy.
-
-```js
-const store = state({ data: { x: 1 } });
-const raw = unwrapValue(store); // Returns the original object
-```
 
 ## Features
 
@@ -607,7 +621,13 @@ flushEffects(); // runs = 2 (not 3!)
 
 ### Automatic Memory Management
 
-Computeds use WeakRef internally for dependency tracking. When a computed is no longer referenced anywhere in your code, it becomes eligible for garbage collection. Dead references are cleaned up lazily during dependency notification. No manual disposal is needed for computeds (effects still require explicit disposal via the returned function).
+Computeds use a **liveness tracking** system for automatic memory management. When a computed has no live consumers (effects or other live computeds depending on it), it becomes "non-live" and removes itself from its source dependencies. This allows it to be garbage collected when no external references exist.
+
+Key points:
+
+- **No manual disposal needed for computeds** - they clean up automatically when unreferenced
+- **Effects still require explicit disposal** via the returned function or scope cleanup
+- **Push/pull hybrid** - live computeds receive push notifications, non-live computeds poll on read
 
 ## Migration from v1.x
 
@@ -637,65 +657,6 @@ const store = state({ count: 0 });
 const dispose = effect(() => console.log(store.count));
 store.count = 1;
 ```
-
-## TC39 Signals Proposal Compatibility
-
-This library is designed with the [TC39 Signals proposal](https://github.com/tc39/proposal-signals) in mind. Here's how it aligns with the proposal and where it differs:
-
-### What's Implemented
-
-| Feature                  | Status | Notes                                               |
-| ------------------------ | ------ | --------------------------------------------------- |
-| Lazy computed evaluation | ✅     | Computeds only evaluate when read                   |
-| Glitch-free execution    | ✅     | No intermediate states exposed                      |
-| Error caching            | ✅     | Errors cached and rethrown until dependency changes |
-| Cycle detection          | ✅     | Throws `"Detected cycle in computations."`          |
-| Custom equality          | ✅     | Via second argument to `computed()`                 |
-| Untrack                  | ✅     | `untracked()` function                              |
-| Automatic GC             | ✅     | WeakRef-based, no manual disposal for computeds     |
-
-### Additional Features (Not in TC39)
-
-| Feature          | Notes                                                                   |
-| ---------------- | ----------------------------------------------------------------------- |
-| `effect()`       | TC39 leaves effects to frameworks; we provide a built-in implementation |
-| `state()`        | Proxy-based reactive stores for deep reactivity                         |
-| `setScheduler()` | Custom effect scheduling                                                |
-| `flushEffects()` | Synchronous effect execution                                            |
-
-### What's Not Implemented
-
-| Feature                         | Reason                                                        |
-| ------------------------------- | ------------------------------------------------------------- |
-| `Signal.subtle.Watcher`         | Effects are built-in; no need to expose low-level Watcher API |
-| `watched`/`unwatched` callbacks | Not needed for current use cases                              |
-| Introspection APIs              | `introspectSources`, `introspectSinks`, etc. not exposed      |
-| Frozen state                    | See below                                                     |
-
-### Frozen State Considerations
-
-The TC39 Signals proposal includes a "frozen" state that prevents reading or writing signals during certain phases:
-
-1. **During Watcher `notify` callbacks** - when a state change triggers notification
-2. **During `watched`/`unwatched` callbacks** - when a signal becomes observed or stops being observed
-
-This frozen state prevents several classes of bugs:
-
-- **Glitches**: Reading signals during notification could expose inconsistent intermediate states
-- **Infinite loops**: Writing signals during notification could trigger cascading notifications
-- **Graph corruption**: Modifying the graph while it's being traversed
-
-**This library's approach**: A frozen state is **not** implemented because:
-
-1. **Effects are batched**: Effects run on microtask (not synchronously during `set()`), so the graph is always fully marked before any effect reads signals
-2. **No exposed Watcher**: Without a low-level Watcher API, there's no way to write `notify` callbacks that could misuse synchronous access
-3. **Simpler mental model**: The batched approach naturally prevents most issues that frozen state addresses
-
-If you're building a framework on top of this library and need Watcher-like functionality with frozen state guarantees, consider:
-
-- Using `untracked()` carefully when reading signals in notification-like contexts
-- Scheduling work via `queueMicrotask` or `setScheduler` rather than executing immediately
-- Being aware that writing to signals during computed evaluation is allowed but can lead to unexpected behavior
 
 ## Development Warnings
 
