@@ -30,21 +30,18 @@ export function state(object = /** @type {T} */ ({})) {
     const proxiesCache = new WeakMap();
 
     /**
-     * Notify dependents of a specific property or all properties
+     * Notify dependents of a specific property
      * @param {object} target
-     * @param {string | symbol} [property] - If provided, notifies only this property's dependents. If omitted, notifies all properties' dependents.
+     * @param {string | symbol} property - The property whose dependents to notify
      */
     const notifyPropertyDependents = (target, property) => {
         const propsMap = /** @type {Map<string | symbol, Set<Computed<any>>> | undefined} */ (
             /** @type {any} */ (target)[propertyDepsSymbol]
         );
         if (!propsMap) return;
-        // If property specified, notify just that property; otherwise notify all
-        const depsToNotify = property !== undefined ? [propsMap.get(property)] : propsMap.values();
-        for (const deps of depsToNotify) {
-            if (deps) {
-                markDependents(deps);
-            }
+        const deps = propsMap.get(property);
+        if (deps) {
+            markDependents(deps);
         }
     };
 
@@ -125,7 +122,13 @@ export function state(object = /** @type {T} */ ({})) {
                             // Only notify if we're NOT currently inside an effect/computed execution
                             // to avoid infinite loops when reading during effect
                             if (!currentComputing) {
-                                notifyPropertyDependents(target);
+                                const propsMap = /** @type {Map<string | symbol, Set<Computed<any>>> | undefined} */ (
+                                    /** @type {any} */ (target)[propertyDepsSymbol]
+                                );
+                                if (!propsMap) return;
+                                for (const deps of propsMap.values()) {
+                                    markDependents(deps);
+                                }
                             }
                             return result;
                         };
