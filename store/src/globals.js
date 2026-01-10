@@ -1,5 +1,5 @@
 /**
- * @import { Computed, Scope } from './index.js'
+ * @import { Scope } from './index.js'
  */
 
 export let flushScheduled = false;

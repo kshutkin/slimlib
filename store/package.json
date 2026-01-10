@@ -35,6 +35,7 @@
         "build": "dts-buddy",
         "test": "vitest run --coverage --config ../vitest.config.mjs",
         "bench": "node tests/benchmark.mjs -n 10 -f ./results.csv",
+        "build-compress": "pkgbld --formats=es --compress=es --no-update-package-json",
         "prepack": "pkgprn"
     },
     "dependencies": {
@@ -46,6 +47,7 @@
         "@reactively/core": "^0.0.8",
         "@vue/reactivity": "^3.5.0",
         "alien-signals": "^1.0.13",
+        "pkgbld": "1.36.0",
         "rxjs": "^7.8.0",
         "solid-js": "^1.9.5",
         "svelte": "^5.0.0"
