@@ -1,10 +1,8 @@
-// import { DEV } from 'esm-env';
+import { DEV } from 'esm-env';
 
 import { currentComputing } from './computed.js';
 import { FLAG_EFFECT } from './flags.js';
 import { flagsSymbol } from './symbols.js';
-
-const DEV = false;
 
 /**
  * Debug configuration flag: Warn when writing to signals/state inside a computed
