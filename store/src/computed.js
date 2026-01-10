@@ -18,7 +18,6 @@ import {
     getterSymbol,
     lastGlobalVersionSymbol,
     subs,
-    subsTail,
     valueSymbol,
     versionSymbol,
 } from './symbols.js';
@@ -236,12 +235,6 @@ export const computed = (getter, equals = Object.is) => {
     // Create callable that invokes computedRead with itself as `this`
     const context = /** @type {Computed<T>} */ (() => computedRead.call(context));
 
-    // Initialize linked list pointers for dependencies (what this node depends on)
-    context[deps] = undefined;
-    context[depsTail] = undefined;
-    // Initialize linked list pointers for subscribers (who depends on this node)
-    context[subs] = undefined;
-    context[subsTail] = undefined;
     // Initialize other properties
     context[flagsSymbol] = FLAG_DIRTY;
     context[getterSymbol] = getter;
