@@ -181,11 +181,8 @@ export const unlink = (linkToRemove, sub, isLive) => {
         removeFromSubs(linkToRemove);
 
         // Check if dep became unwatched and should become non-live
-        if (dep[subs] === undefined && dep[flagsSymbol] !== undefined) {
-            const depFlags = dep[flagsSymbol];
-            if (depFlags & FLAG_LIVE && !(depFlags & FLAG_EFFECT)) {
-                makeNonLive(/** @type {Computed<any>} */ (dep));
-            }
+        if (dep[subs] === undefined && dep[flagsSymbol] & FLAG_LIVE) {
+            makeNonLive(/** @type {Computed<any>} */ (dep));
         }
     }
 
