@@ -1,7 +1,7 @@
 import { currentComputing, tracked } from './computed.js';
 import { markDependents, trackDependency, unwrapValue } from './core.js';
 import { warnIfWriteInComputed } from './debug.js';
-import { propertyDepsSymbol, subs, subsTail, unwrap } from './symbols.js';
+import { propertyDepsSymbol, unwrap } from './symbols.js';
 
 /**
  * @template T
@@ -100,10 +100,7 @@ export function state(object = /** @type {T} */ ({})) {
 
                     if (!node) {
                         // Create a new SignalNode for this property
-                        node = {
-                            [subs]: undefined,
-                            [subsTail]: undefined,
-                        };
+                        node = {};
                         propsMap.set(p, node);
                     }
 
