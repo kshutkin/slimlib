@@ -109,3 +109,5 @@ types
 # results
 results.csv
 size-results.json
+
+.DS_Store
