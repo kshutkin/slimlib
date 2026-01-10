@@ -13,6 +13,6 @@ Complete rewrite with new reactive primitives API:
 - `untracked()` to read values without tracking
 - Automatic batching of synchronous updates
 - Fine-grained dependency tracking
-- WeakRef-based memory management for computeds
+- Liveliness memory management for computeds
 - Diamond problem solved (effects run once per batch)
 - ESM only, removed CJS and UMD builds
