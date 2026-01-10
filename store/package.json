@@ -34,7 +34,7 @@
     "scripts": {
         "build": "dts-buddy",
         "test": "vitest run --coverage --config ../vitest.config.mjs",
-        "bench": "node tests/benchmark.mjs -n 10 -f ./results.csv",
+        "bench": "node tests/benchmark.mjs -n 50 -f ./results.csv",
         "build-compress": "pkgbld --formats=es --compress=es --no-update-package-json",
         "prepack": "pkgprn"
     },
