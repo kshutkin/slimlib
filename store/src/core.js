@@ -1,3 +1,4 @@
+import { currentComputing } from './computed.js';
 import {
     FLAG_CHECK,
     FLAG_COMPUTING,
@@ -8,7 +9,7 @@ import {
     FLAG_LIVE,
     FLAG_NEEDS_WORK,
 } from './flags.js';
-import { currentComputing, flushScheduled, incrementGlobalVersion, scheduler, setFlushScheduled } from './globals.js';
+import { flushScheduled, incrementGlobalVersion, scheduler, setFlushScheduled } from './globals.js';
 import { deps, depsTail, flagsSymbol, subs, subsTail, unwrap } from './symbols.js';
 
 /**
@@ -23,12 +24,12 @@ import { deps, depsTail, flagsSymbol, subs, subsTail, unwrap } from './symbols.j
  *
  * @typedef {Object} Link
  * @property {number} v - Version for staleness checking
- * @property {Computed<any> | SignalNode} dep - The dependency (source being read)
- * @property {Computed<any>} sub - The subscriber (node doing the reading)
- * @property {Link | undefined} prevDep - Previous link in deps list
- * @property {Link | undefined} nextDep - Next link in deps list
- * @property {Link | undefined} prevSub - Previous link in subs list (only used when live)
- * @property {Link | undefined} nextSub - Next link in subs list (only used when live)
+ * @property {Computed<any> | SignalNode} d - The dependency (source being read)
+ * @property {Computed<any>} s - The subscriber (node doing the reading)
+ * @property {Link | undefined} p - Previous link in deps list
+ * @property {Link | undefined} n - Next link in deps list
+ * @property {Link | undefined} r - Previous link in subs list (only used when live)
+ * @property {Link | undefined} x - Next link in subs list (only used when live)
  */
 
 /**
@@ -54,14 +55,14 @@ export const unwrapValue = value => (value != null && /** @type {Record<symbol, 
  * @param {Link} link - The link to add to the subs list
  */
 const addToSubs = link => {
-    const dep = link.dep;
+    const dep = link.d;
     const prevSubLink = dep[subsTail];
 
-    link.prevSub = prevSubLink;
-    link.nextSub = undefined;
+    link.r = prevSubLink;
+    link.x = undefined;
 
     if (prevSubLink !== undefined) {
-        prevSubLink.nextSub = link;
+        prevSubLink.x = link;
     } else {
         dep[subs] = link;
     }
@@ -74,24 +75,24 @@ const addToSubs = link => {
  * @param {Link} link - The link to remove from the subs list
  */
 const removeFromSubs = link => {
-    const dep = link.dep;
-    const prevSub = link.prevSub;
-    const nextSub = link.nextSub;
+    const dep = link.d;
+    const prevSub = link.r;
+    const nextSub = link.x;
 
     if (nextSub !== undefined) {
-        nextSub.prevSub = prevSub;
+        nextSub.r = prevSub;
     } else {
         dep[subsTail] = prevSub;
     }
 
     if (prevSub !== undefined) {
-        prevSub.nextSub = nextSub;
+        prevSub.x = nextSub;
     } else {
         dep[subs] = nextSub;
     }
 
-    link.prevSub = undefined;
-    link.nextSub = undefined;
+    link.r = undefined;
+    link.x = undefined;
 };
 
 /**
@@ -107,13 +108,13 @@ export const link = (dep, sub, version) => {
     const prevDepLink = sub[depsTail];
 
     // Fast path: if we just linked this same dep, skip
-    if (prevDepLink !== undefined && prevDepLink.dep === dep) {
+    if (prevDepLink !== undefined && prevDepLink.d === dep) {
         return;
     }
 
     // Check if next link in deps list is the same dep (reuse existing link)
-    const nextDepLink = prevDepLink !== undefined ? prevDepLink.nextDep : sub[deps];
-    if (nextDepLink !== undefined && nextDepLink.dep === dep) {
+    const nextDepLink = prevDepLink !== undefined ? prevDepLink.n : sub[deps];
+    if (nextDepLink !== undefined && nextDepLink.d === dep) {
         nextDepLink.v = version;
         sub[depsTail] = nextDepLink;
         return;
@@ -123,12 +124,12 @@ export const link = (dep, sub, version) => {
     /** @type {Link} */
     const newLink = {
         v: version,
-        dep,
-        sub,
-        prevDep: prevDepLink,
-        nextDep: nextDepLink,
-        prevSub: undefined,
-        nextSub: undefined,
+        d: dep,
+        s: sub,
+        p: prevDepLink,
+        n: nextDepLink,
+        r: undefined,
+        x: undefined,
     };
 
     // Update depsTail for subscriber
@@ -136,10 +137,10 @@ export const link = (dep, sub, version) => {
 
     // Insert into deps list
     if (nextDepLink !== undefined) {
-        nextDepLink.prevDep = newLink;
+        nextDepLink.p = newLink;
     }
     if (prevDepLink !== undefined) {
-        prevDepLink.nextDep = newLink;
+        prevDepLink.n = newLink;
     } else {
         sub[deps] = newLink;
     }
@@ -159,24 +160,24 @@ export const link = (dep, sub, version) => {
  * @returns {Link | undefined} - The next link in deps list (for iteration)
  */
 export const unlink = (linkToRemove, sub, isLive) => {
-    const prevDep = linkToRemove.prevDep;
-    const nextDep = linkToRemove.nextDep;
+    const prevDep = linkToRemove.p;
+    const nextDep = linkToRemove.n;
 
     // Remove from deps list
     if (nextDep !== undefined) {
-        nextDep.prevDep = prevDep;
+        nextDep.p = prevDep;
     } else {
         sub[depsTail] = prevDep;
     }
     if (prevDep !== undefined) {
-        prevDep.nextDep = nextDep;
+        prevDep.n = nextDep;
     } else {
         sub[deps] = nextDep;
     }
 
     // Remove from subs list if was live
     if (isLive) {
-        const dep = linkToRemove.dep;
+        const dep = linkToRemove.d;
         removeFromSubs(linkToRemove);
 
         // Check if dep became unwatched and should become non-live
@@ -204,11 +205,11 @@ export const makeLive = node => {
         addToSubs(linkIter);
 
         // If dep is a computed that's not live, make it live recursively
-        const dep = linkIter.dep;
+        const dep = linkIter.d;
         if (dep[flagsSymbol] !== undefined && !(dep[flagsSymbol] & FLAG_IS_LIVE)) {
             makeLive(/** @type {Computed<any>} */ (dep));
         }
-        linkIter = linkIter.nextDep;
+        linkIter = linkIter.n;
     }
 };
 
@@ -221,7 +222,7 @@ export const makeNonLive = node => {
     node[flagsSymbol] &= ~FLAG_LIVE;
     let linkIter = node[deps];
     while (linkIter !== undefined) {
-        const dep = linkIter.dep;
+        const dep = linkIter.d;
         // Remove from subs list
         removeFromSubs(linkIter);
 
@@ -232,7 +233,7 @@ export const makeNonLive = node => {
                 makeNonLive(/** @type {Computed<any>} */ (dep));
             }
         }
-        linkIter = linkIter.nextDep;
+        linkIter = linkIter.n;
     }
 };
 
@@ -244,7 +245,7 @@ export const makeNonLive = node => {
 export const clearSources = node => {
     const tail = node[depsTail];
     const isLive = !!(node[flagsSymbol] & FLAG_IS_LIVE);
-    let linkToClear = tail !== undefined ? tail.nextDep : node[deps];
+    let linkToClear = tail !== undefined ? tail.n : node[deps];
     while (linkToClear !== undefined) {
         linkToClear = unlink(linkToClear, node, isLive);
     }
@@ -332,8 +333,8 @@ export const markNeedsCheck = node => {
         // Iterate through subs linked list
         let linkIter = node[subs];
         while (linkIter !== undefined) {
-            markNeedsCheck(linkIter.sub);
-            linkIter = linkIter.nextSub;
+            markNeedsCheck(linkIter.s);
+            linkIter = linkIter.x;
         }
     }
 };
@@ -346,7 +347,7 @@ export const markDependents = node => {
     incrementGlobalVersion();
     let linkIter = node[subs];
     while (linkIter !== undefined) {
-        markNeedsCheck(linkIter.sub);
-        linkIter = linkIter.nextSub;
+        markNeedsCheck(linkIter.s);
+        linkIter = linkIter.x;
     }
 };

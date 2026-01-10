@@ -35,7 +35,7 @@
 // Re-export public API from all modules
 
 // Reactive primitives
-export { computed } from './computed.js';
+export { computed, untracked } from './computed.js';
 // Core utilities
 export { flushEffects, unwrapValue } from './core.js';
 // Debug configuration
@@ -47,4 +47,3 @@ export { activeScope, setActiveScope, setScheduler } from './globals.js';
 export { scope } from './scope.js';
 export { signal } from './signal.js';
 export { state } from './state.js';
-export { untracked } from './untracked.js';

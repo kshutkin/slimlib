@@ -9,7 +9,7 @@ import {
     FLAG_IS_LIVE,
     FLAG_NEEDS_WORK,
 } from './flags.js';
-import { currentComputing, globalVersion, setCurrentComputing, setTracked, tracked } from './globals.js';
+import { globalVersion } from './globals.js';
 import {
     deps,
     depsTail,
@@ -31,6 +31,11 @@ import {
 /**
  * @typedef {import('./core.js').Link} Link
  */
+
+// Global state - moved here to avoid circular imports and improve locality
+/** @type {Computed<any> | null} */
+export let currentComputing = null;
+export let tracked = true;
 
 /**
  * @template T
@@ -71,11 +76,11 @@ function computedRead() {
         let hasStateSources = false;
         let linkIter = this[deps];
         while (linkIter !== undefined) {
-            if (linkIter.dep[flagsSymbol] === undefined) {
+            if (linkIter.d[flagsSymbol] === undefined) {
                 hasStateSources = true;
                 break;
             }
-            linkIter = linkIter.nextDep;
+            linkIter = linkIter.n;
         }
 
         if (hasStateSources) {
@@ -98,11 +103,11 @@ function computedRead() {
             allComputed = true;
             let linkIter = this[deps];
             while (linkIter !== undefined) {
-                if (linkIter.dep[flagsSymbol] === undefined) {
+                if (linkIter.d[flagsSymbol] === undefined) {
                     allComputed = false;
                     break;
                 }
-                linkIter = linkIter.nextDep;
+                linkIter = linkIter.n;
             }
         }
 
@@ -111,12 +116,12 @@ function computedRead() {
         if (allComputed) {
             // Inline untracked to avoid function call overhead
             const prevTracked = tracked;
-            setTracked(false);
+            tracked = false;
             let sourceChanged = false;
             try {
                 let linkIter = this[deps];
                 while (linkIter !== undefined) {
-                    const sourceNode = /** @type {Computed<any>} */ (linkIter.dep);
+                    const sourceNode = /** @type {Computed<any>} */ (linkIter.d);
                     // Access source to trigger its recomputation if needed
                     sourceNode();
                     // Check if source version changed (meaning its value changed)
@@ -124,10 +129,10 @@ function computedRead() {
                         sourceChanged = true;
                         linkIter.v = sourceNode[versionSymbol];
                     }
-                    linkIter = linkIter.nextDep;
+                    linkIter = linkIter.n;
                 }
             } finally {
-                setTracked(prevTracked);
+                tracked = prevTracked;
             }
             // If source changed, mark as dirty to force recomputation
             // Otherwise, clear CHECK flag since sources are unchanged
@@ -147,8 +152,8 @@ function computedRead() {
 
         const prev = currentComputing;
         const prevTracked = tracked;
-        setCurrentComputing(this);
-        setTracked(true); // Computed always tracks its own dependencies
+        currentComputing = this;
+        tracked = true; // Computed always tracks its own dependencies
 
         try {
             const newValue = this[getterSymbol]();
@@ -164,12 +169,12 @@ function computedRead() {
                 // Mark CHECK-only dependents as DIRTY via subs linked list
                 let linkIter = this[subs];
                 while (linkIter !== undefined) {
-                    const dep = linkIter.sub;
+                    const dep = linkIter.s;
                     const depFlags = dep[flagsSymbol];
                     if ((depFlags & (FLAG_COMPUTING | FLAG_NEEDS_WORK)) === FLAG_CHECK) {
                         dep[flagsSymbol] = depFlags | FLAG_DIRTY;
                     }
-                    linkIter = linkIter.nextSub;
+                    linkIter = linkIter.x;
                 }
             } else if (wasDirty) {
                 this[flagsSymbol] |= FLAG_HAS_VALUE;
@@ -189,14 +194,14 @@ function computedRead() {
             this[flagsSymbol] = (this[flagsSymbol] & ~(FLAG_COMPUTING | FLAG_NEEDS_WORK | FLAG_HAS_VALUE)) | FLAG_HAS_ERROR;
             this[lastGlobalVersionSymbol] = globalVersion;
         } finally {
-            setCurrentComputing(prev);
-            setTracked(prevTracked);
+            currentComputing = prev;
+            tracked = prevTracked;
             // Update source versions now that all sources have computed
             // This ensures we capture the version AFTER recomputation, not before
             let linkIter = this[deps];
             const tail = this[depsTail];
             while (linkIter !== undefined) {
-                const dep = linkIter.dep;
+                const dep = linkIter.d;
                 // Only update version for computed sources (those with versionSymbol)
                 if (dep[versionSymbol] !== undefined) {
                     linkIter.v = dep[versionSymbol];
@@ -205,7 +210,7 @@ function computedRead() {
                 if (linkIter === tail) {
                     break;
                 }
-                linkIter = linkIter.nextDep;
+                linkIter = linkIter.n;
             }
             // Clean up any stale sources that weren't reused
             clearSources(this);
@@ -244,4 +249,20 @@ export const computed = (getter, equals = Object.is) => {
     context[versionSymbol] = 0;
 
     return context;
+};
+
+/**
+ * Execute without tracking dependencies
+ * @template T
+ * @param {() => T} callback
+ * @returns {T}
+ */
+export const untracked = callback => {
+    const prevTracked = tracked;
+    tracked = false;
+    try {
+        return callback();
+    } finally {
+        tracked = prevTracked;
+    }
 };

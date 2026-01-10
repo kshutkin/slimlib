@@ -1,10 +1,10 @@
 /**
- * @import { Computed, Signal } from './index.js'
+ * @import { Signal } from './index.js'
  */
 
+import { currentComputing, tracked } from './computed.js';
 import { markDependents, trackDependency } from './core.js';
 import { warnIfWriteInComputed } from './debug.js';
-import { currentComputing, tracked } from './globals.js';
 import { subs, subsTail } from './symbols.js';
 
 /**

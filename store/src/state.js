@@ -1,6 +1,6 @@
+import { currentComputing, tracked } from './computed.js';
 import { markDependents, trackDependency, unwrapValue } from './core.js';
 import { warnIfWriteInComputed } from './debug.js';
-import { currentComputing, tracked } from './globals.js';
 import { propertyDepsSymbol, subs, subsTail, unwrap } from './symbols.js';
 
 /**
