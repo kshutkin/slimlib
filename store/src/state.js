@@ -21,7 +21,6 @@ import { propertyDepsSymbol, unwrap } from './symbols.js';
  * @returns {T}
  */
 /**
- * Creates a store
  * @template {object} T
  * @param {T} [object] - Optional object to make reactive
  * @returns {T}
@@ -30,9 +29,8 @@ export function state(object = /** @type {T} */ ({})) {
     const proxiesCache = new WeakMap();
 
     /**
-     * Notify dependents of a specific property
      * @param {object} target
-     * @param {string | symbol} property - The property whose dependents to notify
+     * @param {string | symbol} property
      */
     const notifyPropertyDependents = (target, property) => {
         const propsMap = /** @type {Map<string | symbol, Set<Computed<any>>> | undefined} */ (
@@ -55,7 +53,6 @@ export function state(object = /** @type {T} */ ({})) {
             return /** @type {T} */ (proxiesCache.get(object));
         }
 
-        // Cache for wrapped methods to avoid creating new functions on every access
         /** @type {Map<string | symbol, Function>} */
         const methodCache = new Map();
 

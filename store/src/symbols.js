@@ -1,8 +1,3 @@
-/**
- * Internal symbols used for the reactive system
- * @module symbols
- */
-
 export const [
     unwrap,
     sources,
