@@ -232,10 +232,11 @@ export const computed = (getter, equals = Object.is) => {
 };
 
 /**
- * Execute without tracking dependencies
+ * Execute a callback without tracking any reactive dependencies
+ * Useful when reading signals/state without creating a dependency relationship
  * @template T
- * @param {() => T} callback
- * @returns {T}
+ * @param {() => T} callback - Function to execute without tracking
+ * @returns {T} The return value of the callback
  */
 export const untracked = callback => {
     const prevTracked = tracked;

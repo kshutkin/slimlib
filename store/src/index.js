@@ -14,10 +14,14 @@
  */
 
 /**
+ * Function type for creating or disposing a scope
+ * When called with a callback, extends the scope; when called without arguments, disposes the scope
  * @typedef {((callback: ScopeCallback) => Scope) & (() => undefined)} ScopeFunction
  */
 
 /**
+ * A reactive scope for managing effect lifecycles
+ * Scopes can be nested and automatically clean up their tracked effects when disposed
  * @typedef {ScopeFunction & { [key: symbol]: any }} Scope
  */
 
@@ -28,6 +32,7 @@
  */
 
 /**
+ * A computed value that automatically tracks dependencies and caches results
  * @template T
  * @typedef {(() => T) & { [key: symbol]: any }} Computed
  */
