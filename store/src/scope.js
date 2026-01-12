@@ -24,7 +24,9 @@ export const scope = (callback, parent = activeScope) => {
     let disposed = false;
 
     const guard = () => {
-        if (disposed) throw new Error('Scope is disposed');
+        if (disposed) {
+            throw new Error('Scope is disposed');
+        }
     };
 
     /**
@@ -82,10 +84,14 @@ export const scope = (callback, parent = activeScope) => {
     ctx[childrenSymbol] = children;
 
     // Register with parent
-    if (parent) parent[childrenSymbol].add(ctx);
+    if (parent) {
+        parent[childrenSymbol].add(ctx);
+    }
 
     // Run initial callback if provided
-    if (callback) ctx(callback);
+    if (callback) {
+        ctx(callback);
+    }
 
     return ctx;
 };

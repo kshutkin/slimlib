@@ -37,18 +37,11 @@
  * @typedef {(() => T) & { [key: symbol]: any }} Computed
  */
 
-// Re-export public API from all modules
-
-// Reactive primitives
 export { computed, untracked } from './computed.js';
-// Core utilities
 export { flushEffects, unwrapValue } from './core.js';
-// Debug configuration
 export { debugConfig, SUPPRESS_EFFECT_GC_WARNING, WARN_ON_UNTRACKED_EFFECT, WARN_ON_WRITE_IN_COMPUTED } from './debug.js';
 export { effect } from './effect.js';
-// Global state accessors
 export { activeScope, setActiveScope, setScheduler } from './globals.js';
-// Scope
 export { scope } from './scope.js';
 export { signal } from './signal.js';
 export { state } from './state.js';

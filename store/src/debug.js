@@ -60,8 +60,7 @@ export const safeForEach = fns => {
 export const warnIfWriteInComputed = context => {
     if (DEV && debugConfigFlags & WARN_ON_WRITE_IN_COMPUTED && currentComputing && !(currentComputing[flagsSymbol] & FLAG_EFFECT)) {
         console.warn(
-            `[@slimlib/store] Writing to ${context} inside a computed is not recommended. ` +
-                `The computed will not automatically re-run when this value changes, which may lead to stale values.`
+            `[@slimlib/store] Writing to ${context} inside a computed is not recommended. The computed will not automatically re-run when this value changes, which may lead to stale values.`
         );
     }
 };
@@ -76,9 +75,7 @@ const effectRegistry = DEV
           /** @param {string} stackTrace */ stackTrace => {
               if (!(debugConfigFlags & SUPPRESS_EFFECT_GC_WARNING)) {
                   console.warn(
-                      `[@slimlib/store] Effect was garbage collected without being disposed. ` +
-                          `This may indicate a memory leak. Effects should be disposed by calling the returned dispose function ` +
-                          `or by using a scope that is properly disposed.\n\nEffect was created at:\n${stackTrace}`
+                      `[@slimlib/store] Effect was garbage collected without being disposed. This may indicate a memory leak. Effects should be disposed by calling the returned dispose function or by using a scope that is properly disposed.\n\nEffect was created at:\n${stackTrace}`
                   );
               }
           }
@@ -122,8 +119,7 @@ export const warnIfNoActiveScope = DEV
     ? /** @param {import('./index.js').Scope | undefined} activeScope */ activeScope => {
           if (debugConfigFlags & WARN_ON_UNTRACKED_EFFECT && !activeScope) {
               console.warn(
-                  `[@slimlib/store] Effect created without an active scope. ` +
-                      `Consider using scope() or setActiveScope() to track effects for proper lifecycle management.`
+                  `[@slimlib/store] Effect created without an active scope. Consider using scope() or setActiveScope() to track effects for proper lifecycle management.`
               );
           }
       }

@@ -40,7 +40,6 @@ export const effect = callback => {
     );
     comp[flagsSymbol] |= FLAG_EFFECT;
 
-    // Dispose function for this effect
     const dispose = () => {
         // Unregister from GC tracking (only in DEV mode)
         unregisterEffect(gcToken);
@@ -60,6 +59,5 @@ export const effect = callback => {
     batched.add(comp);
     scheduleFlush();
 
-    // Return dispose function
     return dispose;
 };
