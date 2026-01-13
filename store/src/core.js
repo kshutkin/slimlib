@@ -10,7 +10,7 @@ import {
     FLAG_NEEDS_WORK,
 } from './flags.js';
 import { flushScheduled, incrementGlobalVersion, scheduler, setFlushScheduled } from './globals.js';
-import { dependencies, flagsSymbol, skippedDeps, sources, unwrap } from './symbols.js';
+import { dependencies, effectIdSymbol, flagsSymbol, skippedDeps, sources, unwrap } from './symbols.js';
 
 /**
  * @template T
@@ -18,7 +18,7 @@ import { dependencies, flagsSymbol, skippedDeps, sources, unwrap } from './symbo
  */
 
 /** @type {Set<Computed<any>>} */
-export let batched = new Set();
+export let batched = new Set;
 
 /**
  * Unwraps a proxied value to get the underlying object
@@ -96,8 +96,9 @@ export const clearSources = (node, fromIndex = 0) => {
  */
 export const flushEffects = () => {
     setFlushScheduled(false);
+    // Sort effects
+    const nodes = [...batched].sort((a, b) => a[effectIdSymbol] - b[effectIdSymbol]);
     // Swap the batched set to avoid array spread allocation
-    const nodes = batched;
     batched = new Set();
     for (const node of nodes) {
         // Access node to trigger recomputation for effects

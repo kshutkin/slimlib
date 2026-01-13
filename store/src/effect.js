@@ -7,7 +7,13 @@ import { batched, clearSources, scheduleFlush } from './core.js';
 import { registerEffect, unregisterEffect, warnIfNoActiveScope } from './debug.js';
 import { FLAG_EFFECT } from './flags.js';
 import { activeScope } from './globals.js';
-import { flagsSymbol, trackSymbol } from './symbols.js';
+import { effectIdSymbol, flagsSymbol, trackSymbol } from './symbols.js';
+
+/**
+ * Effect creation counter - increments on every effect creation
+ * Used to maintain effect execution order by creation time
+ */
+let effectCreationCounter = 0;
 
 /**
  * Creates a reactive effect that runs when dependencies change
@@ -39,6 +45,7 @@ export const effect = callback => {
         )
     );
     comp[flagsSymbol] |= FLAG_EFFECT;
+    comp[effectIdSymbol] = effectCreationCounter++;
 
     const dispose = () => {
         // Unregister from GC tracking (only in DEV mode)

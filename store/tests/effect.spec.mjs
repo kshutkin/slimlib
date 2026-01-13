@@ -733,4 +733,246 @@ describe('effect', () => {
         await flushAll();
         expect(runs).toBe(3);
     });
+
+    describe('execution order', () => {
+        it('effects execute in creation order on initial run', async () => {
+            /** @type {number[]} */
+            const executionOrder = [];
+            const store = state({ value: 0 });
+
+            effect(() => {
+                store.value;
+                executionOrder.push(0);
+            });
+            effect(() => {
+                store.value;
+                executionOrder.push(1);
+            });
+            effect(() => {
+                store.value;
+                executionOrder.push(2);
+            });
+
+            await flushAll();
+            expect(executionOrder).toEqual([0, 1, 2]);
+        });
+
+        it('effects execute in creation order on re-run', async () => {
+            /** @type {number[]} */
+            const executionOrder = [];
+            const store = state({ value: 0 });
+
+            effect(() => {
+                store.value;
+                executionOrder.push(0);
+            });
+            effect(() => {
+                store.value;
+                executionOrder.push(1);
+            });
+            effect(() => {
+                store.value;
+                executionOrder.push(2);
+            });
+
+            await flushAll();
+            executionOrder.length = 0;
+
+            store.value = 1;
+            await flushAll();
+            expect(executionOrder).toEqual([0, 1, 2]);
+        });
+
+        it('effects on different signals execute in creation order', async () => {
+            /** @type {number[]} */
+            const executionOrder = [];
+            const storeA = state({ value: 0 });
+            const storeB = state({ value: 0 });
+
+            // Interleaved: 0->A, 1->B, 2->A, 3->B, 4->A
+            effect(() => {
+                storeA.value;
+                executionOrder.push(0);
+            });
+            effect(() => {
+                storeB.value;
+                executionOrder.push(1);
+            });
+            effect(() => {
+                storeA.value;
+                executionOrder.push(2);
+            });
+            effect(() => {
+                storeB.value;
+                executionOrder.push(3);
+            });
+            effect(() => {
+                storeA.value;
+                executionOrder.push(4);
+            });
+
+            await flushAll();
+            executionOrder.length = 0;
+
+            // Change only storeA - should trigger 0, 2, 4 in creation order
+            storeA.value = 1;
+            await flushAll();
+            expect(executionOrder).toEqual([0, 2, 4]);
+
+            executionOrder.length = 0;
+
+            // Change only storeB - should trigger 1, 3 in creation order
+            storeB.value = 1;
+            await flushAll();
+            expect(executionOrder).toEqual([1, 3]);
+        });
+
+        it('effects with diamond dependency execute in creation order', async () => {
+            /** @type {number[]} */
+            const executionOrder = [];
+            const store = state({ value: 0 });
+
+            const compA = computed(() => store.value * 2);
+            const compB = computed(() => store.value * 3);
+
+            // Effect 0 depends on compA
+            effect(() => {
+                compA();
+                executionOrder.push(0);
+            });
+            // Effect 1 depends on compB
+            effect(() => {
+                compB();
+                executionOrder.push(1);
+            });
+            // Effect 2 depends on both
+            effect(() => {
+                compA();
+                compB();
+                executionOrder.push(2);
+            });
+            // Effect 3 depends on compA
+            effect(() => {
+                compA();
+                executionOrder.push(3);
+            });
+
+            await flushAll();
+            executionOrder.length = 0;
+
+            store.value = 1;
+            await flushAll();
+            expect(executionOrder).toEqual([0, 1, 2, 3]);
+        });
+
+        it('effects with dynamic dependencies maintain creation order', async () => {
+            /** @type {number[]} */
+            const executionOrder = [];
+            const control = state({ useA: true });
+            const storeA = state({ value: 1 });
+            const storeB = state({ value: 100 });
+
+            // Effect 0: always reads control
+            effect(() => {
+                control.useA;
+                executionOrder.push(0);
+            });
+
+            // Effect 1: reads A or B based on control
+            effect(() => {
+                if (control.useA) {
+                    storeA.value;
+                } else {
+                    storeB.value;
+                }
+                executionOrder.push(1);
+            });
+
+            // Effect 2: always reads storeA
+            effect(() => {
+                storeA.value;
+                executionOrder.push(2);
+            });
+
+            // Effect 3: always reads storeB
+            effect(() => {
+                storeB.value;
+                executionOrder.push(3);
+            });
+
+            await flushAll();
+            executionOrder.length = 0;
+
+            // Change storeA - should trigger effects 1 and 2
+            storeA.value = 2;
+            await flushAll();
+            expect(executionOrder).toEqual([1, 2]);
+
+            executionOrder.length = 0;
+
+            // Flip control - effect 1 now subscribes to B instead of A
+            control.useA = false;
+            await flushAll();
+            executionOrder.length = 0;
+
+            // Change storeA - should only trigger effect 2 now
+            storeA.value = 3;
+            await flushAll();
+            expect(executionOrder).toEqual([2]);
+
+            executionOrder.length = 0;
+
+            // Change storeB - should trigger effects 1 and 3 in creation order
+            storeB.value = 200;
+            await flushAll();
+            expect(executionOrder).toEqual([1, 3]);
+        });
+
+        it('late-subscribing effect maintains creation order position', async () => {
+            /** @type {number[]} */
+            const executionOrder = [];
+            const control = state({ subscribe: false });
+            const store = state({ value: 0 });
+
+            // Effect 0: always subscribes to store
+            effect(() => {
+                store.value;
+                executionOrder.push(0);
+            });
+
+            // Effect 1: only subscribes to store when control.subscribe is true
+            effect(() => {
+                if (control.subscribe) {
+                    store.value;
+                }
+                executionOrder.push(1);
+            });
+
+            // Effect 2: always subscribes to store
+            effect(() => {
+                store.value;
+                executionOrder.push(2);
+            });
+
+            await flushAll();
+            executionOrder.length = 0;
+
+            // Change store - effect 1 is not subscribed, should get [0, 2]
+            store.value = 1;
+            await flushAll();
+            expect(executionOrder).toEqual([0, 2]);
+
+            executionOrder.length = 0;
+
+            // Enable subscription for effect 1
+            control.subscribe = true;
+            await flushAll();
+            executionOrder.length = 0;
+
+            // Now change store - effect 1 subscribed AFTER effect 2 but should still run in creation order
+            store.value = 2;
+            await flushAll();
+            expect(executionOrder).toEqual([0, 1, 2]);
+        });
+    });
 });

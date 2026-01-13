@@ -12,6 +12,7 @@ export const [
     trackSymbol,
     childrenSymbol,
     versionSymbol,
-] = /** @type {[symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol]}*/ (
-    Array.from({ length: 13 }, () => Symbol())
+    effectIdSymbol,
+] = /** @type {[symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol]}*/ (
+    Array.from({ length: 14 }, () => Symbol())
 );
