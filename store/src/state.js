@@ -122,7 +122,7 @@ export function state(object = /** @type {T} */ ({})) {
                                 const propsMap = /** @type {Map<string | symbol, Set<Computed<any>>> | undefined} */ (
                                     /** @type {any} */ (target)[propertyDepsSymbol]
                                 );
-                                if (!propsMap) return;
+                                if (!propsMap) return result;
                                 for (const deps of propsMap.values()) {
                                     markDependents(deps);
                                 }
