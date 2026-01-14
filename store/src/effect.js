@@ -3,11 +3,12 @@
  */
 
 import { computed } from './computed.js';
-import { batched, clearSources, scheduleFlush } from './core.js';
+import { batched, batchedDelete, clearSources, scheduleFlush } from './core.js';
+import { append } from '@slimlib/list';
 import { registerEffect, unregisterEffect, warnIfNoActiveScope } from './debug.js';
 import { FLAG_EFFECT } from './flags.js';
 import { activeScope } from './globals.js';
-import { effectIdSymbol, flagsSymbol, trackSymbol } from './symbols.js';
+import { flagsSymbol, trackSymbol } from './symbols.js';
 
 /**
  * Effect creation counter - increments on every effect creation
@@ -45,7 +46,7 @@ export const effect = callback => {
         )
     );
     comp[flagsSymbol] |= FLAG_EFFECT;
-    comp[effectIdSymbol] = effectCreationCounter++;
+    comp.i = effectCreationCounter++;
 
     const dispose = () => {
         // Unregister from GC tracking (only in DEV mode)
@@ -54,7 +55,7 @@ export const effect = callback => {
             cleanup();
         }
         clearSources(comp);
-        batched.delete(comp);
+        batchedDelete(comp);
     };
 
     // Track to appropriate scope
@@ -63,7 +64,7 @@ export const effect = callback => {
     }
 
     // Trigger first run via batched queue (node is already dirty from computed())
-    batched.add(comp);
+    append(batched, comp);
     scheduleFlush();
 
     return dispose;

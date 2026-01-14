@@ -49,6 +49,9 @@ importers:
 
   store:
     dependencies:
+      '@slimlib/list':
+        specifier: workspace:^
+        version: link:../list
       esm-env:
         specifier: ^1.2.1
         version: 1.2.2

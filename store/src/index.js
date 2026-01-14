@@ -32,9 +32,13 @@
  */
 
 /**
+ * @typedef {import('@slimlib/list').ListNode} ListNode
+ */
+
+/**
  * A computed value that automatically tracks dependencies and caches results
  * @template T
- * @typedef {(() => T) & { [key: symbol]: any }} Computed
+ * @typedef {(() => T) & { [key: symbol]: any, i?: number } & Partial<ListNode>} Computed
  */
 
 export { computed, untracked } from './computed.js';

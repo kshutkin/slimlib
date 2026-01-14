@@ -10,15 +10,56 @@ import {
     FLAG_NEEDS_WORK,
 } from './flags.js';
 import { flushScheduled, incrementGlobalVersion, scheduler, setFlushScheduled } from './globals.js';
-import { dependencies, effectIdSymbol, flagsSymbol, skippedDeps, sources, unwrap } from './symbols.js';
+import { dependencies, flagsSymbol, skippedDeps, sources, unwrap } from './symbols.js';
+import { List, append, remove } from '@slimlib/list';
 
 /**
- * @template T
- * @typedef {import('./index.js').Computed<T>} Computed
+ * @typedef {import('@slimlib/list').ListNode} ListNode
  */
 
-/** @type {Set<Computed<any>>} */
-export let batched = new Set;
+/**
+ * A computed value that can be part of the batched list
+ * @template T
+ * @typedef {(() => T) & { [key: symbol]: any, n?: ListNode, p?: ListNode, i?: number }} Computed
+ */
+
+/** @type {List<Computed<any>>} */
+export let batched = new List;
+
+/** @type {number} */
+let lastAddedId = -1;
+
+/** @type {boolean} */
+let needsSort = false;
+
+/**
+ * Add an effect to the batched list (if not already in it)
+ * @param {Computed<any>} node
+ */
+const batchedAdd = node => {
+    if (/** @type {{n: ListNode | undefined}} */ (node).n === undefined) {
+        const nodeId = /** @type {number} */ (node.i);
+        // Track if we're adding out of order
+        if (nodeId < lastAddedId) {
+            needsSort = true;
+        }
+        lastAddedId = nodeId;
+        // O(1) append - sorting happens at flush time only if needed
+        append(batched, /** @type {ListNode} */ (node));
+    }
+};
+
+/**
+ * Remove an effect from the batched list
+ * @param {Computed<any>} node
+ */
+export const batchedDelete = node => {
+    const listNode = /** @type {{n: ListNode | undefined}} */ (node);
+    if (listNode.n !== undefined) {
+        remove(/** @type {ListNode} */ (node));
+        listNode.n = undefined;
+    }
+};
 
 /**
  * Unwraps a proxied value to get the underlying object
@@ -96,13 +137,17 @@ export const clearSources = (node, fromIndex = 0) => {
  */
 export const flushEffects = () => {
     setFlushScheduled(false);
-    // Sort effects
-    const nodes = [...batched].sort((a, b) => a[effectIdSymbol] - b[effectIdSymbol]);
-    // Swap the batched set to avoid array spread allocation
-    batched = new Set();
+    // Collect nodes, only sort if effects were added out of order
+    const nodes = [...batched];
+    if (needsSort) {
+        nodes.sort((a, b) => /** @type {number} */ (a.i) - /** @type {number} */ (b.i));
+    }
+    batched = new List;
+    lastAddedId = -1;
+    needsSort = false;
+    // Clear n property and call effect in one pass
     for (const node of nodes) {
-        // Access node to trigger recomputation for effects
-        // This will also clear the dirty flag
+        /** @type {{n: ListNode | undefined}} */ (node).n = undefined;
         node();
     }
 };
@@ -158,12 +203,12 @@ export const markNeedsCheck = node => {
     const flags = node[flagsSymbol];
     if ((flags & FLAG_COMPUTING_EFFECT) === FLAG_COMPUTING_EFFECT) {
         node[flagsSymbol] = flags | FLAG_DIRTY;
-        batched.add(node);
+        batchedAdd(node);
         scheduleFlush();
     } else if (!(flags & (FLAG_COMPUTING | FLAG_NEEDS_WORK))) {
         node[flagsSymbol] = flags | FLAG_CHECK;
         if (flags & FLAG_EFFECT) {
-            batched.add(node);
+            batchedAdd(node);
             scheduleFlush();
         }
         for (const dep of node[dependencies]) {

@@ -278,6 +278,67 @@ describe('automatic batching', () => {
         expect(log).toEqual(['after-effect-setup', 'effect:0', 'after-change', 'effect:1']);
     });
 
+    it('effect modifying multiple dependencies during execution re-batches once', async () => {
+        // This tests the branch in batchedAdd where node.n !== undefined
+        // When an effect modifies multiple dependencies during execution:
+        // 1. First modification: node.n is undefined -> adds to batched list
+        // 2. Second modification: node.n is defined -> hits early return branch
+        const store = state({ a: 0, b: 0 });
+        let runs = 0;
+
+        effect(() => {
+            runs++;
+            const a = store.a;
+            const b = store.b;
+            if (a === 0 && b === 0) {
+                // Modify multiple dependencies during effect execution
+                // First change adds effect to new batched list (node.n becomes defined)
+                // Second change calls batchedAdd but node.n !== undefined (early return)
+                store.a = 1;
+                store.b = 1;
+            }
+        });
+
+        await flushAll();
+        // Initial run (a=0, b=0) triggers modifications
+        // Effect is re-scheduled and runs again (a=1, b=1)
+        expect(runs).toBe(2);
+        expect(store.a).toBe(1);
+        expect(store.b).toBe(1);
+    });
+
+    it('effect marked dirty multiple times before flush only runs once', async () => {
+        // This tests the branch in batchedAdd where node.n !== undefined
+        // (effect is already in batched list when marked dirty again)
+        const store1 = state({ a: 0 });
+        const store2 = state({ b: 0 });
+        const store3 = state({ c: 0 });
+        let runs = 0;
+
+        effect(() => {
+            // Effect depends on all three stores
+            store1.a;
+            store2.b;
+            store3.c;
+            runs++;
+        });
+
+        await flushAll();
+        expect(runs).toBe(1);
+
+        // Change all three stores synchronously
+        // First change adds effect to batched list
+        // Second and third changes call batchedAdd but effect is already in list
+        // so they should hit the early return branch (node.n !== undefined)
+        store1.a = 1;
+        store2.b = 1;
+        store3.c = 1;
+
+        await flushAll();
+        // Effect should only run once despite 3 dependency changes
+        expect(runs).toBe(2);
+    });
+
     it('changes during effect execution are also batched', async () => {
         const store = state({ value: 0 });
         let runs = 0;

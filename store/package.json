@@ -39,6 +39,7 @@
         "prepack": "pkgprn"
     },
     "dependencies": {
+        "@slimlib/list": "workspace:^",
         "esm-env": "^1.2.1"
     },
     "devDependencies": {
