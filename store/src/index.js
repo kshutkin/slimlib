@@ -41,8 +41,8 @@
  * @typedef {(() => T) & { [key: symbol]: any, i?: number } & Partial<ListNode>} Computed
  */
 
-export { computed, untracked } from './computed.js';
-export { flushEffects, unwrapValue } from './core.js';
+export { computed } from './computed.js';
+export { flushEffects, untracked, unwrapValue } from './core.js';
 export { debugConfig, SUPPRESS_EFFECT_GC_WARNING, WARN_ON_UNTRACKED_EFFECT, WARN_ON_WRITE_IN_COMPUTED } from './debug.js';
 export { effect } from './effect.js';
 export { activeScope, setActiveScope, setScheduler } from './globals.js';

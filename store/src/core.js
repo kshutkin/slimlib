@@ -1,6 +1,5 @@
-import { append, List, remove } from '@slimlib/list';
+import { append, remove } from '@slimlib/list';
 
-import { currentComputing } from './globals.js';
 import {
     FLAG_CHECK,
     FLAG_COMPUTING,
@@ -11,8 +10,13 @@ import {
     FLAG_LIVE,
     FLAG_NEEDS_WORK,
 } from './flags.js';
-import { flushScheduled, incrementGlobalVersion, scheduler, setFlushScheduled } from './globals.js';
-import { dependencies, flagsSymbol, skippedDeps, sources, unwrap } from './symbols.js';
+import {
+    flushScheduled,
+    incrementGlobalVersion,
+    scheduler,
+    setFlushScheduled,
+} from './globals.js';
+import { dependencies, flagsSymbol, skippedDeps, sources, unwrap, versionSymbol } from './symbols.js';
 
 /**
  * @typedef {import('@slimlib/list').ListNode} ListNode
@@ -24,7 +28,11 @@ import { dependencies, flagsSymbol, skippedDeps, sources, unwrap } from './symbo
  * @typedef {(() => T) & { [key: symbol]: any, n?: ListNode, p?: ListNode, i?: number }} Computed
  */
 
-/** @type {List<Computed<any>>} */
+class List {
+    n = this;
+    p = this;
+}
+
 export let batched = new List;
 
 /** @type {number} */
@@ -32,6 +40,12 @@ let lastAddedId = -1;
 
 /** @type {boolean} */
 let needsSort = false;
+
+// Computation tracking state
+/** @type {Computed<any> | null} */
+
+export let currentComputing = null;
+export let tracked = true;
 
 /**
  * Add an effect to the batched list (if not already in it)
@@ -139,7 +153,11 @@ export const clearSources = (node, fromIndex = 0) => {
 export const flushEffects = () => {
     setFlushScheduled(false);
     // Collect nodes, only sort if effects were added out of order
-    const nodes = [...batched];
+    /** @type {Computed<any>[]} */
+    const nodes = [];
+    for (let current = batched.n; current !== batched; current = current.n) {
+        nodes.push(/** @type {Computed<any>} */(current));
+    }
     if (needsSort) {
         nodes.sort((a, b) => /** @type {number} */ (a.i) - /** @type {number} */ (b.i));
     }
@@ -212,8 +230,11 @@ export const markNeedsCheck = node => {
             batchedAdd(node);
             scheduleFlush();
         }
-        for (const dep of node[dependencies]) {
-            markNeedsCheck(dep);
+        const deps = node[dependencies];
+        if (deps) {
+            for (const dep of deps) {
+                markNeedsCheck(dep);
+            }
         }
     }
 };
@@ -226,5 +247,62 @@ export const markDependents = deps => {
     incrementGlobalVersion();
     for (const dep of deps) {
         markNeedsCheck(dep);
+    }
+};
+
+
+/**
+ * Run a getter function with dependency tracking
+ * Handles cycle detection, context setup, and source cleanup
+ * @template T
+ * @param {Computed<any>} node - The node being computed
+ * @param {() => T} getter - The getter function to run
+ * @returns {T} The result of the getter
+ */
+export const runWithTracking = (node, getter) => {
+    node[flagsSymbol] = (node[flagsSymbol] & ~FLAG_NEEDS_WORK) | FLAG_COMPUTING;
+    node[skippedDeps] = 0;
+
+    const prev = currentComputing;
+    const prevTracked = tracked;
+    currentComputing = node;
+    tracked = true;
+
+    try {
+        return getter();
+    } finally {
+        currentComputing = prev;
+        tracked = prevTracked;
+        node[flagsSymbol] &= ~FLAG_COMPUTING;
+        const sourcesArray = node[sources];
+        const skipped = node[skippedDeps];
+        const updateLen = Math.min(skipped, sourcesArray.length);
+        for (let i = 0; i < updateLen; i++) {
+            const entry = sourcesArray[i];
+            if (entry.n) {
+                entry.v = entry.n[versionSymbol];
+            }
+        }
+        // Clean up any excess sources that weren't reused
+        if (sourcesArray.length > skipped) {
+            clearSources(node, skipped);
+        }
+    }
+};
+
+/**
+ * Execute a callback without tracking any reactive dependencies
+ * Useful when reading signals/state without creating a dependency relationship
+ * @template T
+ * @param {() => T} callback - Function to execute without tracking
+ * @returns {T} The return value of the callback
+ */
+export const untracked = callback => {
+    const prevTracked = tracked;
+    tracked = false;
+    try {
+        return callback();
+    } finally {
+        tracked = prevTracked;
     }
 };

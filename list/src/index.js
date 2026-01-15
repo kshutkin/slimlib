@@ -13,9 +13,8 @@
  * @implements {ListNode}
  */
 export class List {
-    constructor() {
-        this.n = this.p = this;
-    }
+    n = this;
+    p = this;
 
     [Symbol.iterator]() {
         /** @type {ListNode} */

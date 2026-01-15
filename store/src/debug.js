@@ -1,6 +1,6 @@
 import { DEV } from 'esm-env';
 
-import { currentComputing } from './globals.js';
+import { currentComputing } from './core.js';
 import { FLAG_EFFECT } from './flags.js';
 import { flagsSymbol } from './symbols.js';
 
