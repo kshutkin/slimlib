@@ -9,7 +9,13 @@ import {
     FLAG_IS_LIVE,
     FLAG_NEEDS_WORK,
 } from './flags.js';
-import { globalVersion } from './globals.js';
+import {
+    currentComputing,
+    globalVersion,
+    setCurrentComputing,
+    setTracked,
+    tracked,
+} from './globals.js';
 import {
     dependencies,
     equalsSymbol,
@@ -26,11 +32,6 @@ import {
  * @template T
  * @typedef {import('./index.js').Computed<T>} Computed
  */
-
-// Global state
-/** @type {Computed<any> | null} */
-export let currentComputing = null;
-export let tracked = true;
 
 /**
  * @template T
@@ -95,7 +96,7 @@ function computedRead() {
         if (sourcesArray.length > 0 && !checkHasStateSources()) {
             // Inline untracked to avoid function call overhead
             const prevTracked = tracked;
-            tracked = false;
+            setTracked(false);
             let sourceChanged = false;
             try {
                 for (const sourceEntry of sourcesArray) {
@@ -109,7 +110,7 @@ function computedRead() {
                     }
                 }
             } finally {
-                tracked = prevTracked;
+                setTracked(prevTracked);
             }
             // If source changed, mark as dirty to force recomputation
             // Otherwise, clear CHECK flag since sources are unchanged
@@ -129,8 +130,8 @@ function computedRead() {
 
         const prev = currentComputing;
         const prevTracked = tracked;
-        currentComputing = this;
-        tracked = true; // Computed always tracks its own dependencies
+        setCurrentComputing(this);
+        setTracked(true); // Computed always tracks its own dependencies
 
         try {
             const newValue = this[getterSymbol]();
@@ -168,8 +169,8 @@ function computedRead() {
             this[flagsSymbol] = (this[flagsSymbol] & ~(FLAG_COMPUTING | FLAG_NEEDS_WORK | FLAG_HAS_VALUE)) | FLAG_HAS_ERROR;
             this[lastGlobalVersionSymbol] = globalVersion;
         } finally {
-            currentComputing = prev;
-            tracked = prevTracked;
+            setCurrentComputing(prev);
+            setTracked(prevTracked);
             // Update source versions now that all sources have computed
             // This ensures we capture the version AFTER recomputation, not before
             const skipped = this[skippedDeps];
@@ -227,10 +228,10 @@ export const computed = (getter, equals = Object.is) => {
  */
 export const untracked = callback => {
     const prevTracked = tracked;
-    tracked = false;
+    setTracked(false);
     try {
         return callback();
     } finally {
-        tracked = prevTracked;
+        setTracked(prevTracked);
     }
 };

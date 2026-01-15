@@ -1,8 +1,29 @@
 /**
- * @import { Scope } from './index.js'
+ * @import { Computed, Scope } from './index.js'
  */
 
 export let flushScheduled = false;
+
+// Computation tracking state
+/** @type {Computed<any> | null} */
+export let currentComputing = null;
+export let tracked = true;
+
+/**
+ * Set the current computing node
+ * @param {Computed<any> | null} node
+ */
+export const setCurrentComputing = node => {
+    currentComputing = node;
+};
+
+/**
+ * Set the tracked flag
+ * @param {boolean} value
+ */
+export const setTracked = value => {
+    tracked = value;
+};
 
 /**
  * Set the flush scheduled flag

@@ -1,6 +1,6 @@
 import { append, List, remove } from '@slimlib/list';
 
-import { currentComputing } from './computed.js';
+import { currentComputing } from './globals.js';
 import {
     FLAG_CHECK,
     FLAG_COMPUTING,
