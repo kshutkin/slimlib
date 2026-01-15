@@ -69,10 +69,9 @@ const batchedAdd = node => {
  * @param {Computed<any>} node
  */
 export const batchedDelete = node => {
-    const listNode = /** @type {{n: ListNode | undefined}} */ (node);
-    if (listNode.n !== undefined) {
+    if (/** @type {{n: ListNode | undefined}} */ (node).n !== undefined) {
         remove(/** @type {ListNode} */ (node));
-        listNode.n = undefined;
+        /** @type {{n: ListNode | undefined}} */ (node).n = undefined;
     }
 };
 
