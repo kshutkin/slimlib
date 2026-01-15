@@ -1,16 +1,6 @@
 /**
- * @import { Computed, Scope } from './index.js'
+ * @import { Scope } from './index.js'
  */
-
-export let flushScheduled = false;
-
-/**
- * Set the flush scheduled flag
- * @param {boolean} value
- */
-export const setFlushScheduled = value => {
-    flushScheduled = value;
-};
 
 /**
  * Active scope for effect tracking
@@ -29,19 +19,6 @@ export let activeScope = undefined;
  */
 export const setActiveScope = scope => {
     activeScope = scope;
-};
-
-/**
- * Global version counter - increments on every signal/state write
- * Used for fast-path: if globalVersion hasn't changed since last read, skip all checks
- */
-export let globalVersion = 0;
-
-/**
- * Increment the global version counter
- */
-export const incrementGlobalVersion = () => {
-    globalVersion++;
 };
 
 /**

@@ -11,10 +11,7 @@ import {
     FLAG_NEEDS_WORK,
 } from './flags.js';
 import {
-    flushScheduled,
-    incrementGlobalVersion,
-    scheduler,
-    setFlushScheduled,
+    scheduler
 } from './globals.js';
 import { dependencies, flagsSymbol, skippedDeps, sources, unwrap, versionSymbol } from './symbols.js';
 
@@ -27,6 +24,14 @@ import { dependencies, flagsSymbol, skippedDeps, sources, unwrap, versionSymbol 
  * @template T
  * @typedef {(() => T) & { [key: symbol]: any, n?: ListNode, p?: ListNode, i?: number }} Computed
  */
+
+let flushScheduled = false;
+
+/**
+ * Global version counter - increments on every signal/state write
+ * Used for fast-path: if globalVersion hasn't changed since last read, skip all checks
+ */
+export let globalVersion = 0;
 
 class List {
     n = this;
@@ -132,12 +137,15 @@ export const clearSources = (node, fromIndex = 0) => {
             retained = sourcesArray[j].d === deps;
         }
 
-        if (isLive && !retained) {
+        if (!retained) {
+            // Always remove from deps to prevent stale notifications
             deps.delete(node);
-            // If source is a computed, check if it became non-live
-            const sourceNodeFlag = sourceNode?.[flagsSymbol];
-            if (sourceNodeFlag & FLAG_LIVE && !(sourceNodeFlag & FLAG_EFFECT) && !sourceNode[dependencies].size) {
-                makeNonLive(sourceNode);
+            // If source is a computed and we're live, check if it became non-live
+            if (isLive) {
+                const sourceNodeFlag = sourceNode?.[flagsSymbol];
+                if (sourceNodeFlag & FLAG_LIVE && !(sourceNodeFlag & FLAG_EFFECT) && !sourceNode[dependencies].size) {
+                    makeNonLive(sourceNode);
+                }
             }
         }
     }
@@ -150,7 +158,7 @@ export const clearSources = (node, fromIndex = 0) => {
  * before the next microtask
  */
 export const flushEffects = () => {
-    setFlushScheduled(false);
+    flushScheduled = false;
     // Collect nodes, only sort if effects were added out of order
     /** @type {Computed<any>[]} */
     const nodes = [];
@@ -166,7 +174,11 @@ export const flushEffects = () => {
     // Clear n property and call effect in one pass
     for (const node of nodes) {
         /** @type {{n: ListNode | undefined}} */ (node).n = undefined;
-        node();
+        try {
+            node();
+        } catch (e) {
+            console.error(e);
+        }
     }
 };
 
@@ -175,7 +187,7 @@ export const flushEffects = () => {
  */
 export const scheduleFlush = () => {
     if (!flushScheduled) {
-        setFlushScheduled(true);
+        flushScheduled = true;
         scheduler(flushEffects);
     }
 };
@@ -243,12 +255,11 @@ export const markNeedsCheck = node => {
  * @param {Set<Computed<any>>} deps - The dependency set to notify
  */
 export const markDependents = deps => {
-    incrementGlobalVersion();
+    ++globalVersion;
     for (const dep of deps) {
         markNeedsCheck(dep);
     }
 };
-
 
 /**
  * Run a getter function with dependency tracking

@@ -11,7 +11,7 @@ import {
 } from './flags.js';
 import {
     globalVersion
-} from './globals.js';
+} from './core.js';
 import {
     dependencies,
     equalsSymbol,

@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { computed, effect, flushEffects, scope, setActiveScope, setScheduler, state } from '../src/index.js';
 
@@ -360,10 +360,13 @@ describe('setScheduler', () => {
         expect(log).toContain('value:2');
     });
 
-    it('throws cycle error when effect modifies its own dependency with synchronous scheduler', () => {
+    it('logs cycle error to console when effect modifies its own dependency with synchronous scheduler', () => {
         // With a synchronous scheduler, if an effect modifies its own dependency during execution,
         // the scheduler will immediately trigger flushEffects while the effect is still computing.
         // This causes the cycle detection to fire because FLAG_COMPUTING is still set.
+        // The error is caught by flushEffects and logged to console.error.
+        const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+
         setScheduler(callback => callback());
 
         const store = state({ value: 0 });
@@ -371,13 +374,18 @@ describe('setScheduler', () => {
         // This effect reads and writes to the same state
         // With sync scheduler, the write triggers markNeedsCheck -> scheduleFlush -> flushEffects
         // The second flushEffects tries to run the same effect while it's still computing
-        expect(() => {
-            effect(() => {
-                const v = store.value;
-                if (v < 3) {
-                    store.value = v + 1; // This triggers cycle detection with sync scheduler
-                }
-            });
-        }).toThrow('Detected cycle in computations.');
+        effect(() => {
+            const v = store.value;
+            if (v < 3) {
+                store.value = v + 1; // This triggers cycle detection with sync scheduler
+            }
+        });
+
+        // The cycle error should be logged to console.error
+        expect(consoleError).toHaveBeenCalled();
+        expect(consoleError.mock.calls[0]?.[0]).toBeInstanceOf(Error);
+        expect(consoleError.mock.calls[0]?.[0].message).toBe('Detected cycle in computations.');
+
+        consoleError.mockRestore();
     });
 });
