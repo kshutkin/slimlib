@@ -57,16 +57,6 @@ function computedRead() {
         return this[valueSymbol];
     }
 
-    // Checks if we have any state sources (no node means state/signal source)
-    const checkHasStateSources = () => {
-        for (const source of sourcesArray) {
-            if (!source.n) {
-                return true;
-            }
-        }
-        return false;
-    };
-
     // For non-live computeds with stale globalVersion: poll sources to check if recomputation needed
     // This is the "pull" part of the push/pull algorithm - non-live nodes poll instead of receiving notifications
     if (!(flags & FLAG_NEEDS_WORK) && flags & (FLAG_HAS_VALUE | FLAG_HAS_ERROR) && !(flags & FLAG_IS_LIVE)) {
@@ -118,7 +108,14 @@ function computedRead() {
     if ((flags & (FLAG_CHECK_ONLY | FLAG_HAS_VALUE)) === (FLAG_CHECK | FLAG_HAS_VALUE)) {
         // Only do source checking if we ONLY have computed sources
         // If we have state sources, we can't verify them - must recompute
-        if (sourcesArray.length > 0 && !checkHasStateSources()) {
+        let hasStateSources = false;
+        for (const source of sourcesArray) {
+            if (!source.n) {
+                hasStateSources = true;
+                break;
+            }
+        }
+        if (sourcesArray.length > 0 && !hasStateSources) {
             let sourceChanged = false;
             // Inline untracked to avoid function call overhead
             untracked(() => {
