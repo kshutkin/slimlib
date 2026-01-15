@@ -1,3 +1,5 @@
+import { append, List, remove } from '@slimlib/list';
+
 import { currentComputing } from './computed.js';
 import {
     FLAG_CHECK,
@@ -11,7 +13,6 @@ import {
 } from './flags.js';
 import { flushScheduled, incrementGlobalVersion, scheduler, setFlushScheduled } from './globals.js';
 import { dependencies, flagsSymbol, skippedDeps, sources, unwrap } from './symbols.js';
-import { List, append, remove } from '@slimlib/list';
 
 /**
  * @typedef {import('@slimlib/list').ListNode} ListNode

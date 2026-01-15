@@ -2,9 +2,10 @@
  * @import { Computed, EffectCleanup } from './index.js'
  */
 
+import { append } from '@slimlib/list';
+
 import { computed } from './computed.js';
 import { batched, batchedDelete, clearSources, scheduleFlush } from './core.js';
-import { append } from '@slimlib/list';
 import { registerEffect, unregisterEffect, warnIfNoActiveScope } from './debug.js';
 import { FLAG_EFFECT } from './flags.js';
 import { activeScope } from './globals.js';
