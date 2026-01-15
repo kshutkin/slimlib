@@ -380,16 +380,16 @@ describe('computed with equality comparison', () => {
         store.count = 2;
         await flushAll();
 
-        // Effects are eagerly propagated to (they must run), but computed values
-        // use lazy propagation with equality checking
-        expect(effectRunCount).toBe(2); // Effect runs
-        expect(computeCount).toBe(2); // isEven recomputes when effect accesses it
+        // Effects with only computed sources bail out when computed values don't change
+        // The computed is checked during bail-out verification but effect doesn't run
+        expect(effectRunCount).toBe(1); // Effect bails out - computed value unchanged
+        expect(computeCount).toBe(2); // isEven recomputes during bail-out check
 
         // Change to odd value
         store.count = 3;
         await flushAll();
 
-        expect(effectRunCount).toBe(3); // Effect runs again
+        expect(effectRunCount).toBe(2); // Effect runs - computed value changed
         expect(computeCount).toBe(3); // isEven recomputes
 
         // Now test that regular computed (non-effect) uses lazy propagation
@@ -406,9 +406,9 @@ describe('computed with equality comparison', () => {
         store.count = 5;
         await flushAll();
 
-        // Effect runs (eager), but message doesn't recompute (lazy)
-        expect(effectRunCount).toBe(4);
-        expect(computeCount).toBe(4);
+        // Effect bails out (computed value unchanged), message doesn't recompute (lazy)
+        expect(effectRunCount).toBe(2); // Still 2 - effect bailed out
+        expect(computeCount).toBe(4); // isEven checked during bail-out
 
         // Access message - it shouldn't have recomputed because isEven value didn't change
         expect(message()).toBe('Odd');

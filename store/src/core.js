@@ -13,7 +13,9 @@ import {
 import {
     scheduler
 } from './globals.js';
-import { dependencies, flagsSymbol, skippedDeps, sources, unwrap, versionSymbol } from './symbols.js';
+import { dependencies, depsVersionSymbol, flagsSymbol, skippedDeps, sources, unwrap, versionSymbol } from './symbols.js';
+
+export { depsVersionSymbol };
 
 /**
  * @typedef {import('@slimlib/list').ListNode} ListNode
@@ -211,7 +213,8 @@ export const trackDependency = (deps, sourceNode) => {
         }
 
         // Push source entry - version will be updated after source computes
-        sourcesArray.push({ d: deps, n: sourceNode, v: 0 });
+        // For state sources (no node), track the deps set version for polling
+        sourcesArray.push({ d: deps, n: sourceNode, v: 0, dv: deps[depsVersionSymbol] || 0 });
 
         // Only register with source if we're live
         if (node[flagsSymbol] & FLAG_IS_LIVE) {
@@ -256,6 +259,8 @@ export const markNeedsCheck = node => {
  */
 export const markDependents = deps => {
     ++globalVersion;
+    // Increment deps version for non-live computed polling
+    deps[depsVersionSymbol] = (deps[depsVersionSymbol] || 0) + 1;
     for (const dep of deps) {
         markNeedsCheck(dep);
     }
@@ -291,6 +296,9 @@ export const runWithTracking = (node, getter) => {
             const entry = sourcesArray[i];
             if (entry.n) {
                 entry.v = entry.n[versionSymbol];
+            } else {
+                // State source - update deps version for polling
+                entry.dv = entry.d[depsVersionSymbol] || 0;
             }
         }
         // Clean up any excess sources that weren't reused

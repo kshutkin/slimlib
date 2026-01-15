@@ -14,6 +14,7 @@ import {
 } from './core.js';
 import {
     dependencies,
+    depsVersionSymbol,
     equalsSymbol,
     flagsSymbol,
     getterSymbol,
@@ -79,7 +80,31 @@ function computedRead() {
     // For non-live computeds with stale globalVersion: poll sources to check if recomputation needed
     // This is the "pull" part of the push/pull algorithm - non-live nodes poll instead of receiving notifications
     if (!(flags & FLAG_NEEDS_WORK) && flags & (FLAG_HAS_VALUE | FLAG_HAS_ERROR) && !(flags & FLAG_IS_LIVE)) {
-        this[flagsSymbol] = flags |= checkHasStateSources() ? FLAG_DIRTY : FLAG_CHECK;
+        let stateSourceChanged = false;
+        let hasComputedSources = false;
+
+        // Check all sources - both state and computed
+        for (const source of sourcesArray) {
+            if (!source.n) {
+                // State source - check if deps version changed
+                const currentDepsVersion = source.d[depsVersionSymbol] || 0;
+                if (source.dv !== currentDepsVersion) {
+                    stateSourceChanged = true;
+                    break;
+                }
+            } else {
+                hasComputedSources = true;
+            }
+        }
+
+        if (stateSourceChanged) {
+            // A state source definitely changed - mark DIRTY
+            this[flagsSymbol] = flags |= FLAG_DIRTY;
+        } else if (hasComputedSources) {
+            // No state source changed, but we have computed sources - mark CHECK to verify them
+            this[flagsSymbol] = flags |= FLAG_CHECK;
+        }
+        // If no state source changed and no computed sources, node stays clean
     }
 
     // For CHECK state, verify if sources actually changed before recomputing
