@@ -57,21 +57,14 @@ function computedRead() {
         return this[valueSymbol];
     }
 
-    // Lazily computed flag: undefined = not checked, true/false = checked
     // Checks if we have any state sources (no node means state/signal source)
-    /** @type {boolean | undefined} */
-    let hasStateSources;
     const checkHasStateSources = () => {
-        if (hasStateSources === undefined) {
-            hasStateSources = false;
-            for (const source of sourcesArray) {
-                if (!source.n) {
-                    hasStateSources = true;
-                    break;
-                }
+        for (const source of sourcesArray) {
+            if (!source.n) {
+                return true;
             }
         }
-        return hasStateSources;
+        return false;
     };
 
     // For non-live computeds with stale globalVersion: poll sources to check if recomputation needed
