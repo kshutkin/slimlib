@@ -1,4 +1,4 @@
-import { currentComputing, runWithTracking, trackDependency, tracked, untracked } from './core.js';
+import { currentComputing, globalVersion, runWithTracking, trackDependency, tracked, untracked } from './core.js';
 import {
     FLAG_CHECK,
     FLAG_CHECK_ONLY,
@@ -9,9 +9,6 @@ import {
     FLAG_IS_LIVE,
     FLAG_NEEDS_WORK,
 } from './flags.js';
-import {
-    globalVersion
-} from './core.js';
 import {
     dependencies,
     depsVersionSymbol,
