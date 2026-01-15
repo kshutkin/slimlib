@@ -62,26 +62,30 @@ function computedRead() {
         return this[valueSymbol];
     }
 
-    // Track if we've already verified all sources are computed (to avoid redundant loop)
-    let allComputedVerified = false;
+    // Lazily computed flag: undefined = not checked, true/false = checked
+    // Checks if we have any state sources (no node means state/signal source)
+    /** @type {boolean | undefined} */
+    let hasStateSources;
+    const checkHasStateSources = () => {
+        if (hasStateSources === undefined) {
+            hasStateSources = false;
+            for (const source of sourcesArray) {
+                if (!source.n) {
+                    hasStateSources = true;
+                    break;
+                }
+            }
+        }
+        return hasStateSources;
+    };
 
     // For non-live computeds with stale globalVersion: poll sources to check if recomputation needed
     // This is the "pull" part of the push/pull algorithm - non-live nodes poll instead of receiving notifications
     if (!(flags & FLAG_NEEDS_WORK) && flags & (FLAG_HAS_VALUE | FLAG_HAS_ERROR) && !(flags & FLAG_IS_LIVE)) {
-        // Check if we have any state sources (no node means state/signal source)
-        let hasStateSources = false;
-        for (const source of sourcesArray) {
-            if (!source.n) {
-                hasStateSources = true;
-                break;
-            }
-        }
-
-        if (hasStateSources) {
+        if (checkHasStateSources()) {
             this[flagsSymbol] = flags |= FLAG_DIRTY;
         } else {
             this[flagsSymbol] = flags |= FLAG_CHECK;
-            allComputedVerified = true; // We just verified all sources are computed
         }
     }
 
@@ -90,22 +94,9 @@ function computedRead() {
     // Only do this for non-effects that ONLY have computed sources (with nodes)
     // Effects should always run when marked, and state deps have no node to check
     if ((flags & (FLAG_CHECK_ONLY | FLAG_HAS_VALUE)) === (FLAG_CHECK | FLAG_HAS_VALUE)) {
-        // Check if all sources have nodes (are computed, not state)
-        // Skip this loop if we already verified above (allComputedVerified)
-        let allComputed = allComputedVerified;
-        if (!allComputed && sourcesArray.length > 0) {
-            allComputed = true;
-            for (const source of sourcesArray) {
-                if (!source.n) {
-                    allComputed = false;
-                    break;
-                }
-            }
-        }
-
         // Only do source checking if we ONLY have computed sources
         // If we have state sources, we can't verify them - must recompute
-        if (allComputed) {
+        if (sourcesArray.length > 0 && !checkHasStateSources()) {
             // Inline untracked to avoid function call overhead
             const prevTracked = tracked;
             tracked = false;
