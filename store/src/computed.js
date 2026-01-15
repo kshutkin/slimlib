@@ -82,11 +82,7 @@ function computedRead() {
     // For non-live computeds with stale globalVersion: poll sources to check if recomputation needed
     // This is the "pull" part of the push/pull algorithm - non-live nodes poll instead of receiving notifications
     if (!(flags & FLAG_NEEDS_WORK) && flags & (FLAG_HAS_VALUE | FLAG_HAS_ERROR) && !(flags & FLAG_IS_LIVE)) {
-        if (checkHasStateSources()) {
-            this[flagsSymbol] = flags |= FLAG_DIRTY;
-        } else {
-            this[flagsSymbol] = flags |= FLAG_CHECK;
-        }
+        this[flagsSymbol] = flags |= checkHasStateSources() ? FLAG_DIRTY : FLAG_CHECK;
     }
 
     // For CHECK state, verify if sources actually changed before recomputing
