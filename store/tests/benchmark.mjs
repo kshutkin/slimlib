@@ -41,7 +41,7 @@ import {
     flushEffects as slimlibFlush,
     signal as slimlibSignal,
     state as slimlibState,
-} from '../src/index.js';
+} from '../dist/index.mjs';
 
 // Use no-op scheduler since we call flush() manually in withBatch/withBuild
 setScheduler(() => {});
