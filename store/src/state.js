@@ -91,7 +91,9 @@ export function state(object = /** @type {T} */ ({})) {
                     }
 
                     // Bidirectional linking with optimization
-                    trackDependency(deps);
+                    // Pass value getter for polling optimization (value revert detection)
+                    // Capture target and property for later value retrieval
+                    trackDependency(deps, undefined, () => /** @type {Record<string | symbol, any>} */ (target)[p]);
                 }
 
                 // Fast path for primitives (most common case)

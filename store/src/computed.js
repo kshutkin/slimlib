@@ -89,6 +89,20 @@ function computedRead() {
                 // State source - check if deps version changed
                 const currentDepsVersion = source.d[depsVersionSymbol] || 0;
                 if (source.dv !== currentDepsVersion) {
+                    // Deps version changed, but check if actual value is the same (revert detection)
+                    // Only use value comparison for primitives - objects/arrays are mutable
+                    // so same reference doesn't mean same content
+                    const storedValue = source.sv;
+                    const storedType = typeof storedValue;
+                    if (source.g && (storedValue === null || (storedType !== 'object' && storedType !== 'function'))) {
+                        const currentValue = source.g();
+                        if (Object.is(currentValue, storedValue)) {
+                            // Value reverted to original - update dv to current version
+                            source.dv = currentDepsVersion;
+                            continue;
+                        }
+                    }
+                    // Value actually changed (or is object/array that might have mutated)
                     stateSourceChanged = true;
                     break;
                 }

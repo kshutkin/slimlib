@@ -37,7 +37,8 @@ export function signal(initialValue) {
         // Fast path: if not tracked or no current computing, skip tracking
         if (tracked && currentComputing) {
             deps ||= new Set();
-            trackDependency(deps);
+            // Pass value getter for polling optimization (value revert detection)
+            trackDependency(deps, undefined, () => value);
         }
         return value;
     };

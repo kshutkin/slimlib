@@ -97,6 +97,7 @@ describe('inner effects', () => {
 
     it('should handle side effect with inner effects', async () => {
         const store = state({ a: 0, b: 0 });
+        /** @type {string[]} */
         const order = [];
 
         effect(() => {
@@ -177,7 +178,7 @@ describe('inner effects', () => {
 
         effect(() => {
             // Reading outer creates dependency
-            const outerVal = store.outer;
+            store.outer;
 
             // Create inner effect in a nested scope
             const innerScope = scope();
@@ -219,6 +220,7 @@ describe('inner effects', () => {
     it('should duplicate subscribers do not affect the notify order', async () => {
         const store1 = state({ value: 0 });
         const store2 = state({ value: 0 });
+        /** @type {string[]} */
         const order = [];
 
         effect(() => {
@@ -277,6 +279,7 @@ describe('inner effects', () => {
     });
 
     it('nested scopes dispose in correct order', async () => {
+        /** @type {string[]} */
         const disposeOrder = [];
 
         const outerScope = scope();

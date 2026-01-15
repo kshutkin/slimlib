@@ -199,8 +199,9 @@ export const scheduleFlush = () => {
  * Uses liveness tracking - only live consumers register with sources
  * @param {Set<Computed<any>>} deps - The dependency set to track
  * @param {Computed<any>} [sourceNode] - The computed node being accessed (if any)
+ * @param {() => any} [valueGetter] - Function to get current source value (for signal/state polling)
  */
-export const trackDependency = (deps, sourceNode) => {
+export const trackDependency = (deps, sourceNode, valueGetter) => {
     // Callers guarantee tracked && currentComputing are true
     const node = /** @type {Computed<any>} */ (currentComputing);
     const sourcesArray = node[sources];
@@ -213,8 +214,9 @@ export const trackDependency = (deps, sourceNode) => {
         }
 
         // Push source entry - version will be updated after source computes
-        // For state sources (no node), track the deps set version for polling
-        sourcesArray.push({ d: deps, n: sourceNode, v: 0, dv: deps[depsVersionSymbol] || 0 });
+        // For state sources (no node), track deps version, value getter, and last seen value for polling
+        const currentValue = valueGetter?.();
+        sourcesArray.push({ d: deps, n: sourceNode, v: 0, dv: /** @type {any} */ (deps)[depsVersionSymbol] || 0, g: valueGetter, sv: currentValue });
 
         // Only register with source if we're live
         if (node[flagsSymbol] & FLAG_IS_LIVE) {
@@ -224,6 +226,12 @@ export const trackDependency = (deps, sourceNode) => {
                 makeLive(sourceNode);
             }
         }
+    } else if (!sourceNode && valueGetter) {
+        // Same state source - update dv, g, and sv for accurate polling
+        const entry = sourcesArray[skipIndex];
+        entry.dv = /** @type {any} */ (deps)[depsVersionSymbol] || 0;
+        entry.g = valueGetter;
+        entry.sv = valueGetter();
     }
     ++node[skippedDeps];
 };
@@ -260,7 +268,7 @@ export const markNeedsCheck = node => {
 export const markDependents = deps => {
     ++globalVersion;
     // Increment deps version for non-live computed polling
-    deps[depsVersionSymbol] = (deps[depsVersionSymbol] || 0) + 1;
+    /** @type {any} */ (deps)[depsVersionSymbol] = (/** @type {any} */ (deps)[depsVersionSymbol] || 0) + 1;
     for (const dep of deps) {
         markNeedsCheck(dep);
     }
@@ -296,10 +304,8 @@ export const runWithTracking = (node, getter) => {
             const entry = sourcesArray[i];
             if (entry.n) {
                 entry.v = entry.n[versionSymbol];
-            } else {
-                // State source - update deps version for polling
-                entry.dv = entry.d[depsVersionSymbol] || 0;
             }
+            // Note: state source dv and sv are updated when trackDependency is called during recomputation
         }
         // Clean up any excess sources that weren't reused
         if (sourcesArray.length > skipped) {

@@ -15,7 +15,7 @@ async function flushAll() {
 /**
  * A MobX-style reaction helper that watches a data function and calls an effect
  * when the tracked value changes.
- * 
+ *
  * @template T
  * @param {() => T} dataFn - Function that returns the tracked value
  * @param {(newValue: T, oldValue: T | undefined) => void} effectFn - Function called when value changes
@@ -36,6 +36,7 @@ function reaction(dataFn, effectFn, options = {}) {
         fireImmediately = false,
     } = options;
 
+    /** @type {T | undefined} */
     let prevValue;
     let version = 0;
 
@@ -54,13 +55,13 @@ function reaction(dataFn, effectFn, options = {}) {
             prevValue = current;
         }
         version++;
-        if (equals(current, prevValue)) return;
+        if (equals(/** @type {T} */ (current), prevValue)) return;
         const oldValue = prevValue;
         prevValue = current;
         untracked(() =>
             scheduler(() => {
                 try {
-                    effectFn(current, oldValue);
+                    effectFn(/** @type {T} */ (current), oldValue);
                 } catch (error) {
                     onError?.(error);
                 } finally {
@@ -162,6 +163,7 @@ describe('reaction pattern', () => {
     describe('issue 48 regression - dynamic reaction disposal', () => {
         it('should handle creating and disposing reactions dynamically', async () => {
             const source = state({ value: 0 });
+            /** @type {(() => void) | undefined} */
             let disposeInner;
 
             reaction(
@@ -179,13 +181,13 @@ describe('reaction pattern', () => {
             );
 
             await flushAll();
-            
+
             source.value = 1; // Creates inner reaction
             await flushAll();
-            
+
             source.value = 2; // Disposes inner reaction
             await flushAll();
-            
+
             source.value = 3; // Should work without errors
             await flushAll();
             // Test passes if no errors thrown
@@ -202,10 +204,10 @@ describe('reaction pattern', () => {
                 () => store.outer,
                 (val) => {
                     log.push(`outer: ${val}`);
-                    
+
                     // Dispose previous inner reaction if exists
                     innerDispose?.();
-                    
+
                     // Create new inner reaction
                     innerDispose = reaction(
                         () => store.inner,
@@ -217,41 +219,42 @@ describe('reaction pattern', () => {
             );
 
             await flushAll();
-            
+
             store.outer = 1;
             await flushAll();
             expect(log).toContain('outer: 1');
-            
+
             store.inner = 1;
             await flushAll();
             expect(log).toContain('inner(1): 1');
-            
+
             store.outer = 2; // Should dispose old inner and create new
             await flushAll();
             expect(log).toContain('outer: 2');
-            
+
             store.inner = 2;
             await flushAll();
             expect(log).toContain('inner(2): 2');
-            
+
             // Cleanup
             innerDispose?.();
         });
 
         it('should handle rapid creation and disposal', async () => {
             const store = state({ trigger: 0 });
+            /** @type {(() => void)[]} */
             const disposers = [];
 
             reaction(
                 () => store.trigger,
-                (val) => {
+                () => {
                     // Create a new reaction each time
                     const dispose = reaction(
                         () => store.trigger,
                         () => { }
                     );
                     disposers.push(dispose);
-                    
+
                     // Dispose after a few iterations
                     if (disposers.length > 3) {
                         disposers.shift()?.();
@@ -260,12 +263,12 @@ describe('reaction pattern', () => {
             );
 
             await flushAll();
-            
+
             for (let i = 1; i <= 10; i++) {
                 store.trigger = i;
                 await flushAll();
             }
-            
+
             // Cleanup remaining
             for (const dispose of disposers) {
                 dispose();
@@ -287,12 +290,12 @@ describe('reaction pattern', () => {
             );
 
             await flushAll();
-            
+
             // Same id, should not trigger
             store.obj = { id: 1, name: 'changed' };
             await flushAll();
             expect(reactions.length).toBe(0);
-            
+
             // Different id, should trigger
             store.obj = { id: 2, name: 'new' };
             await flushAll();
@@ -317,15 +320,15 @@ describe('reaction pattern', () => {
             );
 
             await flushAll();
-            
+
             store.value = 1;
             await flushAll();
             expect(errors.length).toBe(0);
-            
+
             store.value = 2; // Error in data function
             await flushAll();
             expect(errors.length).toBe(1);
-            
+
             store.value = 3; // Error in effect function
             await flushAll();
             expect(errors.length).toBe(2);
@@ -343,11 +346,11 @@ describe('reaction pattern', () => {
 
             await flushAll();
             expect(reactionCount).toBe(0);
-            
+
             store.value = 1;
             await flushAll();
             expect(reactionCount).toBe(1);
-            
+
             store.value = 2;
             await flushAll();
             expect(reactionCount).toBe(1); // Should not fire again
@@ -366,15 +369,15 @@ describe('reaction pattern', () => {
             );
 
             await flushAll();
-            
+
             store.value = 1;
             await flushAll();
-            
+
             expect(reactionCount).toBe(0);
             expect(scheduled.length).toBe(1);
-            
+
             // Execute scheduled work
-            scheduled[0]();
+            /** @type {() => void} */ (scheduled[0])();
             expect(reactionCount).toBe(1);
         });
     });
@@ -393,11 +396,11 @@ describe('reaction pattern', () => {
 
             await flushAll();
             expect(reactions).toEqual([]);
-            
+
             store.a = 5;
             await flushAll();
             expect(reactions).toEqual([7]);
-            
+
             store.b = 10;
             await flushAll();
             expect(reactions).toEqual([7, 15]);
@@ -414,23 +417,23 @@ describe('reaction pattern', () => {
             );
 
             await flushAll();
-            
+
             store.a = 10;
             await flushAll();
             expect(reactions).toEqual([10]);
-            
+
             store.b = 20; // Not tracked because flag is true
             await flushAll();
             expect(reactions).toEqual([10]);
-            
+
             store.flag = false;
             await flushAll();
             expect(reactions).toEqual([10, 20]);
-            
+
             store.a = 100; // Not tracked anymore
             await flushAll();
             expect(reactions).toEqual([10, 20]);
-            
+
             store.b = 200;
             await flushAll();
             expect(reactions).toEqual([10, 20, 200]);
