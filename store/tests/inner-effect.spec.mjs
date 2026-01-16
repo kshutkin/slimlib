@@ -180,19 +180,12 @@ describe('inner effects', () => {
             // Reading outer creates dependency
             store.outer;
 
-            // Create inner effect in a nested scope
-            const innerScope = scope();
-            innerScope(() => {
+            return scope(() => {
                 effect(() => {
                     innerRunCount++;
                     lastInnerValue = store.inner;
                 });
             });
-
-            // Return cleanup that disposes the inner scope
-            return () => {
-                innerScope();
-            };
         });
 
         await flushAll();
