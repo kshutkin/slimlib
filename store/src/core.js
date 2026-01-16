@@ -146,7 +146,7 @@ export const flushEffects = () => {
         nodes.sort((a, b) => /** @type {number} */ (a.i) - /** @type {number} */ (b.i));
     }
     batched = new Set;
-    lastAddedId = -1;
+    lastAddedId = 0;
     needsSort = false;
     for (const node of nodes) {
         try {
