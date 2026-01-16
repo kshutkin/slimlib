@@ -45,24 +45,12 @@ export const effect = callback => {
         // Bail-out optimization: if only CHECK flag is set (not DIRTY),
         // verify that computed sources actually changed before running
         if ((flags & FLAG_NEEDS_WORK) === FLAG_CHECK) {
-            const sourcesArray = eff[sources];
-            // Check if we only have computed sources (sources with nodes)
-            let hasStateSources = false;
-            for (const source of sourcesArray) {
-                if (!source.n) {
-                    hasStateSources = true;
-                    break;
-                }
-            }
-
-            if (!hasStateSources && sourcesArray.length > 0) {
-                const needsRecompute = checkComputedSources(sourcesArray);
-
-                if (!needsRecompute) {
-                    // Sources didn't change, clear CHECK flag and skip execution
-                    eff[flagsSymbol] = flags & ~FLAG_CHECK;
-                    return;
-                }
+            const needsRecompute = checkComputedSources(eff[sources]);
+            // If null, can't verify (has state sources or empty) - proceed to run
+            // If false, sources didn't change - clear CHECK flag and skip
+            if (needsRecompute === false) {
+                eff[flagsSymbol] = flags & ~FLAG_CHECK;
+                return;
             }
         }
 

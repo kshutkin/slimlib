@@ -106,19 +106,11 @@ function computedRead() {
     // Only do this for non-effects that ONLY have computed sources (with nodes)
     // Effects should always run when marked, and state deps have no node to check
     if ((flags & (FLAG_CHECK_ONLY | FLAG_HAS_VALUE)) === (FLAG_CHECK | FLAG_HAS_VALUE)) {
-        // Only do source checking if we ONLY have computed sources
-        // If we have state sources, we can't verify them - must recompute
-        let hasStateSources = false;
-        for (const source of sourcesArray) {
-            if (!source.n) {
-                hasStateSources = true;
-                break;
-            }
-        }
-        if (sourcesArray.length > 0 && !hasStateSources) {
-            const needsRecompute = checkComputedSources(sourcesArray);
-            // If source changed or errored, mark as dirty to force recomputation
-            // Otherwise, clear CHECK flag since sources are unchanged
+        const needsRecompute = checkComputedSources(sourcesArray);
+        // If null, can't verify (has state sources or empty) - keep CHECK flag
+        // If true, mark as dirty to force recomputation
+        // If false, clear CHECK flag since sources are unchanged
+        if (needsRecompute !== null) {
             this[flagsSymbol] = flags = (flags & ~FLAG_CHECK) | (needsRecompute ? FLAG_DIRTY : 0);
         }
     }

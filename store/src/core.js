@@ -308,11 +308,20 @@ export const untracked = callback => {
 /**
  * Check if any computed sources have changed or errored.
  * Used by CHECK path optimization in computed and effect.
- * Assumes sourcesArray contains only computed sources (entries with .n).
  * @param {Array<{d: Set<Computed<any>>, n: Computed<any>, v: number, dv: number, g?: () => any, sv?: any}>} sourcesArray
- * @returns {boolean} True if any source changed or errored (recomputation needed)
+ * @returns {boolean | null} True if recomputation needed, false if sources unchanged, null if can't verify (has state sources or empty)
  */
 export const checkComputedSources = sourcesArray => {
+    // Can't verify if empty or has state sources (sources without .n)
+    if (sourcesArray.length === 0) {
+        return null;
+    }
+    for (const source of sourcesArray) {
+        if (!source.n) {
+            return null;
+        }
+    }
+
     let needsRecompute = false;
     const prevTracked = tracked;
     tracked = false;
