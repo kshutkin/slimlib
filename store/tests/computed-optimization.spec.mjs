@@ -305,17 +305,17 @@ describe('computed optimization', () => {
 
             const b = computed(() => {
                 bTimes++;
-                return a() + '-b';
+                return `${a()}-b`;
             });
 
             const c = computed(() => {
                 cTimes++;
-                return b() + '-c';
+                return `${b()}-c`;
             });
 
             const d = computed(() => {
                 dTimes++;
-                return c() + '-d';
+                return `${c()}-d`;
             });
 
             expect(d()).toBe('constant-b-c-d');
