@@ -1,5 +1,3 @@
-import { append, remove } from '@slimlib/list';
-
 import {
     FLAG_CHECK,
     FLAG_COMPUTING,
@@ -18,13 +16,9 @@ import { dependencies, depsVersionSymbol, flagsSymbol, skippedDeps, sources, unw
 export { depsVersionSymbol };
 
 /**
- * @typedef {import('@slimlib/list').ListNode} ListNode
- */
-
-/**
- * A computed value that can be part of the batched list
+ * A computed value that can be part of the batched set
  * @template T
- * @typedef {(() => T) & { [key: symbol]: any, n?: ListNode, p?: ListNode, i?: number }} Computed
+ * @typedef {(() => T) & { [key: symbol]: any, i?: number }} Computed
  */
 
 let flushScheduled = false;
@@ -35,12 +29,8 @@ let flushScheduled = false;
  */
 export let globalVersion = 0;
 
-class List {
-    n = this;
-    p = this;
-}
-
-export let batched = new List;
+/** @type {Set<Computed<any>>} */
+export let batched = new Set;
 
 /** @type {number} */
 let lastAddedId = -1;
@@ -55,30 +45,18 @@ export let currentComputing = null;
 export let tracked = true;
 
 /**
- * Add an effect to the batched list (if not already in it)
+ * Add an effect to the batched set (if not already in it)
  * @param {Computed<any>} node
  */
-const batchedAdd = node => {
-    if (/** @type {{n: ListNode | undefined}} */ (node).n === undefined) {
+export const batchedAdd = node => {
+    if (!batched.has(node)) {
         const nodeId = /** @type {number} */ (node.i);
         // Track if we're adding out of order
         if (nodeId < lastAddedId) {
             needsSort = true;
         }
         lastAddedId = nodeId;
-        // O(1) append - sorting happens at flush time only if needed
-        append(batched, /** @type {ListNode} */ (node));
-    }
-};
-
-/**
- * Remove an effect from the batched list
- * @param {Computed<any>} node
- */
-export const batchedDelete = node => {
-    if (/** @type {{n: ListNode | undefined}} */ (node).n !== undefined) {
-        remove(/** @type {ListNode} */ (node));
-        /** @type {{n: ListNode | undefined}} */ (node).n = undefined;
+        batched.add(node);
     }
 };
 
@@ -163,19 +141,14 @@ export const flushEffects = () => {
     flushScheduled = false;
     // Collect nodes, only sort if effects were added out of order
     /** @type {Computed<any>[]} */
-    const nodes = [];
-    for (let current = batched.n; current !== batched; current = current.n) {
-        nodes.push(/** @type {Computed<any>} */(current));
-    }
+    const nodes = [...batched];
     if (needsSort) {
         nodes.sort((a, b) => /** @type {number} */ (a.i) - /** @type {number} */ (b.i));
     }
-    batched = new List;
+    batched = new Set;
     lastAddedId = -1;
     needsSort = false;
-    // Clear n property and call effect in one pass
     for (const node of nodes) {
-        /** @type {{n: ListNode | undefined}} */ (node).n = undefined;
         try {
             node();
         } catch (e) {

@@ -2,9 +2,7 @@
  * @import { EffectCleanup } from './index.js'
  */
 
-import { append } from '@slimlib/list';
-
-import { batched, batchedDelete, clearSources, runWithTracking, scheduleFlush, untracked } from './core.js';
+import { batched, clearSources, runWithTracking, scheduleFlush, untracked } from './core.js';
 import { registerEffect, unregisterEffect, warnIfNoActiveScope } from './debug.js';
 import { FLAG_CHECK, FLAG_COMPUTING, FLAG_DIRTY, FLAG_EFFECT, FLAG_NEEDS_WORK } from './flags.js';
 import { activeScope } from './globals.js';
@@ -18,7 +16,7 @@ let effectCreationCounter = 0;
 
 /**
  * @template T
- * @typedef {(() => T) & { [key: symbol]: any, n?: import('@slimlib/list').ListNode, p?: import('@slimlib/list').ListNode, i?: number }} Effect
+ * @typedef {(() => T) & { [key: symbol]: any, i?: number }} Effect
  */
 
 /**
@@ -109,7 +107,7 @@ export const effect = callback => {
             cleanup();
         }
         clearSources(eff);
-        batchedDelete(eff);
+        batched.delete(eff);
     };
 
     // Track to appropriate scope
@@ -118,7 +116,7 @@ export const effect = callback => {
     }
 
     // Trigger first run via batched queue (node is already dirty, and effect is for sure with the latest id)
-    append(batched, eff);
+    batched.add(eff);
     scheduleFlush();
 
     return dispose;
