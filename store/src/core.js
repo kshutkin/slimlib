@@ -33,7 +33,7 @@ export let globalVersion = 0;
 export let batched = new Set;
 
 /** @type {number} */
-let lastAddedId = -1;
+let lastAddedId = 0;
 
 /** @type {boolean} */
 let needsSort = false;
