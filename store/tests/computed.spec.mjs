@@ -495,6 +495,60 @@ describe('computed', () => {
         expect(second()).toBe(6);
     });
 
+    it('computed caches error from source in CHECK path (not just propagates)', () => {
+        // This test specifically exercises the CHECK path optimization where
+        // a computed with only computed sources checks if they changed before recomputing.
+        // When a source throws, the error should be caught in CHECK path and the
+        // computed should recompute to properly cache the error.
+        const store = state({ value: 5 });
+        let firstCallCount = 0;
+        let secondCallCount = 0;
+
+        const first = computed(() => {
+            firstCallCount++;
+            if (store.value < 0) {
+                throw new Error('First errored');
+            }
+            return store.value;
+        });
+
+        const second = computed(() => {
+            secondCallCount++;
+            return first() * 2;
+        });
+
+        // Initial read
+        expect(second()).toBe(10);
+        expect(firstCallCount).toBe(1);
+        expect(secondCallCount).toBe(1);
+
+        // Read again - should be cached, no recomputation
+        expect(second()).toBe(10);
+        expect(firstCallCount).toBe(1);
+        expect(secondCallCount).toBe(1);
+
+        // Trigger error in first
+        store.value = -1;
+
+        // First read after error - both should recompute
+        expect(() => second()).toThrow('First errored');
+        expect(firstCallCount).toBe(2);
+        expect(secondCallCount).toBe(2);
+
+        // Second read - errors should be cached in BOTH computeds
+        // first() should NOT be called again (its error is cached)
+        // second() should NOT be called again (its error is cached via CHECK path fix)
+        expect(() => second()).toThrow('First errored');
+        expect(firstCallCount).toBe(2); // Still 2 - error cached in first
+        expect(secondCallCount).toBe(2); // Still 2 - error cached in second (CHECK path fix)
+
+        // Recover
+        store.value = 3;
+        expect(second()).toBe(6);
+        expect(firstCallCount).toBe(3);
+        expect(secondCallCount).toBe(3);
+    });
+
     it('effect handles computed error gracefully', async () => {
         const store = state({ value: 5 });
         /** @type {Array<{value?: number, error?: string}>} */

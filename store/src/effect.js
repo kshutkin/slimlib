@@ -2,11 +2,11 @@
  * @import { EffectCleanup } from './index.js'
  */
 
-import { batched, clearSources, runWithTracking, scheduleFlush, untracked } from './core.js';
+import { batched, checkComputedSources, clearSources, runWithTracking, scheduleFlush } from './core.js';
 import { registerEffect, unregisterEffect, warnIfNoActiveScope } from './debug.js';
 import { FLAG_CHECK, FLAG_COMPUTING, FLAG_DIRTY, FLAG_EFFECT, FLAG_NEEDS_WORK } from './flags.js';
 import { activeScope } from './globals.js';
-import { flagsSymbol, skippedDeps, sources, trackSymbol, versionSymbol } from './symbols.js';
+import { flagsSymbol, skippedDeps, sources, trackSymbol } from './symbols.js';
 
 /**
  * Effect creation counter - increments on every effect creation
@@ -56,27 +56,9 @@ export const effect = callback => {
             }
 
             if (!hasStateSources && sourcesArray.length > 0) {
-                let sourceChanged = false;
-                let sourceErrored = false;
-                untracked(() => {
-                    for (const sourceEntry of sourcesArray) {
-                        const sourceNode = sourceEntry.n;
-                        // Access source to trigger its recomputation if needed
-                        try {
-                            sourceNode();
-                        } catch {
-                            // If source throws, effect must run to handle the error
-                            sourceErrored = true;
-                        }
-                        // Check if source version changed (meaning its value changed)
-                        if (sourceEntry.v !== sourceNode[versionSymbol]) {
-                            sourceChanged = true;
-                            sourceEntry.v = sourceNode[versionSymbol];
-                        }
-                    }
-                });
+                const needsRecompute = checkComputedSources(sourcesArray);
 
-                if (!sourceChanged && !sourceErrored) {
+                if (!needsRecompute) {
                     // Sources didn't change, clear CHECK flag and skip execution
                     eff[flagsSymbol] = flags & ~FLAG_CHECK;
                     return;

@@ -8,10 +8,11 @@ import {
     FLAG_LIVE,
     FLAG_NEEDS_WORK,
 } from './flags.js';
+import { versionSymbol } from './symbols.js';
 import {
     scheduler
 } from './globals.js';
-import { dependencies, depsVersionSymbol, flagsSymbol, skippedDeps, sources, unwrap, versionSymbol } from './symbols.js';
+import { dependencies, depsVersionSymbol, flagsSymbol, skippedDeps, sources, unwrap } from './symbols.js';
 
 export { depsVersionSymbol };
 
@@ -302,4 +303,34 @@ export const untracked = callback => {
     } finally {
         tracked = prevTracked;
     }
+};
+
+/**
+ * Check if any computed sources have changed or errored.
+ * Used by CHECK path optimization in computed and effect.
+ * Assumes sourcesArray contains only computed sources (entries with .n).
+ * @param {Array<{d: Set<Computed<any>>, n: Computed<any>, v: number, dv: number, g?: () => any, sv?: any}>} sourcesArray
+ * @returns {boolean} True if any source changed or errored (recomputation needed)
+ */
+export const checkComputedSources = sourcesArray => {
+    let needsRecompute = false;
+    const prevTracked = tracked;
+    tracked = false;
+    for (const sourceEntry of sourcesArray) {
+        const sourceNode = sourceEntry.n;
+        // Access source to trigger its recomputation if needed
+        try {
+            sourceNode();
+        } catch {
+            // If source throws, recomputation needed
+            needsRecompute = true;
+        }
+        // Check if source version changed (meaning its value changed)
+        if (sourceEntry.v !== sourceNode[versionSymbol]) {
+            needsRecompute = true;
+            sourceEntry.v = sourceNode[versionSymbol];
+        }
+    }
+    tracked = prevTracked;
+    return needsRecompute;
 };

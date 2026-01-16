@@ -1,4 +1,4 @@
-import { currentComputing, globalVersion, runWithTracking, trackDependency, tracked, untracked } from './core.js';
+import { checkComputedSources, currentComputing, globalVersion, runWithTracking, trackDependency, tracked } from './core.js';
 import {
     FLAG_CHECK,
     FLAG_CHECK_ONLY,
@@ -116,23 +116,10 @@ function computedRead() {
             }
         }
         if (sourcesArray.length > 0 && !hasStateSources) {
-            let sourceChanged = false;
-            // Inline untracked to avoid function call overhead
-            untracked(() => {
-                for (const sourceEntry of sourcesArray) {
-                    const sourceNode = sourceEntry.n;
-                    // Access source to trigger its recomputation if needed
-                    sourceNode();
-                    // Check if source version changed (meaning its value changed)
-                    if (sourceEntry.v !== sourceNode[versionSymbol]) {
-                        sourceChanged = true;
-                        sourceEntry.v = sourceNode[versionSymbol];
-                    }
-                }
-            });
-            // If source changed, mark as dirty to force recomputation
+            const needsRecompute = checkComputedSources(sourcesArray);
+            // If source changed or errored, mark as dirty to force recomputation
             // Otherwise, clear CHECK flag since sources are unchanged
-            this[flagsSymbol] = flags = (flags & ~FLAG_CHECK) | (sourceChanged ? FLAG_DIRTY : 0);
+            this[flagsSymbol] = flags = (flags & ~FLAG_CHECK) | (needsRecompute ? FLAG_DIRTY : 0);
         }
     }
 
