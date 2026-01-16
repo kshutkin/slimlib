@@ -306,10 +306,19 @@ export const untracked = callback => {
 };
 
 /**
+ * Mutable container for captured error from checkComputedSources
+ * Using array to allow mutation from importers (ES modules export bindings are read-only)
+ * Index 0 holds the error, undefined means no error
+ * @type {[unknown]}
+ */
+export const checkSourcesError = [undefined];
+
+/**
  * Check if any computed sources have changed or errored.
  * Used by CHECK path optimization in computed and effect.
+ * If a source throws, the error is stored in checkSourcesError and true is returned.
  * @param {Array<{d: Set<Computed<any>>, n: Computed<any>, v: number, dv: number, g?: () => any, sv?: any}>} sourcesArray
- * @returns {boolean | null} True if recomputation needed, false if sources unchanged, null if can't verify (has state sources or empty)
+ * @returns {boolean | null} true if changed or errored, false if unchanged, null if can't verify (has state sources or empty)
  */
 export const checkComputedSources = sourcesArray => {
     // Can't verify if empty or has state sources (sources without .n)
@@ -322,7 +331,10 @@ export const checkComputedSources = sourcesArray => {
         }
     }
 
-    let needsRecompute = false;
+    // Clear any previous error
+    checkSourcesError[0] = undefined;
+
+    let changed = false;
     const prevTracked = tracked;
     tracked = false;
     for (const sourceEntry of sourcesArray) {
@@ -330,16 +342,18 @@ export const checkComputedSources = sourcesArray => {
         // Access source to trigger its recomputation if needed
         try {
             sourceNode();
-        } catch {
-            // If source throws, recomputation needed
-            needsRecompute = true;
+        } catch (e) {
+            // Capture error and return early - caller can cache it directly
+            checkSourcesError[0] = e;
+            tracked = prevTracked;
+            return true;
         }
         // Check if source version changed (meaning its value changed)
         if (sourceEntry.v !== sourceNode[versionSymbol]) {
-            needsRecompute = true;
+            changed = true;
             sourceEntry.v = sourceNode[versionSymbol];
         }
     }
     tracked = prevTracked;
-    return needsRecompute;
+    return changed;
 };

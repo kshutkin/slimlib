@@ -1,4 +1,4 @@
-import { checkComputedSources, currentComputing, globalVersion, runWithTracking, trackDependency, tracked } from './core.js';
+import { checkComputedSources, checkSourcesError, currentComputing, globalVersion, runWithTracking, trackDependency, tracked } from './core.js';
 import {
     FLAG_CHECK,
     FLAG_CHECK_ONLY,
@@ -106,12 +106,28 @@ function computedRead() {
     // Only do this for non-effects that ONLY have computed sources (with nodes)
     // Effects should always run when marked, and state deps have no node to check
     if ((flags & (FLAG_CHECK_ONLY | FLAG_HAS_VALUE)) === (FLAG_CHECK | FLAG_HAS_VALUE)) {
-        const needsRecompute = checkComputedSources(sourcesArray);
+        const result = checkComputedSources(sourcesArray);
         // If null, can't verify (has state sources or empty) - keep CHECK flag
-        // If true, mark as dirty to force recomputation
-        // If false, clear CHECK flag since sources are unchanged
-        if (needsRecompute !== null) {
-            this[flagsSymbol] = flags = (flags & ~FLAG_CHECK) | (needsRecompute ? FLAG_DIRTY : 0);
+        if (result !== null) {
+            if (result) {
+                // Sources changed or errored
+                const error = checkSourcesError[0];
+                if (error !== undefined) {
+                    // Cache the error directly without recomputing - source already threw
+                    checkSourcesError[0] = undefined;
+                    this[versionSymbol]++;
+                    this[valueSymbol] = error;
+                    this[flagsSymbol] = (this[flagsSymbol] & ~(FLAG_HAS_VALUE | FLAG_CHECK)) | FLAG_HAS_ERROR;
+                    this[lastGlobalVersionSymbol] = globalVersion;
+                } else {
+                    // Source changed, mark as dirty to force recomputation
+                    this[flagsSymbol] = flags = (flags & ~FLAG_CHECK) | FLAG_DIRTY;
+                }
+            } else {
+                // Sources unchanged, clear CHECK flag and update globalVersion
+                this[flagsSymbol] = flags = flags & ~FLAG_CHECK;
+                this[lastGlobalVersionSymbol] = globalVersion;
+            }
         }
     }
 

@@ -45,10 +45,11 @@ export const effect = callback => {
         // Bail-out optimization: if only CHECK flag is set (not DIRTY),
         // verify that computed sources actually changed before running
         if ((flags & FLAG_NEEDS_WORK) === FLAG_CHECK) {
-            const needsRecompute = checkComputedSources(eff[sources]);
+            const result = checkComputedSources(eff[sources]);
             // If null, can't verify (has state sources or empty) - proceed to run
             // If false, sources didn't change - clear CHECK flag and skip
-            if (needsRecompute === false) {
+            // If true, sources changed or errored - proceed to run
+            if (result === false) {
                 eff[flagsSymbol] = flags & ~FLAG_CHECK;
                 return;
             }

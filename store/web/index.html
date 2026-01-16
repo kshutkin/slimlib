@@ -12,9 +12,10 @@
         <button id="increase">Increase</button>
         <button id="decrease">Decrease</button>
         <button id="dispose">Dispose effect</button>
+        <button id="test">Test</button>
     </div>
     <script type="module">
-        import { signal, computed, effect } from '../src/index.js';
+        import { computed, effect, signal } from '../dist/index.mjs';
 
         const count = signal(0);
         const doubled = computed(() => count() * 2);
@@ -24,6 +25,7 @@
         const increaseBtn = document.getElementById('increase');
         const decreaseBtn = document.getElementById('decrease');
         const disposeBtn = document.getElementById('dispose');
+        const testBtn = document.getElementById('test');
 
         const dispose = effect(() => {
             countEl.textContent = count();
@@ -33,6 +35,16 @@
         increaseBtn.addEventListener('click', () => count.set(count() + 1));
         decreaseBtn.addEventListener('click', () => count.set(count() - 1));
         disposeBtn.addEventListener('click', () => dispose());
+
+        const buggyComputed = computed(() => {
+            throw new Error('Test');
+        });
+
+        const secondLayer = computed(() => {
+            return buggyComputed();
+        })
+
+        testBtn.addEventListener('click', () => secondLayer());
     </script>
 </body>
 </html>
