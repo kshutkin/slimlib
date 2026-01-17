@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { computed, effect, flushEffects, scope, setActiveScope, state } from '../src/index.js';
+import { computed, effect, flushEffects, scope, setActiveScope, signal, state } from '../src/index.js';
 
 function flushPromises() {
     return new Promise(resolve => setTimeout(resolve));
@@ -303,6 +303,303 @@ describe('diamond problem', () => {
         expect(effectC).toBe(21);
 
         store.a = 5;
+        await flushAll();
+        // Both should be updated correctly
+        expect(effectB).toBe(15);
+        expect(effectC).toBe(25);
+    });
+});
+
+describe('diamond problem with signals', () => {
+    /** @type {ReturnType<typeof scope>} */
+    let testScope;
+
+    beforeEach(() => {
+        testScope = scope();
+        setActiveScope(testScope);
+    });
+
+    afterEach(() => {
+        testScope();
+        setActiveScope(undefined);
+    });
+
+    /**
+     * Diamond Problem:
+     *
+     *      A (signal)
+     *     / \
+     *    B   C (computed)
+     *     \ /
+     *      D (effect)
+     *
+     * When A changes, both B and C depend on it.
+     * D depends on both B and C.
+     * D should only run ONCE, not twice.
+     */
+
+    it('effect runs once when source changes (diamond via computed)', async () => {
+        const a = signal(0);
+        const b = computed(() => a() + 1);
+        const c = computed(() => a() + 2);
+        let runCount = 0;
+
+        effect(() => {
+            b() + c();
+            runCount++;
+        });
+
+        await flushAll();
+        expect(runCount).toBe(1); // Initial run
+
+        a.set(1);
+        await flushAll();
+        expect(runCount).toBe(2); // One update, not 3!
+    });
+
+    it('effect runs once when multiple computed share same source', async () => {
+        const value = signal(1);
+
+        const doubled = computed(() => value() * 2);
+        const tripled = computed(() => value() * 3);
+        const quadrupled = computed(() => value() * 4);
+
+        let runCount = 0;
+        let result;
+
+        effect(() => {
+            runCount++;
+            result = doubled() + tripled() + quadrupled();
+        });
+
+        await flushAll();
+        expect(runCount).toBe(1);
+        expect(result).toBe(2 + 3 + 4); // 9
+
+        value.set(2);
+        await flushAll();
+        expect(runCount).toBe(2); // Only one additional run
+        expect(result).toBe(4 + 6 + 8); // 18
+    });
+
+    it('complex diamond with computed chain', async () => {
+        /**
+         *        A
+         *       /|\
+         *      B C D (computed)
+         *      |/ \|
+         *      E   F (computed)
+         *       \ /
+         *        G (effect)
+         */
+        const a = signal(1);
+
+        const b = computed(() => a() + 1);
+        const c = computed(() => a() + 2);
+        const d = computed(() => a() + 3);
+
+        const e = computed(() => b() + c());
+        const f = computed(() => c() + d());
+
+        let runCount = 0;
+        let result;
+
+        effect(() => {
+            runCount++;
+            result = e() + f();
+        });
+
+        await flushAll();
+        expect(runCount).toBe(1);
+        // e = (1+1) + (1+2) = 5
+        // f = (1+2) + (1+3) = 7
+        // result = 12
+        expect(result).toBe(12);
+
+        a.set(10);
+        await flushAll();
+        expect(runCount).toBe(2); // Still only one update
+        // e = (10+1) + (10+2) = 23
+        // f = (10+2) + (10+3) = 25
+        // result = 48
+        expect(result).toBe(48);
+    });
+
+    it('diamond with direct signal access in effect', async () => {
+        /**
+         *      A (signal)
+         *     /|\
+         *    / | \
+         *   B  C  (effect reads A, B, C)
+         */
+        const a = signal(1);
+        const b = computed(() => a() * 2);
+        const c = computed(() => a() * 3);
+
+        let runCount = 0;
+        let result;
+
+        effect(() => {
+            runCount++;
+            // Effect reads signal directly AND both computed values
+            result = a() + b() + c();
+        });
+
+        await flushAll();
+        expect(runCount).toBe(1);
+        expect(result).toBe(1 + 2 + 3);
+
+        a.set(5);
+        await flushAll();
+        expect(runCount).toBe(2); // One update
+        expect(result).toBe(5 + 10 + 15);
+    });
+
+    it('multiple effects on same diamond', async () => {
+        const value = signal(1);
+        const b = computed(() => value() * 2);
+        const c = computed(() => value() * 3);
+
+        let effect1Runs = 0;
+        let effect2Runs = 0;
+
+        effect(() => {
+            effect1Runs++;
+            b() + c();
+        });
+
+        effect(() => {
+            effect2Runs++;
+            b() + c();
+        });
+
+        await flushAll();
+        expect(effect1Runs).toBe(1);
+        expect(effect2Runs).toBe(1);
+
+        value.set(2);
+        await flushAll();
+        expect(effect1Runs).toBe(2);
+        expect(effect2Runs).toBe(2);
+    });
+
+    it('diamond with conditional computed access', async () => {
+        const value = signal(1);
+        const flag = signal(true);
+        const doubled = computed(() => value() * 2);
+        const tripled = computed(() => value() * 3);
+
+        let runCount = 0;
+        let result;
+
+        effect(() => {
+            runCount++;
+            // Conditionally access computed values
+            result = flag() ? doubled() : tripled();
+        });
+
+        await flushAll();
+        expect(runCount).toBe(1);
+        expect(result).toBe(2);
+
+        value.set(5);
+        await flushAll();
+        expect(runCount).toBe(2);
+        expect(result).toBe(10);
+
+        // Switch branch
+        flag.set(false);
+        await flushAll();
+        expect(runCount).toBe(3);
+        expect(result).toBe(15);
+    });
+
+    it('deeply nested diamond', async () => {
+        const value = signal(1);
+
+        // Two branches that eventually merge
+        const a1 = computed(() => value() + 1);
+        const a2 = computed(() => a1() + 1);
+        const a3 = computed(() => a2() + 1);
+
+        const b1 = computed(() => value() + 10);
+        const b2 = computed(() => b1() + 10);
+        const b3 = computed(() => b2() + 10);
+
+        // Merge point
+        const merge = computed(() => a3() + b3());
+
+        let runCount = 0;
+        let result;
+
+        effect(() => {
+            runCount++;
+            result = merge();
+        });
+
+        await flushAll();
+        expect(runCount).toBe(1);
+        // a3 = 1 + 1 + 1 + 1 = 4
+        // b3 = 1 + 10 + 10 + 10 = 31
+        expect(result).toBe(4 + 31);
+
+        value.set(100);
+        await flushAll();
+        expect(runCount).toBe(2); // Still only one update
+        // a3 = 100 + 1 + 1 + 1 = 103
+        // b3 = 100 + 10 + 10 + 10 = 130
+        expect(result).toBe(103 + 130);
+    });
+
+    it('multiple sources feeding into diamond', async () => {
+        const x = signal(1);
+        const y = signal(2);
+
+        const sum = computed(() => x() + y());
+        const product = computed(() => x() * y());
+
+        let runCount = 0;
+        let result;
+
+        effect(() => {
+            runCount++;
+            result = sum() + product();
+        });
+
+        await flushAll();
+        expect(runCount).toBe(1);
+        expect(result).toBe(3 + 2); // sum=3, product=2
+
+        // Change x
+        x.set(5);
+        await flushAll();
+        expect(runCount).toBe(2);
+        expect(result).toBe(7 + 10); // sum=7, product=10
+
+        // Change y
+        y.set(3);
+        await flushAll();
+        expect(runCount).toBe(3);
+        expect(result).toBe(8 + 15); // sum=8, product=15
+    });
+
+    it('computed values are correct after diamond resolution', async () => {
+        const a = signal(1);
+        const b = computed(() => a() + 10);
+        const c = computed(() => a() + 20);
+
+        let effectB, effectC;
+
+        effect(() => {
+            effectB = b();
+            effectC = c();
+        });
+
+        await flushAll();
+        expect(effectB).toBe(11);
+        expect(effectC).toBe(21);
+
+        a.set(5);
         await flushAll();
         // Both should be updated correctly
         expect(effectB).toBe(15);

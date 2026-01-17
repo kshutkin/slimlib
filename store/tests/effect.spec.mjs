@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { computed, effect, flushEffects, scope, setActiveScope, state } from '../src/index.js';
+import { computed, effect, flushEffects, scope, setActiveScope, signal, state } from '../src/index.js';
 
 function flushPromises() {
     return new Promise(resolve => setTimeout(resolve));
@@ -973,6 +973,763 @@ describe('effect', () => {
             store.value = 2;
             await flushAll();
             expect(executionOrder).toEqual([0, 1, 2]);
+        });
+    });
+});
+
+describe('effect with signals', () => {
+    /** @type {ReturnType<typeof scope>} */
+    let testScope;
+
+    beforeEach(() => {
+        testScope = scope();
+        setActiveScope(testScope);
+    });
+
+    afterEach(() => {
+        testScope();
+        setActiveScope(undefined);
+    });
+
+    it('runs effect on next microtask', async () => {
+        const subscriber = vi.fn();
+        const count = signal(0);
+
+        effect(() => {
+            subscriber(count());
+        });
+
+        // Effect hasn't run yet
+        expect(subscriber).not.toHaveBeenCalled();
+
+        await flushAll();
+
+        expect(subscriber).toHaveBeenCalledTimes(1);
+        expect(subscriber).toHaveBeenCalledWith(0);
+    });
+
+    it('re-runs when dependencies change', async () => {
+        const subscriber = vi.fn();
+        const count = signal(0);
+
+        effect(() => {
+            subscriber(count());
+        });
+
+        await flushAll();
+        expect(subscriber).toHaveBeenCalledTimes(1);
+        expect(subscriber).toHaveBeenCalledWith(0);
+
+        count.set(5);
+        await flushAll();
+        expect(subscriber).toHaveBeenCalledTimes(2);
+        expect(subscriber).toHaveBeenCalledWith(5);
+    });
+
+    it('does not re-run when untracked signals change', async () => {
+        const subscriber = vi.fn();
+        const tracked = signal('tracked');
+        const untracked = signal('untracked');
+
+        effect(() => {
+            subscriber(tracked());
+        });
+
+        await flushAll();
+        expect(subscriber).toHaveBeenCalledTimes(1);
+
+        untracked.set('changed');
+        await flushAll();
+        expect(subscriber).toHaveBeenCalledTimes(1);
+
+        tracked.set('changed');
+        await flushAll();
+        expect(subscriber).toHaveBeenCalledTimes(2);
+    });
+
+    it('supports cleanup function', async () => {
+        let cleanupCalled = false;
+        const count = signal(0);
+
+        effect(() => {
+            count();
+            return () => {
+                cleanupCalled = true;
+            };
+        });
+
+        await flushAll();
+        expect(cleanupCalled).toBe(false);
+
+        count.set(1);
+        await flushAll();
+        expect(cleanupCalled).toBe(true);
+    });
+
+    it('cleanup is called before each re-run', async () => {
+        /** @type {string[]} */
+        const calls = [];
+        const count = signal(0);
+
+        effect(() => {
+            const currentCount = count();
+            calls.push(`run:${currentCount}`);
+            return () => {
+                calls.push(`cleanup:${currentCount}`);
+            };
+        });
+
+        await flushAll();
+        expect(calls).toEqual(['run:0']);
+
+        count.set(1);
+        await flushAll();
+        expect(calls).toEqual(['run:0', 'cleanup:0', 'run:1']);
+
+        count.set(2);
+        await flushAll();
+        expect(calls).toEqual(['run:0', 'cleanup:0', 'run:1', 'cleanup:1', 'run:2']);
+    });
+
+    it('dispose stops effect from running', async () => {
+        const subscriber = vi.fn();
+        const count = signal(0);
+
+        const dispose = effect(() => {
+            subscriber(count());
+        });
+
+        await flushAll();
+        expect(subscriber).toHaveBeenCalledTimes(1);
+
+        dispose();
+
+        count.set(1);
+        await flushAll();
+        expect(subscriber).toHaveBeenCalledTimes(1);
+    });
+
+    it('dispose calls cleanup function', async () => {
+        let cleanupCalled = false;
+        const count = signal(0);
+
+        const dispose = effect(() => {
+            count();
+            return () => {
+                cleanupCalled = true;
+            };
+        });
+
+        await flushAll();
+        expect(cleanupCalled).toBe(false);
+
+        dispose();
+        expect(cleanupCalled).toBe(true);
+    });
+
+    it('only tracks accessed signals', async () => {
+        let nameRuns = 0;
+        let ageRuns = 0;
+        const name = signal('John');
+        const age = signal(30);
+
+        effect(() => {
+            name();
+            nameRuns++;
+        });
+
+        effect(() => {
+            age();
+            ageRuns++;
+        });
+
+        await flushAll();
+        expect(nameRuns).toBe(1);
+        expect(ageRuns).toBe(1);
+
+        name.set('Jane');
+        await flushAll();
+        expect(nameRuns).toBe(2);
+        expect(ageRuns).toBe(1);
+
+        age.set(25);
+        await flushAll();
+        expect(nameRuns).toBe(2);
+        expect(ageRuns).toBe(2);
+    });
+
+    it('handles conditional dependencies', async () => {
+        let runs = 0;
+        const flag = signal(true);
+        const a = signal(1);
+        const b = signal(2);
+
+        effect(() => {
+            runs++;
+            if (flag()) {
+                a();
+            } else {
+                b();
+            }
+        });
+
+        await flushAll();
+        expect(runs).toBe(1);
+
+        // Change a (tracked because flag is true)
+        a.set(10);
+        await flushAll();
+        expect(runs).toBe(2);
+
+        // Change b (not tracked because flag is true)
+        b.set(20);
+        await flushAll();
+        expect(runs).toBe(2);
+
+        // Switch flag
+        flag.set(false);
+        await flushAll();
+        expect(runs).toBe(3);
+
+        // Now a is not tracked, b is
+        a.set(100);
+        await flushAll();
+        expect(runs).toBe(3);
+
+        b.set(200);
+        await flushAll();
+        expect(runs).toBe(4);
+    });
+
+    it('does not run if value is the same', async () => {
+        let runs = 0;
+        const count = signal(5);
+
+        effect(() => {
+            count();
+            runs++;
+        });
+
+        await flushAll();
+        expect(runs).toBe(1);
+
+        count.set(5); // Same value
+        await flushAll();
+        expect(runs).toBe(1);
+    });
+
+    it('self-dispose within effect', async () => {
+        let runs = 0;
+        const count = signal(0);
+
+        /** @type {(() => void) | undefined} */
+        let dispose;
+
+        dispose = effect(() => {
+            runs++;
+            const c = count();
+            if (c >= 2) {
+                dispose?.();
+            }
+        });
+
+        await flushAll();
+        expect(runs).toBe(1);
+
+        count.set(1);
+        await flushAll();
+        expect(runs).toBe(2);
+
+        count.set(2); // This triggers self-dispose
+        await flushAll();
+        expect(runs).toBe(3);
+
+        count.set(3); // Should not run
+        await flushAll();
+        expect(runs).toBe(3);
+    });
+
+    it('multiple signals in single effect', async () => {
+        let runs = 0;
+        const a = signal(1);
+        const b = signal(2);
+
+        effect(() => {
+            runs++;
+            a() + b();
+        });
+
+        await flushAll();
+        expect(runs).toBe(1);
+
+        a.set(10);
+        await flushAll();
+        expect(runs).toBe(2);
+
+        b.set(20);
+        await flushAll();
+        expect(runs).toBe(3);
+
+        // Both at once (batched)
+        a.set(100);
+        b.set(200);
+        await flushAll();
+        expect(runs).toBe(4);
+    });
+
+    it('dispose before first run cancels effect', async () => {
+        const subscriber = vi.fn();
+        const count = signal(0);
+
+        const dispose = effect(() => {
+            subscriber(count());
+        });
+
+        dispose(); // Dispose before flush
+
+        await flushAll();
+        expect(subscriber).not.toHaveBeenCalled();
+    });
+
+    it('effect depending on computed clears computed sources on re-run', async () => {
+        const value = signal(0);
+        let effectRuns = 0;
+
+        const doubled = computed(() => value() * 2);
+
+        effect(() => {
+            effectRuns++;
+            doubled();
+        });
+
+        await flushAll();
+        expect(effectRuns).toBe(1);
+
+        value.set(5);
+        await flushAll();
+        expect(effectRuns).toBe(2);
+    });
+
+    it('effect disposed after being marked dirty but before flush', async () => {
+        const subscriber = vi.fn();
+        const value = signal(0);
+
+        const dispose = effect(() => {
+            subscriber(value());
+        });
+
+        await flushAll();
+        expect(subscriber).toHaveBeenCalledTimes(1);
+
+        value.set(1);
+        dispose();
+        await flushAll();
+        expect(subscriber).toHaveBeenCalledTimes(1);
+    });
+
+    it('computed dependency is properly tracked in effect', async () => {
+        const a = signal(1);
+        const b = signal(2);
+        let effectRuns = 0;
+
+        const sum = computed(() => a() + b());
+
+        effect(() => {
+            effectRuns++;
+            sum();
+        });
+
+        await flushAll();
+        expect(effectRuns).toBe(1);
+
+        a.set(10);
+        await flushAll();
+        expect(effectRuns).toBe(2);
+
+        b.set(20);
+        await flushAll();
+        expect(effectRuns).toBe(3);
+    });
+
+    it('effect on computed chain clears sources properly on each run', async () => {
+        const value = signal(0);
+        let effectRuns = 0;
+        let computeARuns = 0;
+        let computeBRuns = 0;
+
+        const a = computed(() => {
+            computeARuns++;
+            return value() + 1;
+        });
+
+        const b = computed(() => {
+            computeBRuns++;
+            return a() * 2;
+        });
+
+        effect(() => {
+            effectRuns++;
+            b();
+        });
+
+        await flushAll();
+        expect(effectRuns).toBe(1);
+        expect(computeARuns).toBe(1);
+        expect(computeBRuns).toBe(1);
+
+        value.set(5);
+        await flushAll();
+        expect(effectRuns).toBe(2);
+        expect(computeARuns).toBe(2);
+        expect(computeBRuns).toBe(2);
+    });
+
+    it('multiple effects disposed before flush only run remaining ones', async () => {
+        const value = signal(0);
+        let effect1Runs = 0;
+        let effect2Runs = 0;
+        let effect3Runs = 0;
+
+        const dispose1 = effect(() => {
+            effect1Runs++;
+            value();
+        });
+
+        const dispose2 = effect(() => {
+            effect2Runs++;
+            value();
+        });
+
+        effect(() => {
+            effect3Runs++;
+            value();
+        });
+
+        await flushAll();
+        expect(effect1Runs).toBe(1);
+        expect(effect2Runs).toBe(1);
+        expect(effect3Runs).toBe(1);
+
+        value.set(1);
+        dispose1();
+        dispose2();
+        await flushAll();
+        expect(effect1Runs).toBe(1);
+        expect(effect2Runs).toBe(1);
+        expect(effect3Runs).toBe(2);
+    });
+
+    it('effect disposed while another effect runs during flush', async () => {
+        const value = signal(0);
+        let effect1Runs = 0;
+        let effect2Runs = 0;
+
+        /** @type {(() => void) | undefined} */
+        let dispose2;
+
+        effect(() => {
+            effect1Runs++;
+            value();
+            if (value() === 1) {
+                dispose2?.();
+            }
+        });
+
+        dispose2 = effect(() => {
+            effect2Runs++;
+            value();
+        });
+
+        await flushAll();
+        expect(effect1Runs).toBe(1);
+        expect(effect2Runs).toBe(1);
+
+        value.set(1);
+        await flushAll();
+        expect(effect1Runs).toBe(2);
+        // effect2 may or may not run depending on order
+    });
+
+    it('effect that changes its own dependency during execution', async () => {
+        const value = signal(0);
+        let runs = 0;
+
+        effect(() => {
+            runs++;
+            const v = value();
+            if (v === 0) {
+                value.set(1);
+            }
+        });
+
+        await flushAll();
+        expect(runs).toBe(2);
+        expect(value()).toBe(1);
+    });
+
+    it('computed depending on computed with effect exercises all code paths', async () => {
+        const base = signal(0);
+        let effectRuns = 0;
+
+        const level1 = computed(() => base() + 1);
+        const level2 = computed(() => level1() * 2);
+        const level3 = computed(() => level2() + 10);
+
+        const dispose = effect(() => {
+            effectRuns++;
+            level3();
+        });
+
+        await flushAll();
+        expect(effectRuns).toBe(1);
+
+        base.set(5);
+        await flushAll();
+        expect(effectRuns).toBe(2);
+
+        base.set(10);
+        await flushAll();
+        expect(effectRuns).toBe(3);
+
+        dispose();
+    });
+
+    it('effect with only computed dependencies (no direct signal access)', async () => {
+        const x = signal(2);
+        const y = signal(3);
+        let effectRuns = 0;
+
+        const sum = computed(() => x() + y());
+        const product = computed(() => x() * y());
+
+        const dispose = effect(() => {
+            effectRuns++;
+            sum();
+            product();
+        });
+
+        await flushAll();
+        expect(effectRuns).toBe(1);
+
+        x.set(4);
+        await flushAll();
+        expect(effectRuns).toBe(2);
+
+        y.set(5);
+        await flushAll();
+        expect(effectRuns).toBe(3);
+
+        dispose();
+    });
+
+    it('rapidly creating and disposing effects', async () => {
+        const value = signal(0);
+        /** @type {(() => void)[]} */
+        const disposes = [];
+
+        for (let i = 0; i < 10; i++) {
+            const dispose = effect(() => {
+                value();
+            });
+            disposes.push(dispose);
+        }
+
+        await flushAll();
+
+        // Dispose half
+        for (let i = 0; i < 5; i++) {
+            disposes[i]?.();
+        }
+
+        value.set(1);
+        await flushAll();
+
+        // Dispose rest
+        for (let i = 5; i < 10; i++) {
+            disposes[i]?.();
+        }
+    });
+
+    it('effect re-run clears previous computed dependencies', async () => {
+        const flag = signal(true);
+        const a = signal(1);
+        const b = signal(2);
+        let effectRuns = 0;
+
+        const compA = computed(() => a() * 10);
+        const compB = computed(() => b() * 10);
+
+        effect(() => {
+            effectRuns++;
+            if (flag()) {
+                compA();
+            } else {
+                compB();
+            }
+        });
+
+        await flushAll();
+        expect(effectRuns).toBe(1);
+
+        // a is tracked
+        a.set(5);
+        await flushAll();
+        expect(effectRuns).toBe(2);
+
+        // b is not tracked
+        b.set(10);
+        await flushAll();
+        expect(effectRuns).toBe(2);
+
+        // Switch
+        flag.set(false);
+        await flushAll();
+        expect(effectRuns).toBe(3);
+
+        // Now b is tracked, a is not
+        a.set(100);
+        await flushAll();
+        expect(effectRuns).toBe(3);
+
+        b.set(200);
+        await flushAll();
+        expect(effectRuns).toBe(4);
+    });
+
+    it('does not call truthy non-function return value as cleanup', async () => {
+        const count = signal(0);
+        let runs = 0;
+
+        // @ts-expect-error
+        effect(() => {
+            runs++;
+            count();
+            // Return a truthy non-function value
+            return { notAFunction: true };
+        });
+
+        await flushAll();
+        expect(runs).toBe(1);
+
+        count.set(1);
+        await flushAll();
+        expect(runs).toBe(2);
+    });
+
+    describe('execution order', () => {
+        it('effects execute in creation order on initial run', async () => {
+            /** @type {number[]} */
+            const executionOrder = [];
+            const value = signal(0);
+
+            effect(() => {
+                value();
+                executionOrder.push(1);
+            });
+
+            effect(() => {
+                value();
+                executionOrder.push(2);
+            });
+
+            effect(() => {
+                value();
+                executionOrder.push(3);
+            });
+
+            await flushAll();
+            expect(executionOrder).toEqual([1, 2, 3]);
+        });
+
+        it('effects execute in creation order on re-run', async () => {
+            /** @type {number[]} */
+            const executionOrder = [];
+            const value = signal(0);
+
+            effect(() => {
+                value();
+                executionOrder.push(1);
+            });
+
+            effect(() => {
+                value();
+                executionOrder.push(2);
+            });
+
+            effect(() => {
+                value();
+                executionOrder.push(3);
+            });
+
+            await flushAll();
+            executionOrder.length = 0;
+
+            value.set(1);
+            await flushAll();
+            expect(executionOrder).toEqual([1, 2, 3]);
+        });
+
+        it('effects on different signals execute in creation order', async () => {
+            /** @type {number[]} */
+            const executionOrder = [];
+            const a = signal(0);
+            const b = signal(0);
+
+            effect(() => {
+                a();
+                executionOrder.push(1);
+            });
+
+            effect(() => {
+                b();
+                executionOrder.push(2);
+            });
+
+            effect(() => {
+                a();
+                b();
+                executionOrder.push(3);
+            });
+
+            await flushAll();
+            executionOrder.length = 0;
+
+            a.set(1);
+            b.set(1);
+            await flushAll();
+            expect(executionOrder).toEqual([1, 2, 3]);
+        });
+
+        it('effects with diamond dependency execute in creation order', async () => {
+            /** @type {number[]} */
+            const executionOrder = [];
+            const value = signal(0);
+
+            const compA = computed(() => value() + 1);
+            const compB = computed(() => value() + 2);
+
+            effect(() => {
+                compA();
+                compB();
+                executionOrder.push(1);
+            });
+
+            effect(() => {
+                compA();
+                executionOrder.push(2);
+            });
+
+            effect(() => {
+                compB();
+                executionOrder.push(3);
+            });
+
+            await flushAll();
+            executionOrder.length = 0;
+
+            value.set(1);
+            await flushAll();
+            expect(executionOrder).toEqual([1, 2, 3]);
         });
     });
 });

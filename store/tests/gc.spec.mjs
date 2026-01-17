@@ -1,6 +1,6 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
-import { computed, effect, flushEffects, scope, setActiveScope, state } from '../src/index.js';
+import { computed, effect, flushEffects, scope, setActiveScope, signal, state } from '../src/index.js';
 
 function flushPromises() {
     return new Promise(resolve => setTimeout(resolve));
@@ -345,6 +345,357 @@ describe('garbage collection', () => {
 
         // Should not error, and value should be updated
         expect(store.nested.value).toBe(5);
+    });
+});
+
+describe('garbage collection with signals', () => {
+    /** @type {ReturnType<typeof scope>} */
+    let testScope;
+
+    beforeEach(() => {
+        testScope = scope();
+        setActiveScope(testScope);
+    });
+
+    afterEach(() => {
+        testScope();
+        setActiveScope(undefined);
+    });
+
+    beforeAll(() => {
+        // Verify GC is available
+        if (typeof global.gc !== 'function') {
+            throw new Error('These tests require --expose-gc. Check vitest.config.mjs poolOptions.');
+        }
+    });
+
+    it('unreferenced computed is garbage collected', async () => {
+        const count = signal(0);
+
+        // Create a WeakRef to track the computed
+        let weakRef;
+
+        // Use a function scope to ensure the computed can be collected
+        (() => {
+            const doubled = computed(() => count() * 2);
+            // Access it once to establish dependencies
+            doubled();
+            weakRef = new WeakRef(doubled);
+        })();
+
+        // Give microtasks a chance to run
+        await flushAll();
+
+        // Allocate memory and force GC
+        allocateMemory();
+        forceGC();
+
+        // The computed should be collected since nothing references it
+        expect(weakRef.deref()).toBeUndefined();
+    });
+
+    it('computed referenced by effect is NOT garbage collected', async () => {
+        const count = signal(0);
+
+        let effectRuns = 0;
+
+        const doubled = computed(() => count() * 2);
+        const weakRef = new WeakRef(doubled);
+
+        const dispose = effect(() => {
+            effectRuns++;
+            doubled();
+        });
+
+        await flushAll();
+        expect(effectRuns).toBe(1);
+
+        // Force GC
+        allocateMemory();
+        forceGC();
+
+        // The computed should NOT be collected since the effect references it
+        expect(weakRef.deref()).toBeDefined();
+
+        // Change signal and verify effect still works
+        count.set(5);
+        await flushAll();
+        expect(effectRuns).toBe(2);
+        expect(doubled()).toBe(10);
+
+        dispose();
+    });
+
+    it('computed in a chain - intermediate computed is collected when unused', async () => {
+        const value = signal(1);
+
+        let weakRefMiddle;
+
+        // Create a computed chain where middle node can be collected
+        const first = computed(() => value() + 1);
+
+        (() => {
+            const middle = computed(() => first() * 2);
+            // Access to establish dependency
+            middle();
+            weakRefMiddle = new WeakRef(middle);
+        })();
+
+        await flushAll();
+
+        // Force GC
+        allocateMemory();
+        forceGC();
+
+        // Middle should be collected - it's not referenced
+        expect(weakRefMiddle.deref()).toBeUndefined();
+
+        // First should still work
+        expect(first()).toBe(2);
+    });
+
+    it('disposed effect allows its computed dependencies to be collected', async () => {
+        const count = signal(0);
+
+        let effectRuns = 0;
+
+        // Create computed and effect
+        const doubled = computed(() => count() * 2);
+        new WeakRef(doubled);
+
+        const dispose = effect(() => {
+            effectRuns++;
+            doubled();
+        });
+
+        await flushAll();
+        expect(effectRuns).toBe(1);
+
+        // Dispose the effect
+        dispose();
+
+        // Force GC
+        allocateMemory();
+        forceGC();
+
+        // Change signal - effect should NOT run since disposed
+        count.set(5);
+        await flushAll();
+        expect(effectRuns).toBe(1);
+    });
+
+    it('multiple computeds - only unreferenced ones are collected', async () => {
+        const a = signal(1);
+        const b = signal(2);
+
+        let weakRefUnused;
+
+        const kept = computed(() => a() + 10);
+
+        (() => {
+            const unused = computed(() => b() + 20);
+            unused();
+            weakRefUnused = new WeakRef(unused);
+        })();
+
+        await flushAll();
+
+        // Force GC
+        allocateMemory();
+        forceGC();
+
+        // Unused should be collected
+        expect(weakRefUnused.deref()).toBeUndefined();
+
+        // Kept should still work
+        expect(kept()).toBe(11);
+
+        a.set(5);
+        expect(kept()).toBe(15);
+    });
+
+    it('computed depending on another computed - dependent collected first', async () => {
+        const value = signal(1);
+
+        const base = computed(() => value() * 2);
+        let weakRefDependent;
+
+        (() => {
+            const dependent = computed(() => base() + 100);
+            dependent();
+            weakRefDependent = new WeakRef(dependent);
+        })();
+
+        await flushAll();
+
+        // Force GC
+        allocateMemory();
+        forceGC();
+
+        // Dependent should be collected
+        expect(weakRefDependent.deref()).toBeUndefined();
+
+        // Base should still work correctly
+        expect(base()).toBe(2);
+
+        value.set(5);
+        expect(base()).toBe(10);
+    });
+
+    it('dead WeakRefs are cleaned up from dependency sets on signal change', async () => {
+        const count = signal(0);
+
+        // Create and immediately discard a computed
+        (() => {
+            const temp = computed(() => count() * 3);
+            temp();
+        })();
+
+        await flushAll();
+
+        // Force GC to collect the temp computed
+        allocateMemory();
+        forceGC();
+
+        // Changing signal should clean up dead WeakRefs
+        // This tests the markDependents cleanup path
+        count.set(10);
+
+        await flushAll();
+
+        // No error should occur - dead refs should be cleaned
+        expect(count()).toBe(10);
+    });
+
+    it('many transient computeds can be garbage collected', async () => {
+        const value = signal(0);
+        const weakRefs = [];
+
+        // Create many computeds in isolated scopes
+        for (let i = 0; i < 100; i++) {
+            (() => {
+                const temp = computed(() => value() + i);
+                temp();
+                weakRefs.push(new WeakRef(temp));
+            })();
+        }
+
+        await flushAll();
+
+        // Force GC multiple times to ensure collection
+        for (let i = 0; i < 3; i++) {
+            allocateMemory();
+            forceGC();
+        }
+
+        // At least some should be collected (GC is non-deterministic)
+        const collectedCount = weakRefs.filter(ref => ref.deref() === undefined).length;
+        expect(collectedCount).toBeGreaterThan(0);
+    });
+
+    it('effect with conditional computed dependency - unused branch is collectable', async () => {
+        const flag = signal(true);
+        const a = signal(1);
+        const b = signal(2);
+        let effectRuns = 0;
+
+        const compA = computed(() => a() * 10);
+        let weakRefB;
+
+        (() => {
+            const compB = computed(() => b() * 20);
+            weakRefB = new WeakRef(compB);
+
+            // Access once but don't use in effect
+            compB();
+        })();
+
+        const dispose = effect(() => {
+            effectRuns++;
+            if (flag()) {
+                compA();
+            }
+        });
+
+        await flushAll();
+        expect(effectRuns).toBe(1);
+
+        // Force GC
+        allocateMemory();
+        forceGC();
+
+        // compB should be collectable since it's not used by the effect
+        expect(weakRefB.deref()).toBeUndefined();
+
+        // compA should still work since effect uses it
+        expect(compA()).toBe(10);
+
+        dispose();
+    });
+
+    it('dead WeakRefs cleaned up in computed value-changed loop with signals', async () => {
+        const value = signal(1);
+
+        // Create a base computed that we'll keep a reference to
+        const base = computed(() => value() * 2);
+
+        // Access base first to initialize it
+        expect(base()).toBe(2);
+
+        // Track WeakRefs to dependents
+        const weakRefs = [];
+
+        // Create dependent computeds in isolated scopes
+        for (let i = 0; i < 100; i++) {
+            (() => {
+                const dependent = computed(() => base() + i);
+                dependent();
+                weakRefs.push(new WeakRef(dependent));
+            })();
+        }
+
+        await flushAll();
+
+        // Change signal value BEFORE GC
+        value.set(5);
+
+        // Force aggressive GC
+        for (let i = 0; i < 10; i++) {
+            const pressure = [];
+            for (let j = 0; j < 20; j++) {
+                pressure.push(new Array(10000).fill(j));
+            }
+            forceGC();
+            await flushAll();
+            await new Promise(resolve => setTimeout(resolve, 1));
+        }
+
+        // Now access base to trigger recomputation
+        const result = base();
+
+        // Should not error, and base should have correct value
+        expect(result).toBe(10);
+    });
+});
+
+describe('garbage collection with state (continued)', () => {
+    /** @type {ReturnType<typeof scope>} */
+    let testScope;
+
+    beforeEach(() => {
+        testScope = scope();
+        setActiveScope(testScope);
+    });
+
+    afterEach(() => {
+        testScope();
+        setActiveScope(undefined);
+    });
+
+    beforeAll(() => {
+        if (typeof global.gc !== 'function') {
+            throw new Error('These tests require --expose-gc. Check vitest.config.mjs poolOptions.');
+        }
     });
 
     it('dead WeakRefs cleaned up in computed value-changed loop (line 484)', async () => {

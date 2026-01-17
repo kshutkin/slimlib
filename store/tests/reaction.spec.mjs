@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { computed, effect, flushEffects, scope, setActiveScope, state, untracked } from '../src/index.js';
+import { computed, effect, flushEffects, scope, setActiveScope, signal, state, untracked } from '../src/index.js';
 
 function flushPromises() {
     return new Promise(resolve => setTimeout(resolve));
@@ -435,6 +435,374 @@ describe('reaction pattern', () => {
             expect(reactions).toEqual([10, 20]);
 
             store.b = 200;
+            await flushAll();
+            expect(reactions).toEqual([10, 20, 200]);
+        });
+    });
+});
+
+describe('reaction pattern with signals', () => {
+    /** @type {ReturnType<typeof scope>} */
+    let testScope;
+
+    beforeEach(() => {
+        testScope = scope();
+        setActiveScope(testScope);
+    });
+
+    afterEach(() => {
+        testScope();
+        setActiveScope(undefined);
+    });
+
+    describe('basic functionality', () => {
+        it('should react to changes', async () => {
+            const value = signal(0);
+            /** @type {Array<{new: number, old: number | undefined}>} */
+            const reactions = [];
+
+            reaction(
+                () => value(),
+                (newVal, oldVal) => {
+                    reactions.push({ new: newVal, old: oldVal });
+                }
+            );
+
+            await flushAll();
+            expect(reactions).toEqual([]);
+
+            value.set(1);
+            await flushAll();
+            expect(reactions).toEqual([{ new: 1, old: 0 }]);
+
+            value.set(2);
+            await flushAll();
+            expect(reactions).toEqual([
+                { new: 1, old: 0 },
+                { new: 2, old: 1 }
+            ]);
+        });
+
+        it('should fire immediately when option set', async () => {
+            const value = signal(5);
+            /** @type {number[]} */
+            const seen = [];
+
+            reaction(
+                () => value(),
+                (val) => seen.push(val),
+                { fireImmediately: true }
+            );
+
+            await flushAll();
+            expect(seen).toEqual([5]);
+
+            value.set(10);
+            await flushAll();
+            expect(seen).toEqual([5, 10]);
+        });
+
+        it('should dispose correctly', async () => {
+            const value = signal(0);
+            let reactionCount = 0;
+
+            const dispose = reaction(
+                () => value(),
+                () => reactionCount++
+            );
+
+            await flushAll();
+            value.set(1);
+            await flushAll();
+            expect(reactionCount).toBe(1);
+
+            dispose();
+
+            value.set(2);
+            await flushAll();
+            expect(reactionCount).toBe(1);
+        });
+    });
+
+    describe('issue 48 regression - dynamic reaction disposal with signals', () => {
+        it('should handle creating and disposing reactions dynamically', async () => {
+            const source = signal(0);
+            /** @type {(() => void) | undefined} */
+            let disposeInner;
+
+            reaction(
+                () => source(),
+                (val) => {
+                    if (val === 1) {
+                        disposeInner = reaction(
+                            () => source(),
+                            () => { }
+                        );
+                    } else if (val === 2) {
+                        disposeInner?.();
+                    }
+                }
+            );
+
+            await flushAll();
+
+            source.set(1); // Creates inner reaction
+            await flushAll();
+
+            source.set(2); // Disposes inner reaction
+            await flushAll();
+
+            source.set(3); // Should work without errors
+            await flushAll();
+            // Test passes if no errors thrown
+        });
+
+        it('should handle nested reaction creation', async () => {
+            const outer = signal(0);
+            const inner = signal(0);
+            /** @type {string[]} */
+            const log = [];
+            /** @type {(() => void) | undefined} */
+            let innerDispose;
+
+            reaction(
+                () => outer(),
+                (val) => {
+                    log.push(`outer: ${val}`);
+
+                    // Dispose previous inner reaction if exists
+                    innerDispose?.();
+
+                    // Create new inner reaction
+                    innerDispose = reaction(
+                        () => inner(),
+                        (innerVal) => {
+                            log.push(`inner(${val}): ${innerVal}`);
+                        }
+                    );
+                }
+            );
+
+            await flushAll();
+
+            outer.set(1);
+            await flushAll();
+            expect(log).toContain('outer: 1');
+
+            inner.set(1);
+            await flushAll();
+            expect(log).toContain('inner(1): 1');
+
+            outer.set(2); // Should dispose old inner and create new
+            await flushAll();
+            expect(log).toContain('outer: 2');
+
+            inner.set(2);
+            await flushAll();
+            expect(log).toContain('inner(2): 2');
+
+            // Cleanup
+            innerDispose?.();
+        });
+
+        it('should handle rapid creation and disposal', async () => {
+            const trigger = signal(0);
+            /** @type {(() => void)[]} */
+            const disposers = [];
+
+            reaction(
+                () => trigger(),
+                () => {
+                    // Create a new reaction each time
+                    const dispose = reaction(
+                        () => trigger(),
+                        () => { }
+                    );
+                    disposers.push(dispose);
+
+                    // Dispose after a few iterations
+                    if (disposers.length > 3) {
+                        disposers.shift()?.();
+                    }
+                }
+            );
+
+            await flushAll();
+
+            for (let i = 1; i <= 10; i++) {
+                trigger.set(i);
+                await flushAll();
+            }
+
+            // Cleanup remaining
+            for (const dispose of disposers) {
+                dispose();
+            }
+            // Test passes if no errors thrown
+        });
+    });
+
+    describe('options', () => {
+        it('should use custom equals function', async () => {
+            const obj = signal({ id: 1, name: 'test' });
+            /** @type {Array<{id: number, name: string}>} */
+            const reactions = [];
+
+            reaction(
+                () => obj(),
+                (val) => reactions.push(val),
+                { equals: (a, b) => a?.id === b?.id }
+            );
+
+            await flushAll();
+
+            // Same id, should not trigger
+            obj.set({ id: 1, name: 'changed' });
+            await flushAll();
+            expect(reactions.length).toBe(0);
+
+            // Different id, should trigger
+            obj.set({ id: 2, name: 'new' });
+            await flushAll();
+            expect(reactions.length).toBe(1);
+            expect(reactions[0]).toEqual({ id: 2, name: 'new' });
+        });
+
+        it('should handle errors with onError', async () => {
+            const value = signal(0);
+            /** @type {unknown[]} */
+            const errors = [];
+
+            reaction(
+                () => {
+                    if (value() === 2) throw new Error('data error');
+                    return value();
+                },
+                (val) => {
+                    if (val === 3) throw new Error('effect error');
+                },
+                { onError: (e) => errors.push(e) }
+            );
+
+            await flushAll();
+
+            value.set(1);
+            await flushAll();
+            expect(errors.length).toBe(0);
+
+            value.set(2); // Error in data function
+            await flushAll();
+            expect(errors.length).toBe(1);
+
+            value.set(3); // Error in effect function
+            await flushAll();
+            expect(errors.length).toBe(2);
+        });
+
+        it('should fire once when once option is set', async () => {
+            const value = signal(0);
+            let reactionCount = 0;
+
+            reaction(
+                () => value(),
+                () => reactionCount++,
+                { once: true }
+            );
+
+            await flushAll();
+            expect(reactionCount).toBe(0);
+
+            value.set(1);
+            await flushAll();
+            expect(reactionCount).toBe(1);
+
+            value.set(2);
+            await flushAll();
+            expect(reactionCount).toBe(1); // Should not fire again
+        });
+
+        it('should use custom scheduler', async () => {
+            const value = signal(0);
+            /** @type {Array<() => void>} */
+            const scheduled = [];
+            let reactionCount = 0;
+
+            reaction(
+                () => value(),
+                () => reactionCount++,
+                { scheduler: (fn) => scheduled.push(fn) }
+            );
+
+            await flushAll();
+
+            value.set(1);
+            await flushAll();
+
+            expect(reactionCount).toBe(0);
+            expect(scheduled.length).toBe(1);
+
+            // Execute scheduled work
+            /** @type {() => void} */ (scheduled[0])();
+            expect(reactionCount).toBe(1);
+        });
+    });
+
+    describe('computed dependency tracking', () => {
+        it('should track computed values in data function', async () => {
+            const a = signal(1);
+            const b = signal(2);
+            const sum = computed(() => a() + b());
+            /** @type {number[]} */
+            const reactions = [];
+
+            reaction(
+                () => sum(),
+                (val) => reactions.push(val)
+            );
+
+            await flushAll();
+            expect(reactions).toEqual([]);
+
+            a.set(5);
+            await flushAll();
+            expect(reactions).toEqual([7]);
+
+            b.set(10);
+            await flushAll();
+            expect(reactions).toEqual([7, 15]);
+        });
+
+        it('should handle conditional dependencies', async () => {
+            const flag = signal(true);
+            const a = signal(1);
+            const b = signal(2);
+            /** @type {number[]} */
+            const reactions = [];
+
+            reaction(
+                () => flag() ? a() : b(),
+                (val) => reactions.push(val)
+            );
+
+            await flushAll();
+
+            a.set(10);
+            await flushAll();
+            expect(reactions).toEqual([10]);
+
+            b.set(20); // Not tracked because flag is true
+            await flushAll();
+            expect(reactions).toEqual([10]);
+
+            flag.set(false);
+            await flushAll();
+            expect(reactions).toEqual([10, 20]);
+
+            a.set(100); // Not tracked anymore
+            await flushAll();
+            expect(reactions).toEqual([10, 20]);
+
+            b.set(200);
             await flushAll();
             expect(reactions).toEqual([10, 20, 200]);
         });
