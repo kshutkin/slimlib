@@ -3,7 +3,7 @@
  */
 
 import { batched, checkComputedSources, clearSources, runWithTracking, scheduleFlush } from './core.js';
-import { registerEffect, unregisterEffect, warnIfNoActiveScope } from './debug.js';
+import { cycleMessage, registerEffect, unregisterEffect, warnIfNoActiveScope } from './debug.js';
 import { FLAG_CHECK, FLAG_COMPUTING, FLAG_DIRTY, FLAG_EFFECT, FLAG_NEEDS_WORK } from './flags.js';
 import { activeScope } from './globals.js';
 import { flagsSymbol, skippedDeps, sources, trackSymbol } from './symbols.js';
@@ -39,7 +39,7 @@ export const effect = callback => {
         // Cycle detection: if this node is already being computed, we have a cycle
         const flags = eff[flagsSymbol];
         if (flags & FLAG_COMPUTING) {
-            throw new Error('Detected cycle in computations.');
+            throw new Error(cycleMessage);
         }
 
         // Bail-out optimization: if only CHECK flag is set (not DIRTY),

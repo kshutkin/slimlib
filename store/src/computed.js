@@ -1,4 +1,5 @@
 import { checkComputedSources, checkSourcesError, currentComputing, globalVersion, runWithTracking, trackDependency, tracked } from './core.js';
+import { cycleMessage } from './debug.js';
 import {
     FLAG_CHECK,
     FLAG_CHECK_ONLY,
@@ -45,7 +46,7 @@ function computedRead() {
     // Cycle detection: if this computed is already being computed, we have a cycle
     // This matches TC39 Signals proposal behavior: throw an error on cyclic reads
     if (flags & FLAG_COMPUTING) {
-        throw new Error('Detected cycle in computations.');
+        throw new Error(cycleMessage);
     }
 
     // Fast-path: if node is clean, has a cached result, and nothing has changed globally since last read

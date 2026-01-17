@@ -124,3 +124,5 @@ export const warnIfNoActiveScope = DEV
           }
       }
     : () => {};
+
+export const cycleMessage = 'Detected cycle in computations.';
