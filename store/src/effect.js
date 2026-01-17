@@ -86,7 +86,9 @@ export const effect = callback => {
         activeScope[trackSymbol](dispose);
     }
 
-    // Trigger first run via batched queue (node is already dirty, and effect is for sure with the latest id so we directly adding without the sort)
+    // Trigger first run via batched queue
+    // node is already dirty
+    // and effect is for sure with the latest id so we directly adding without the sort
     batched.add(eff);
     scheduleFlush();
 
