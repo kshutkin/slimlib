@@ -8,11 +8,10 @@ import {
     FLAG_LIVE,
     FLAG_NEEDS_WORK,
 } from './flags.js';
-import { versionSymbol } from './symbols.js';
 import {
     scheduler
 } from './globals.js';
-import { dependencies, depsVersionSymbol, flagsSymbol, skippedDeps, sources, unwrap } from './symbols.js';
+import { dependencies, depsVersionSymbol, flagsSymbol, skippedDeps, sources, unwrap, versionSymbol } from './symbols.js';
 
 export { depsVersionSymbol };
 
