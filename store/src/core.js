@@ -331,46 +331,34 @@ export const untracked = callback => {
 };
 
 /**
- * Mutable container for captured error from checkComputedSources
- * Using array to allow mutation from importers (ES modules export bindings are read-only)
- * Index 0 holds the error, undefined means no error
- * @type {[unknown]}
- */
-export const checkSourcesError = [undefined];
-
-/**
  * Check if any computed sources have changed or errored.
  * Used by CHECK path optimization in computed and effect.
- * If a source throws, the error is stored in checkSourcesError and true is returned.
  * PULL PHASE: Verifies if sources actually changed before recomputing (equality cutoff)
  * @param {Array<{d: Set<Computed<any>>, n: Computed<any>, v: number, dv: number, g?: () => any, sv?: any}>} sourcesArray
+ * @param {boolean} [skipStateCheck=false] - If true, skip checking for state sources (caller guarantees all are computed)
  * @returns {boolean | null} true if changed or errored, false if unchanged, null if can't verify (has state sources or empty)
  */
-export const checkComputedSources = sourcesArray => {
-    // Can't verify if empty or has state sources (sources without .n)
+export const checkComputedSources = (sourcesArray, skipStateCheck = false) => {
+    // Can't verify if empty
     if (sourcesArray.length === 0) {
         return null;
     }
-    for (const source of sourcesArray) {
-        if (!source.n) {
-            return null;
-        }
-    }
-
-    // Clear any previous error
-    checkSourcesError[0] = undefined;
 
     let changed = false;
     const prevTracked = tracked;
     tracked = false;
     for (const sourceEntry of sourcesArray) {
         const sourceNode = sourceEntry.n;
+        // Check for state source (no .n) - can't verify, bail out
+        if (!skipStateCheck && !sourceNode) {
+            tracked = prevTracked;
+            return null;
+        }
         // Access source to trigger its recomputation if needed
         try {
             sourceNode();
-        } catch (e) {
-            // Capture error and return early - caller can cache it directly
-            checkSourcesError[0] = e;
+        } catch {
+            // Error counts as changed - caller will recompute and may handle differently
             tracked = prevTracked;
             return true;
         }

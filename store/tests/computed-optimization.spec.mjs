@@ -510,4 +510,362 @@ describe('computed optimization', () => {
             expect(times).toBe(2);
         });
     });
+
+    describe('cached error with unchanged sources', () => {
+        it('should return cached error when computed sources unchanged (non-live)', async () => {
+            const trigger = signal(0);
+            const unrelated = signal(100);
+            let sourceCallCount = 0;
+            let errorCallCount = 0;
+
+            const source = computed(() => {
+                sourceCallCount++;
+                return trigger();
+            });
+
+            const errorComp = computed(() => {
+                errorCallCount++;
+                if (source() < 0) {
+                    throw new Error('Negative value');
+                }
+                return source() * 2;
+            });
+
+            // Create an effect that reads unrelated to make it increment globalVersion when changed
+            effect(() => {
+                unrelated();
+            });
+            await flushAll();
+
+            // Initial read
+            expect(errorComp()).toBe(0);
+            expect(errorCallCount).toBe(1);
+            expect(sourceCallCount).toBe(1);
+
+            // Trigger error
+            trigger.set(-1);
+            expect(() => errorComp()).toThrow('Negative value');
+            expect(errorCallCount).toBe(2);
+            expect(sourceCallCount).toBe(2);
+
+            // Change unrelated signal (increments globalVersion because effect reads it)
+            unrelated.set(200);
+            await flushAll();
+
+            // Read again - source hasn't changed, should return cached error
+            expect(() => errorComp()).toThrow('Negative value');
+            // source should not recompute (its dep didn't change)
+            expect(sourceCallCount).toBe(2);
+            // errorComp should not recompute either (source version unchanged)
+            expect(errorCallCount).toBe(2);
+        });
+
+        it('should return cached error when state sources unchanged (non-live)', async () => {
+            const store = state({ value: 5 });
+            const unrelated = signal(100);
+            let callCount = 0;
+
+            const errorComp = computed(() => {
+                callCount++;
+                if (store.value < 0) {
+                    throw new Error('Negative value');
+                }
+                return store.value * 2;
+            });
+
+            // Create an effect that reads unrelated to make it increment globalVersion when changed
+            effect(() => {
+                unrelated();
+            });
+            await flushAll();
+
+            // Initial read
+            expect(errorComp()).toBe(10);
+            expect(callCount).toBe(1);
+
+            // Trigger error
+            store.value = -1;
+            expect(() => errorComp()).toThrow('Negative value');
+            expect(callCount).toBe(2);
+
+            // Change unrelated signal (increments globalVersion because effect reads it)
+            unrelated.set(200);
+            await flushAll();
+
+            // Read again - store.value hasn't changed, should return cached error
+            expect(() => errorComp()).toThrow('Negative value');
+            expect(callCount).toBe(2); // Should not recompute
+        });
+    });
+
+    describe('live computed CHECK with unchanged sources', () => {
+        it('should return cached value when live computed sources produce same value', async () => {
+            const trigger = signal(1);
+            let sourceCallCount = 0;
+            let derivedCallCount = 0;
+            let effectCallCount = 0;
+
+            // Source computed returns 'positive' for any positive number
+            const source = computed(() => {
+                sourceCallCount++;
+                return trigger() > 0 ? 'positive' : 'negative';
+            });
+
+            // Derived computed depends on source
+            const derived = computed(() => {
+                derivedCallCount++;
+                return source() + '!';
+            });
+
+            // Effect makes both computeds live
+            effect(() => {
+                effectCallCount++;
+                derived();
+            });
+
+            await flushAll();
+            expect(effectCallCount).toBe(1);
+            expect(sourceCallCount).toBe(1);
+            expect(derivedCallCount).toBe(1);
+
+            // Change trigger to different positive value - source will produce same result
+            trigger.set(2);
+
+            await flushAll();
+            // Effect doesn't re-run because derived returns cached value (source value unchanged)
+            expect(effectCallCount).toBe(1);
+            expect(sourceCallCount).toBe(2); // Source recomputed
+            expect(derivedCallCount).toBe(1); // Derived should NOT recompute (source value unchanged)
+        });
+
+        it('should return cached value for live computed chain with equality cutoff', async () => {
+            const count = signal(5);
+            let classifyCallCount = 0;
+            let displayCallCount = 0;
+
+            // Classify returns 'high' for >= 5, 'low' for < 5
+            const classify = computed(() => {
+                classifyCallCount++;
+                return count() >= 5 ? 'high' : 'low';
+            });
+
+            // Display depends on classification
+            const display = computed(() => {
+                displayCallCount++;
+                return `Status: ${classify()}`;
+            });
+
+            // Make live
+            effect(() => {
+                display();
+            });
+
+            await flushAll();
+            expect(classifyCallCount).toBe(1);
+            expect(displayCallCount).toBe(1);
+
+            // Change from 5 to 10 - still 'high'
+            count.set(10);
+            await flushAll();
+            expect(classifyCallCount).toBe(2);
+            expect(displayCallCount).toBe(1); // Should not recompute
+
+            // Change from 10 to 100 - still 'high'
+            count.set(100);
+            await flushAll();
+            expect(classifyCallCount).toBe(3);
+            expect(displayCallCount).toBe(1); // Still should not recompute
+
+            // Now change to 'low'
+            count.set(3);
+            await flushAll();
+            expect(classifyCallCount).toBe(4);
+            expect(displayCallCount).toBe(2); // Now it should recompute
+        });
+
+        it('should return cached error for live computed when sources unchanged', async () => {
+            const trigger = signal(1);
+            let sourceCallCount = 0;
+            let errorCallCount = 0;
+
+            // Source computed returns 'positive' for any positive number
+            const source = computed(() => {
+                sourceCallCount++;
+                return trigger() > 0 ? 'positive' : 'negative';
+            });
+
+            // Error computed depends on source - throws when negative
+            const errorComp = computed(() => {
+                errorCallCount++;
+                const val = source();
+                if (val === 'negative') {
+                    throw new Error('Negative not allowed');
+                }
+                return val + '!';
+            });
+
+            // Effect makes both computeds live
+            effect(() => {
+                try {
+                    errorComp();
+                } catch {
+                    // Swallow error in effect
+                }
+            });
+
+            await flushAll();
+            expect(sourceCallCount).toBe(1);
+            expect(errorCallCount).toBe(1);
+
+            // Trigger error
+            trigger.set(-1);
+            await flushAll();
+            expect(sourceCallCount).toBe(2);
+            expect(errorCallCount).toBe(2);
+            expect(() => errorComp()).toThrow('Negative not allowed');
+
+            // Now change trigger to different negative value - source will produce same result
+            trigger.set(-5);
+            await flushAll();
+            expect(sourceCallCount).toBe(3); // Source recomputed
+            // errorComp should not recompute because source value ('negative') unchanged
+            // and should throw cached error
+            expect(errorCallCount).toBe(2);
+            expect(() => errorComp()).toThrow('Negative not allowed');
+        });
+    });
+
+    describe('live computed with unrelated source change', () => {
+        it('should return cached value when unrelated source changes (covers line 67 else branch)', async () => {
+            // Create two independent state sources
+            const store1 = state({ value: 1 });
+            const store2 = state({ value: 100 });
+
+            let comp1Count = 0;
+            let comp2Count = 0;
+
+            // Computed depends only on store1
+            const comp1 = computed(() => {
+                comp1Count++;
+                return store1.value * 2;
+            });
+
+            // Computed depends only on store2 - needed to give store2 dependents
+            // so that changing store2 increments globalVersion
+            const comp2 = computed(() => {
+                comp2Count++;
+                return store2.value * 2;
+            });
+
+            let effect1Value = null;
+            let effect2Value = null;
+
+            // Effect makes comp1 live
+            effect(() => {
+                effect1Value = comp1();
+            });
+
+            // Effect makes comp2 live (gives store2 dependents so globalVersion increments)
+            effect(() => {
+                effect2Value = comp2();
+            });
+
+            await flushAll();
+            expect(comp1Count).toBe(1);
+            expect(comp2Count).toBe(1);
+            expect(effect1Value).toBe(2);
+            expect(effect2Value).toBe(200);
+
+            // Change unrelated store2 - this increments globalVersion
+            // but doesn't notify comp1 (it doesn't depend on store2)
+            store2.value = 200;
+            await flushAll();
+
+            // comp2 recomputed because its source changed
+            expect(comp2Count).toBe(2);
+            // comp1 should NOT have recomputed - its source didn't change
+            expect(comp1Count).toBe(1);
+
+            // Reading comp1 should return cached value
+            // This exercises the path where:
+            // - comp1 is live (FLAG_IS_LIVE)
+            // - comp1 has no FLAG_NEEDS_WORK (unrelated source changed)
+            // - globalVersion changed (from store2 change)
+            // - comp1 should return cached value without recomputing
+            const result = comp1();
+            expect(result).toBe(2);
+            expect(comp1Count).toBe(1); // Should not have recomputed
+        });
+    });
+
+    describe('computed same value after state change', () => {
+        it('should set FLAG_HAS_VALUE when dirty but value unchanged (covers line 155 wasDirty branch)', () => {
+            // Non-live computed that will be marked DIRTY but return same value
+            const store = state({ value: 1 });
+
+            let computeCount = 0;
+
+            // Computed returns value mod 2 - so values 1 and 3 both return 1
+            const comp = computed(() => {
+                computeCount++;
+                return store.value % 2;
+            });
+
+            // First read - computes and caches value 1
+            expect(comp()).toBe(1);
+            expect(computeCount).toBe(1);
+
+            // Change state to a different value that produces the same result
+            // This will mark the computed as DIRTY (not just CHECK) because:
+            // - It's non-live (no effect)
+            // - State source changed (depsVersion mismatch)
+            // - Value 3 !== stored value 1 (can't use reversion optimization)
+            store.value = 3;
+
+            // Second read - should recompute but get same value
+            // This exercises the path where:
+            // - wasDirty is true (FLAG_DIRTY was set during polling)
+            // - changed is false (new value 1 equals old value 1)
+            // - enters `else if (wasDirty)` branch
+            expect(comp()).toBe(1);
+            expect(computeCount).toBe(2); // Did recompute
+
+            // Third read should use cache
+            expect(comp()).toBe(1);
+            expect(computeCount).toBe(2); // No additional recompute
+        });
+
+        it('should handle multiple consecutive same-value changes', () => {
+            const store = state({ a: 1, b: 1 });
+
+            let computeCount = 0;
+
+            // Computed returns sum - different a/b pairs can produce same sum
+            const sum = computed(() => {
+                computeCount++;
+                return store.a + store.b;
+            });
+
+            expect(sum()).toBe(2);
+            expect(computeCount).toBe(1);
+
+            // Change both values but keep sum the same
+            store.a = 0;
+            store.b = 2;
+
+            expect(sum()).toBe(2);
+            expect(computeCount).toBe(2); // Recomputed but same value
+
+            // Change again, still same sum
+            store.a = 2;
+            store.b = 0;
+
+            expect(sum()).toBe(2);
+            expect(computeCount).toBe(3); // Recomputed but same value
+
+            // Verify caching works after same-value recomputes
+            expect(sum()).toBe(2);
+            expect(computeCount).toBe(3); // No recompute
+        });
+    });
 });

@@ -1,4 +1,4 @@
-import { checkComputedSources, checkSourcesError, currentComputing, globalVersion, runWithTracking, trackDependency, tracked } from './core.js';
+import { checkComputedSources, currentComputing, globalVersion, runWithTracking, trackDependency, tracked } from './core.js';
 import { cycleMessage } from './debug.js';
 import {
     FLAG_CHECK,
@@ -50,88 +50,102 @@ function computedRead() {
         throw new Error(cycleMessage);
     }
 
-    // ===== PULL PHASE: Fast-path cache check =====
-    // Fast-path: if node is clean, has a cached result, and nothing has changed globally since last read
-    if (!(flags & FLAG_NEEDS_WORK) && flags & (FLAG_HAS_VALUE | FLAG_HAS_ERROR) && this[lastGlobalVersionSymbol] === globalVersion) {
-        // If we have a cached error, rethrow it (stored in valueSymbol)
-        if (flags & FLAG_HAS_ERROR) {
-            throw this[valueSymbol];
+    // ===== PULL PHASE: Check if cached value can be returned =====
+    // Combined check: node has cached result and doesn't need work
+    const hasCached = flags & (FLAG_HAS_VALUE | FLAG_HAS_ERROR);
+    if (!(flags & FLAG_NEEDS_WORK) && hasCached) {
+        // Fast-path: nothing has changed globally since last read
+        if (this[lastGlobalVersionSymbol] === globalVersion) {
+            if (flags & FLAG_HAS_ERROR) {
+                throw this[valueSymbol];
+            }
+            return this[valueSymbol];
         }
-        return this[valueSymbol];
-    }
 
-    // ===== PULL PHASE: Poll sources for non-live computeds =====
-    // For non-live computeds with stale globalVersion: poll sources to check if recomputation needed
-    // This is the "pull" part of the push/pull algorithm - non-live nodes poll instead of receiving notifications
-    if (!(flags & FLAG_NEEDS_WORK) && flags & (FLAG_HAS_VALUE | FLAG_HAS_ERROR) && !(flags & FLAG_IS_LIVE)) {
-        let stateSourceChanged = false;
-        let hasComputedSources = false;
+        // ===== PULL PHASE: Poll sources for non-live computeds =====
+        // Non-live nodes poll instead of receiving push notifications
+        if (!(flags & FLAG_IS_LIVE)) {
+            // Single pass: check state sources AND collect computed sources
+            let stateSourceChanged = false;
+            /** @type {Array<{d: Set<import('./index.js').Computed<any>>, n: import('./index.js').Computed<any>, v: number, dv: number, g?: () => any, sv?: any}> | null} */
+            let computedSourcesToCheck = null;
 
-        // Check all sources - both state and computed
-        for (const source of sourcesArray) {
-            if (!source.n) {
-                // State source - check if deps version changed
-                const currentDepsVersion = source.d[depsVersionSymbol] || 0;
-                if (source.dv !== currentDepsVersion) {
-                    // Deps version changed, but check if actual value is the same (revert detection)
-                    // Only use value comparison for primitives - objects/arrays are mutable
-                    // so same reference doesn't mean same content
-                    const storedValue = source.sv;
-                    const storedType = typeof storedValue;
-                    if (source.g && (storedValue === null || (storedType !== 'object' && storedType !== 'function'))) {
-                        const currentValue = source.g();
-                        if (Object.is(currentValue, storedValue)) {
-                            // Value reverted to original - update dv to current version
-                            source.dv = currentDepsVersion;
-                            continue;
+            for (const source of sourcesArray) {
+                if (!source.n) {
+                    // State source - check if deps version changed
+                    const currentDepsVersion = source.d[depsVersionSymbol] || 0;
+                    if (source.dv !== currentDepsVersion) {
+                        // Deps version changed, check if actual value reverted (primitives only)
+                        const storedValue = source.sv;
+                        const storedType = typeof storedValue;
+                        if (source.g && (storedValue === null || (storedType !== 'object' && storedType !== 'function'))) {
+                            const currentValue = source.g();
+                            if (Object.is(currentValue, storedValue)) {
+                                // Value reverted - update dv and continue checking
+                                source.dv = currentDepsVersion;
+                                continue;
+                            }
                         }
+                        // Value actually changed - mark DIRTY and skip remaining
+                        stateSourceChanged = true;
+                        break;
                     }
-                    // Value actually changed (or is object/array that might have mutated)
-                    stateSourceChanged = true;
-                    break;
+                } else {
+                    // Collect computed sources for verification (avoids second iteration)
+                    // biome-ignore lint/suspicious/noAssignInExpressions: optimization
+                    (computedSourcesToCheck ||= []).push(source);
+                }
+            }
+
+            if (stateSourceChanged) {
+                // State source changed - mark DIRTY and proceed to recompute
+                this[flagsSymbol] = flags |= FLAG_DIRTY;
+            } else if (computedSourcesToCheck) {
+                // Verify computed sources using shared function (skipStateCheck=true since pre-filtered)
+                const result = checkComputedSources(computedSourcesToCheck, true);
+                if (result) {
+                    // Source threw or changed - mark DIRTY and let getter run
+                    // (getter may handle error differently, e.g. try/catch with fallback)
+                    this[flagsSymbol] = flags |= FLAG_DIRTY;
+                } else {
+                    // No sources changed - return cached value
+                    this[lastGlobalVersionSymbol] = globalVersion;
+                    if (flags & FLAG_HAS_ERROR) {
+                        throw this[valueSymbol];
+                    }
+                    return this[valueSymbol];
                 }
             } else {
-                hasComputedSources = true;
+                // No sources or all state sources unchanged - return cached
+                this[lastGlobalVersionSymbol] = globalVersion;
+                if (flags & FLAG_HAS_ERROR) {
+                    throw this[valueSymbol];
+                }
+                return this[valueSymbol];
             }
         }
-
-        if (stateSourceChanged) {
-            // A state source definitely changed - mark DIRTY
-            this[flagsSymbol] = flags |= FLAG_DIRTY;
-        } else if (hasComputedSources) {
-            // No state source changed, but we have computed sources - mark CHECK to verify them
-            this[flagsSymbol] = flags |= FLAG_CHECK;
-        }
-        // If no state source changed and no computed sources, node stays clean
     }
 
-    // ===== PULL PHASE: Verify CHECK state by pulling from computed sources =====
-    // For CHECK state, verify if sources actually changed before recomputing
-    // This preserves the equality cutoff optimization with eager marking
-    // Only do this for non-effects that ONLY have computed sources (with nodes)
-    // Effects should always run when marked, and state deps have no node to check
-    if ((flags & (FLAG_CHECK_ONLY | FLAG_HAS_VALUE)) === (FLAG_CHECK | FLAG_HAS_VALUE)) {
+    // ===== PULL PHASE: Verify CHECK state for live computeds =====
+    // Live computeds receive CHECK via push - verify sources before recomputing
+    // Non-live computeds already verified above during polling
+    // Note: Check for FLAG_HAS_VALUE OR FLAG_HAS_ERROR since cached errors should also use this path
+    if ((flags & FLAG_CHECK_ONLY) === FLAG_CHECK && (flags & (FLAG_HAS_VALUE | FLAG_HAS_ERROR))) {
         const result = checkComputedSources(sourcesArray);
         // If null, can't verify (has state sources or empty) - keep CHECK flag
         if (result !== null) {
             if (result) {
-                // Sources changed or errored
-                const error = checkSourcesError[0];
-                if (error !== undefined) {
-                    // Cache the error directly without recomputing - source already threw
-                    checkSourcesError[0] = undefined;
-                    this[versionSymbol]++;
-                    this[valueSymbol] = error;
-                    this[flagsSymbol] = (this[flagsSymbol] & ~(FLAG_HAS_VALUE | FLAG_CHECK)) | FLAG_HAS_ERROR;
-                    this[lastGlobalVersionSymbol] = globalVersion;
-                } else {
-                    // Source changed, mark as dirty to force recomputation
-                    this[flagsSymbol] = flags = (flags & ~FLAG_CHECK) | FLAG_DIRTY;
-                }
+                // Sources changed or errored - mark DIRTY and let getter run
+                // (getter may handle error differently, e.g. try/catch with fallback)
+                this[flagsSymbol] = flags = (flags & ~FLAG_CHECK) | FLAG_DIRTY;
             } else {
-                // Sources unchanged, clear CHECK flag and update globalVersion
-                this[flagsSymbol] = flags = flags & ~FLAG_CHECK;
+                // Sources unchanged, clear CHECK flag and return cached value
+                this[flagsSymbol] = flags & ~FLAG_CHECK;
                 this[lastGlobalVersionSymbol] = globalVersion;
+                if (flags & FLAG_HAS_ERROR) {
+                    throw this[valueSymbol];
+                }
+                return this[valueSymbol];
             }
         }
     }
