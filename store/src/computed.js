@@ -130,7 +130,7 @@ function computedRead() {
     // Live computeds receive CHECK via push - verify sources before recomputing
     // Non-live computeds already verified above during polling
     // Note: Check for FLAG_HAS_VALUE OR FLAG_HAS_ERROR since cached errors should also use this path
-    if ((flags & FLAG_CHECK_ONLY) === FLAG_CHECK && (flags & (FLAG_HAS_VALUE | FLAG_HAS_ERROR))) {
+    if ((flags & FLAG_CHECK_ONLY) === FLAG_CHECK && hasCached) {
         const result = checkComputedSources(sourcesArray);
         // If null, can't verify (has state sources or empty) - keep CHECK flag
         if (result !== null) {
