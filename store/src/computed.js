@@ -99,21 +99,11 @@ function computedRead() {
                 }
             }
 
-            if (stateSourceChanged) {
-                // State source changed - mark DIRTY and proceed to recompute
+            if (stateSourceChanged ||
+                (computedSourcesToCheck && checkComputedSources(computedSourcesToCheck, true))) {
+                // Source changed or threw - mark DIRTY and proceed to recompute
                 this[flagsSymbol] = flags |= FLAG_DIRTY;
                 break checkCache;
-            }
-
-            if (computedSourcesToCheck) {
-                // Verify computed sources using shared function (skipStateCheck=true since pre-filtered)
-                const result = checkComputedSources(computedSourcesToCheck, true);
-                if (result) {
-                    // Source threw or changed - mark DIRTY and let getter run
-                    // (getter may handle error differently, e.g. try/catch with fallback)
-                    this[flagsSymbol] = flags |= FLAG_DIRTY;
-                    break checkCache;
-                }
             }
 
             // No sources changed - return cached value
