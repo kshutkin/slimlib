@@ -11,7 +11,7 @@
 
 import { batched, checkComputedSources, clearSources, runWithTracking, scheduleFlush } from './core.js';
 import { cycleMessage, registerEffect, unregisterEffect, warnIfNoActiveScope } from './debug.js';
-import { FLAG_BATCHED, FLAG_CHECK, FLAG_COMPUTING, FLAG_DIRTY, FLAG_EFFECT, FLAG_NEEDS_WORK } from './flags.js';
+import { FLAG_CHECK, FLAG_COMPUTING, FLAG_DIRTY, FLAG_EFFECT, FLAG_NEEDS_WORK } from './flags.js';
 import { activeScope } from './globals.js';
 import { flagsSymbol, skippedDeps, sources, trackSymbol } from './symbols.js';
 
@@ -82,7 +82,7 @@ export const effect = callback => {
 
     // Initialize properties
     eff[sources] = [];
-    eff[flagsSymbol] = FLAG_DIRTY | FLAG_EFFECT | FLAG_BATCHED;
+    eff[flagsSymbol] = FLAG_DIRTY | FLAG_EFFECT;
     eff[skippedDeps] = 0;
     eff.i = effectCreationCounter++;
 
