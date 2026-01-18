@@ -1268,9 +1268,9 @@ async function main() {
     // For each test, rank frameworks by mean time (lower is better)
     // Each framework gets points equal to their rank (1st = 1 point, 2nd = 2 points, etc.)
     // Lower total score = better overall performance
-    const frameworkScores = new Map(); // Map<frameworkName, {totalRank, testCount}>
+    const frameworkScores = new Map(); // Map<frameworkName, {totalRank, testCount, totalTime}>
     for (const fwName of fwNames) {
-        frameworkScores.set(fwName, { totalRank: 0, testCount: 0 });
+        frameworkScores.set(fwName, { totalRank: 0, testCount: 0, totalTime: 0 });
     }
 
     for (const [_testName, testStats] of stats) {
@@ -1297,6 +1297,7 @@ async function main() {
             const score = frameworkScores.get(validResults[i].name);
             score.totalRank += currentRank;
             score.testCount++;
+            score.totalTime += validResults[i].mean;
         }
     }
 
@@ -1309,6 +1310,7 @@ async function main() {
                 totalRank: score.totalRank,
                 testCount: score.testCount,
                 avgRank: score.totalRank / score.testCount,
+                avgTime: score.totalTime / score.testCount,
             });
         }
     }
@@ -1318,21 +1320,22 @@ async function main() {
 
     // Print Framework Rankings section
     console.log('');
-    console.log('='.repeat(70));
+    console.log('='.repeat(84));
     console.log('Framework Rankings (by average rank across all benchmarks)');
-    console.log('='.repeat(70));
+    console.log('='.repeat(84));
     console.log('');
-    console.log('  Rank  Framework'.padEnd(35) + 'Avg Rank'.padStart(12) + 'Total Score'.padStart(14) + 'Tests'.padStart(10));
-    console.log(`  ${'-'.repeat(66)}`);
+    console.log('  Rank  Framework'.padEnd(35) + 'Avg Rank'.padStart(12) + 'Avg Time (ms)'.padStart(16) + 'Total Score'.padStart(14) + 'Tests'.padStart(10));
+    console.log(`  ${'-'.repeat(85)}`);
 
     for (let i = 0; i < rankings.length; i++) {
         const r = rankings[i];
         const position = `  ${(i + 1).toString().padEnd(4)}`;
         const name = r.name.padEnd(27);
         const avgRank = r.avgRank.toFixed(2).padStart(12);
+        const avgTime = r.avgTime.toFixed(3).padStart(16);
         const totalScore = r.totalRank.toString().padStart(14);
         const testCount = r.testCount.toString().padStart(10);
-        console.log(`${position}  ${name}${avgRank}${totalScore}${testCount}`);
+        console.log(`${position}  ${name}${avgRank}${avgTime}${totalScore}${testCount}`);
     }
 
     console.log('');
