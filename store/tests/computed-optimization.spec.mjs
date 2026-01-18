@@ -661,7 +661,9 @@ describe('computed optimization', () => {
                 return stateSig() + comp();
             });
 
-            effect(() => unrelated());
+            effect(() => {
+                unrelated()
+            });
             await flushAll();
 
             // Initial read
