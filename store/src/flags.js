@@ -40,3 +40,9 @@ export const FLAG_CHECK_ONLY = FLAG_CHECK | FLAG_DIRTY | FLAG_EFFECT; // 11 - fo
 
 // PUSH PHASE: Determines if node participates in push notifications
 export const FLAG_IS_LIVE = FLAG_EFFECT | FLAG_LIVE; // 72 - either an effect or live computed
+
+// PUSH PHASE: Skip notification when node is already computing or marked for work
+export const FLAG_SKIP_NOTIFY = FLAG_COMPUTING | FLAG_NEEDS_WORK; // 7 - already processing
+
+// PULL PHASE: Has at least one state/signal source (requires polling, can't skip loop)
+export const FLAG_HAS_STATE_SOURCE = 1 << 7; // 128 - has state/signal dependency

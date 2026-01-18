@@ -2,10 +2,10 @@ import { checkComputedSources, currentComputing, globalVersion, runWithTracking,
 import { cycleMessage } from './debug.js';
 import {
     FLAG_CHECK,
-    FLAG_CHECK_ONLY,
     FLAG_COMPUTING,
     FLAG_DIRTY,
     FLAG_HAS_ERROR,
+    FLAG_HAS_STATE_SOURCE,
     FLAG_HAS_VALUE,
     FLAG_IS_LIVE,
     FLAG_NEEDS_WORK,
@@ -67,40 +67,50 @@ function computedRead() {
         // ===== PULL PHASE: Poll sources for non-live computeds =====
         // Non-live nodes poll instead of receiving push notifications
         if (!(flags & FLAG_IS_LIVE)) {
-            // Single pass: check state sources AND collect computed sources
             let stateSourceChanged = false;
-            /** @type {Array<{d: Set<import('./index.js').Computed<any>>, n: import('./index.js').Computed<any>, v: number, dv: number, g?: () => any, sv?: any}> | null} */
-            let computedSourcesToCheck = null;
 
-            for (const source of sourcesArray) {
-                if (!source.n) {
-                    // State source - check if deps version changed
-                    const currentDepsVersion = source.d[depsVersionSymbol] || 0;
-                    if (source.dv !== currentDepsVersion) {
-                        // Deps version changed, check if actual value reverted (primitives only)
-                        const storedValue = source.sv;
-                        const storedType = typeof storedValue;
-                        if (source.g && (storedValue === null || (storedType !== 'object' && storedType !== 'function'))) {
-                            const currentValue = source.g();
-                            if (Object.is(currentValue, storedValue)) {
-                                // Value reverted - update dv and continue checking
-                                source.dv = currentDepsVersion;
-                                continue;
+            // Fast path: if no state/signal sources, skip the polling loop entirely
+            // and just verify computed sources
+            if (flags & FLAG_HAS_STATE_SOURCE) {
+                // Has state sources - must poll each one
+                /** @type {Array<{d: Set<import('./index.js').Computed<any>>, n: import('./index.js').Computed<any>, v: number, dv: number, g?: () => any, sv?: any}> | null} */
+                let computedSourcesToCheck = null;
+
+                for (const source of sourcesArray) {
+                    if (!source.n) {
+                        // State source - check if deps version changed
+                        const currentDepsVersion = source.d[depsVersionSymbol] || 0;
+                        if (source.dv !== currentDepsVersion) {
+                            // Deps version changed, check if actual value reverted (primitives only)
+                            const storedValue = source.sv;
+                            const storedType = typeof storedValue;
+                            if (source.g && (storedValue === null || (storedType !== 'object' && storedType !== 'function'))) {
+                                const currentValue = source.g();
+                                if (Object.is(currentValue, storedValue)) {
+                                    // Value reverted - update dv and continue checking
+                                    source.dv = currentDepsVersion;
+                                    continue;
+                                }
                             }
+                            // Value actually changed - mark DIRTY and skip remaining
+                            stateSourceChanged = true;
+                            break;
                         }
-                        // Value actually changed - mark DIRTY and skip remaining
-                        stateSourceChanged = true;
-                        break;
+                    } else {
+                        // Collect computed sources for verification (avoids second iteration)
+                        // biome-ignore lint/suspicious/noAssignInExpressions: optimization
+                        (computedSourcesToCheck ||= []).push(source);
                     }
-                } else {
-                    // Collect computed sources for verification (avoids second iteration)
-                    // biome-ignore lint/suspicious/noAssignInExpressions: optimization
-                    (computedSourcesToCheck ||= []).push(source);
                 }
-            }
 
-            if (stateSourceChanged ||
-                (computedSourcesToCheck && checkComputedSources(computedSourcesToCheck, true))) {
+                if (stateSourceChanged ||
+                    (computedSourcesToCheck && checkComputedSources(computedSourcesToCheck, true))) {
+                    // Source changed or threw - mark DIRTY and proceed to recompute
+                    this[flagsSymbol] = flags |= FLAG_DIRTY;
+                    break checkCache;
+                }
+            } else if (checkComputedSources(sourcesArray, true)) {
+                // All sources are computed - directly check them without polling loop
                 // Source changed or threw - mark DIRTY and proceed to recompute
                 this[flagsSymbol] = flags |= FLAG_DIRTY;
                 break checkCache;
@@ -119,7 +129,8 @@ function computedRead() {
     // Live computeds receive CHECK via push - verify sources before recomputing
     // Non-live computeds already verified above during polling
     // Note: Check for FLAG_HAS_VALUE OR FLAG_HAS_ERROR since cached errors should also use this path
-    if ((flags & FLAG_CHECK_ONLY) === FLAG_CHECK && hasCached) {
+    // Note: Using FLAG_NEEDS_WORK instead of FLAG_CHECK_ONLY since computeds never have FLAG_EFFECT
+    if ((flags & FLAG_NEEDS_WORK) === FLAG_CHECK && hasCached) {
         const result = checkComputedSources(sourcesArray);
         // If null, can't verify (has state sources or empty) - keep CHECK flag
         if (result !== null) {
