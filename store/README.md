@@ -213,6 +213,8 @@ ctx();
 - `ctx(callback)` - Runs callback in scope context, returns `ctx` for chaining
 - `ctx()` - Disposes scope and all tracked effects, returns `undefined`
 
+**Note:** All operations on a disposed scope are safe no-ops. Disposing multiple times, extending, or registering cleanup handlers after disposal will silently do nothing. Cleanup handlers only run once.
+
 ##### Hierarchical Scopes
 
 Scopes can be nested. When a parent scope is disposed, all child scopes are also disposed:

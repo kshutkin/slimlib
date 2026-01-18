@@ -23,18 +23,14 @@ export const scope = (callback, parent = activeScope) => {
     const cleanups = [];
     let disposed = false;
 
-    const guard = () => {
-        if (disposed) {
-            throw new Error('Scope is disposed');
-        }
-    };
-
     /**
      * Register a cleanup function to run when scope is disposed
      * @param {() => void} cleanup
      */
     const onDispose = cleanup => {
-        guard();
+        if (disposed) {
+            return;
+        }
         cleanups.push(cleanup);
     };
 
@@ -43,9 +39,11 @@ export const scope = (callback, parent = activeScope) => {
      */
     const ctx = /** @type {Scope} */ (
         cb => {
-            guard();
-
             if (cb === undefined) {
+                // Dispose - return early if already disposed (idempotent)
+                if (disposed) {
+                    return;
+                }
                 // Dispose
                 disposed = true;
 
@@ -67,7 +65,12 @@ export const scope = (callback, parent = activeScope) => {
                 return;
             }
 
-            // Extend scope - run callback in this scope's context
+            // Extend scope - silently ignore if disposed
+            if (disposed) {
+                return ctx;
+            }
+
+            // Run callback in this scope's context
             const prev = activeScope;
             setActiveScope(ctx);
             try {

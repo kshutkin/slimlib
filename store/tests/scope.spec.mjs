@@ -230,16 +230,20 @@ describe('scope', () => {
         it('inner scope defaults to outer scope as parent', () => {
             /** @type {ReturnType<typeof scope> | null} */
             let innerScope = null;
+            const innerCallback = vi.fn();
 
             const outer = scope(() => {
                 innerScope = scope(() => {});
             });
 
             // When outer is disposed, inner should also be disposed
-            // We test this by checking that inner throws after outer disposal
+            // We verify this by checking that extending inner is a no-op after outer disposal
             outer();
 
-            expect(() => innerScope?.(() => {})).toThrow('Scope is disposed');
+            // Extending disposed scope is a no-op - callback should not be executed
+            // @ts-expect-error - innerScope is assigned inside callback
+            innerScope(innerCallback);
+            expect(innerCallback).not.toHaveBeenCalled();
         });
 
         it('parent dispose disposes children', async () => {
@@ -345,32 +349,60 @@ describe('scope', () => {
     });
 
     describe('disposed scope behavior', () => {
-        it('throws when extending disposed scope', () => {
+        it('extending disposed scope is a no-op', () => {
+            const callback = vi.fn();
             const ctx = scope();
             ctx();
 
-            expect(() => ctx(() => {})).toThrow('Scope is disposed');
+            // Should not throw - extending disposed scope is silently ignored
+            expect(() => ctx(callback)).not.toThrow();
+            // Callback should not be executed
+            expect(callback).not.toHaveBeenCalled();
+            // Should still return ctx for chaining
+            expect(ctx(callback)).toBe(ctx);
         });
 
-        it('throws when disposing already disposed scope', () => {
+        it('disposing already disposed scope is a no-op', () => {
             const ctx = scope();
             ctx();
 
-            expect(() => ctx()).toThrow('Scope is disposed');
+            // Should not throw - disposing is idempotent
+            expect(() => ctx()).not.toThrow();
         });
 
-        it('throws when registering cleanup on disposed scope', () => {
+        it('cleanup does not run twice when scope is disposed multiple times', () => {
+            const cleanup = vi.fn();
+
+            const ctx = scope(onDispose => {
+                onDispose(cleanup);
+            });
+
+            ctx();
+            expect(cleanup).toHaveBeenCalledTimes(1);
+
+            // Dispose again - cleanup should not run again
+            ctx();
+            expect(cleanup).toHaveBeenCalledTimes(1);
+        });
+
+        it('registering cleanup on disposed scope is a no-op', () => {
             /** @type {((cleanup: () => void) => void) | null} */
             let capturedOnDispose = null;
+            const cleanup = vi.fn();
             const ctx = scope(onDispose => {
                 capturedOnDispose = onDispose;
             });
 
             ctx();
 
+            // Using the old captured onDispose should be a no-op
             expect(() => {
-                if (capturedOnDispose) capturedOnDispose(() => {});
-            }).toThrow('Scope is disposed');
+                if (capturedOnDispose) capturedOnDispose(cleanup);
+            }).not.toThrow();
+
+            // Cleanup should not be registered or called
+            ctx(); // Dispose again (no-op since already disposed)
+            expect(cleanup).not.toHaveBeenCalled();
         });
     });
 
