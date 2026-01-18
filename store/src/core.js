@@ -13,11 +13,13 @@
  */
 
 import {
+    FLAG_BATCHED,
     FLAG_CHECK,
     FLAG_COMPUTING,
     FLAG_COMPUTING_EFFECT,
     FLAG_DIRTY,
     FLAG_EFFECT,
+    FLAG_EFFECT_BATCHED,
     FLAG_HAS_STATE_SOURCE,
     FLAG_IS_LIVE,
     FLAG_LIVE,
@@ -61,20 +63,20 @@ export let currentComputing = null;
 export let tracked = true;
 
 /**
- * Add an effect to the batched set (if not already in it)
+ * Add an effect to the batched set
  * PUSH PHASE: Part of effect scheduling during dirty propagation
+ * Caller must check FLAG_BATCHED before calling to avoid duplicates
  * @param {Computed<any>} node
  */
 export const batchedAdd = node => {
-    if (!batched.has(node)) {
-        const nodeId = /** @type {number} */ (node.i);
-        // Track if we're adding out of order
-        if (nodeId < lastAddedId) {
-            needsSort = true;
-        }
-        lastAddedId = nodeId;
-        batched.add(node);
+    const nodeId = /** @type {number} */ (node.i);
+    // Track if we're adding out of order
+    if (nodeId < lastAddedId) {
+        needsSort = true;
     }
+    lastAddedId = nodeId;
+    node[flagsSymbol] |= FLAG_BATCHED;
+    batched.add(node);
 };
 
 /**
@@ -173,6 +175,8 @@ export const flushEffects = () => {
     lastAddedId = 0;
     needsSort = false;
     for (const node of nodes) {
+        // Clear FLAG_BATCHED before executing so node can be re-batched if needed
+        node[flagsSymbol] &= ~FLAG_BATCHED;
         try {
             node();
         } catch (e) {
@@ -251,11 +255,13 @@ export const markNeedsCheck = node => {
     const flags = node[flagsSymbol];
     if ((flags & FLAG_COMPUTING_EFFECT) === FLAG_COMPUTING_EFFECT) {
         node[flagsSymbol] = flags | FLAG_DIRTY;
-        batchedAdd(node);
-        scheduleFlush();
+        if (!(flags & FLAG_BATCHED)) {
+            batchedAdd(node);
+            scheduleFlush();
+        }
     } else if (!(flags & FLAG_SKIP_NOTIFY)) {
         node[flagsSymbol] = flags | FLAG_CHECK;
-        if (flags & FLAG_EFFECT) {
+        if ((flags & FLAG_EFFECT_BATCHED) === FLAG_EFFECT) {
             batchedAdd(node);
             scheduleFlush();
         }

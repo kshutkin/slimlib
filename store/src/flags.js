@@ -46,3 +46,9 @@ export const FLAG_SKIP_NOTIFY = FLAG_COMPUTING | FLAG_NEEDS_WORK; // 7 - already
 
 // PULL PHASE: Has at least one state/signal source (requires polling, can't skip loop)
 export const FLAG_HAS_STATE_SOURCE = 1 << 7; // 128 - has state/signal dependency
+
+// PUSH PHASE: Node is already in the batched set (avoids Set.has() check)
+export const FLAG_BATCHED = 1 << 8; // 256 - already scheduled for execution
+
+// PUSH PHASE: Mask for checking if effect needs to be batched (is effect but not yet batched)
+export const FLAG_EFFECT_BATCHED = FLAG_EFFECT | FLAG_BATCHED; // 264 - for (flags & FLAG_EFFECT_BATCHED) === FLAG_EFFECT check

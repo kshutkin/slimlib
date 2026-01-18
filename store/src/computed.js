@@ -9,6 +9,7 @@ import {
     FLAG_HAS_VALUE,
     FLAG_IS_LIVE,
     FLAG_NEEDS_WORK,
+    FLAG_SKIP_NOTIFY,
 } from './flags.js';
 import {
     dependencies,
@@ -171,7 +172,7 @@ function computedRead() {
                     // When value changes during recomputation, upgrade dependent CHECK flags to DIRTY
                     for (const dep of this[dependencies]) {
                         const depFlags = dep[flagsSymbol];
-                        if ((depFlags & (FLAG_COMPUTING | FLAG_NEEDS_WORK)) === FLAG_CHECK) {
+                        if ((depFlags & FLAG_SKIP_NOTIFY) === FLAG_CHECK) {
                             dep[flagsSymbol] = depFlags | FLAG_DIRTY;
                         }
                     }
