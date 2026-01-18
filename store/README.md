@@ -598,6 +598,63 @@ a(); // 10 - works now!
 b(); // 11
 ```
 
+### Scoped Effects
+
+When you need an effect that owns inner effects (so they're automatically disposed when the outer effect re-runs), create a scope inside the effect:
+
+```js
+import { effect, scope, state } from "@slimlib/store";
+
+const store = state({ items: ["a", "b", "c"] });
+
+effect(() => {
+  const innerScope = scope();
+
+  // Create inner effects for each item
+  innerScope(() => {
+    store.items.forEach((item) => {
+      effect(() => {
+        console.log("Item:", item);
+      });
+    });
+  });
+
+  // Dispose inner scope (and all inner effects) on re-run or dispose
+  return () => innerScope();
+});
+
+// When items change, outer effect re-runs:
+// 1. Returned cleanup runs, disposing innerScope and all inner effects
+// 2. New inner effects are created for the new items
+store.items = ["x", "y"];
+```
+
+You can wrap this pattern in a helper for reuse:
+
+```js
+import { effect, scope } from "@slimlib/store";
+
+/**
+ * Creates an effect that acts as a scope for inner effects.
+ * Inner effects are automatically disposed when the outer effect re-runs.
+ */
+const scopedEffect = (callback) => {
+  return effect(() => {
+    const innerScope = scope();
+    innerScope(callback);
+    return () => innerScope();
+  });
+};
+
+// Usage
+const dispose = scopedEffect(() => {
+  effect(() => console.log("Inner effect 1"));
+  effect(() => console.log("Inner effect 2"));
+});
+
+dispose(); // Disposes outer effect and all inner effects
+```
+
 ### Diamond Problem Solved
 
 Effects run only once even when multiple dependencies change:

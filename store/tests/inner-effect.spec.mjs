@@ -49,18 +49,25 @@ describe('inner effects', () => {
         expect(bRunTimes).toBe(2);
     });
 
-    it('should not run untracked inner effect', async () => {
+    it('should not run untracked inner effect when using explicit scope', async () => {
         const store = state({ a: 3 });
         const b = computed(() => store.a > 0);
 
         effect(() => {
+            const innerScope = scope();
+
             if (b()) {
-                effect(() => {
-                    if (store.a === 0) {
-                        throw new Error('bad');
-                    }
+                innerScope(() => {
+                    effect(() => {
+                        if (store.a === 0) {
+                            throw new Error('bad');
+                        }
+                    });
                 });
             }
+
+            // Dispose inner scope on re-run
+            return () => innerScope();
         });
 
         await flushAll();
@@ -70,23 +77,29 @@ describe('inner effects', () => {
         await flushAll();
         store.a = 0;
         await flushAll();
-        // Should not throw - inner effect should be disposed when outer re-runs
+        // Should not throw - inner effect is disposed via explicit scope cleanup
     });
 
-    it('should not trigger inner effect when resolve maybe dirty', async () => {
+    it('should not trigger inner effect when computed value unchanged', async () => {
         const store = state({ a: 0 });
         const b = computed(() => store.a % 2);
 
         let innerTriggerTimes = 0;
 
         effect(() => {
-            effect(() => {
-                b();
-                innerTriggerTimes++;
-                if (innerTriggerTimes >= 2) {
-                    throw new Error('bad');
-                }
+            const innerScope = scope();
+
+            innerScope(() => {
+                effect(() => {
+                    b();
+                    innerTriggerTimes++;
+                    if (innerTriggerTimes >= 2) {
+                        throw new Error('bad');
+                    }
+                });
             });
+
+            return () => innerScope();
         });
 
         await flushAll();
@@ -95,20 +108,26 @@ describe('inner effects', () => {
         // Inner effect should not re-run because b() value didn't change
     });
 
-    it('should handle side effect with inner effects', async () => {
+    it('should handle side effect with inner effects using explicit scope', async () => {
         const store = state({ a: 0, b: 0 });
         /** @type {string[]} */
         const order = [];
 
         effect(() => {
-            effect(() => {
-                store.a;
-                order.push('a');
+            const innerScope = scope();
+
+            innerScope(() => {
+                effect(() => {
+                    store.a;
+                    order.push('a');
+                });
+                effect(() => {
+                    store.b;
+                    order.push('b');
+                });
             });
-            effect(() => {
-                store.b;
-                order.push('b');
-            });
+
+            return () => innerScope();
         });
 
         await flushAll();
@@ -180,12 +199,16 @@ describe('inner effects', () => {
             // Reading outer creates dependency
             store.outer;
 
-            return scope(() => {
+            const innerScope = scope();
+            innerScope(() => {
                 effect(() => {
                     innerRunCount++;
                     lastInnerValue = store.inner;
                 });
             });
+
+            // Return cleanup that disposes inner scope
+            return () => innerScope();
         });
 
         await flushAll();
