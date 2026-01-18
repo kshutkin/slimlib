@@ -35,6 +35,7 @@ import {
  * @returns {T}
  */
 function computedRead() {
+    // ===== PULL PHASE: Register this computed as a dependency of the current consumer =====
     // Track if someone is reading us
     if (tracked && currentComputing) {
         trackDependency(this[dependencies], this);
@@ -49,6 +50,7 @@ function computedRead() {
         throw new Error(cycleMessage);
     }
 
+    // ===== PULL PHASE: Fast-path cache check =====
     // Fast-path: if node is clean, has a cached result, and nothing has changed globally since last read
     if (!(flags & FLAG_NEEDS_WORK) && flags & (FLAG_HAS_VALUE | FLAG_HAS_ERROR) && this[lastGlobalVersionSymbol] === globalVersion) {
         // If we have a cached error, rethrow it (stored in valueSymbol)
@@ -58,6 +60,7 @@ function computedRead() {
         return this[valueSymbol];
     }
 
+    // ===== PULL PHASE: Poll sources for non-live computeds =====
     // For non-live computeds with stale globalVersion: poll sources to check if recomputation needed
     // This is the "pull" part of the push/pull algorithm - non-live nodes poll instead of receiving notifications
     if (!(flags & FLAG_NEEDS_WORK) && flags & (FLAG_HAS_VALUE | FLAG_HAS_ERROR) && !(flags & FLAG_IS_LIVE)) {
@@ -102,6 +105,7 @@ function computedRead() {
         // If no state source changed and no computed sources, node stays clean
     }
 
+    // ===== PULL PHASE: Verify CHECK state by pulling from computed sources =====
     // For CHECK state, verify if sources actually changed before recomputing
     // This preserves the equality cutoff optimization with eager marking
     // Only do this for non-effects that ONLY have computed sources (with nodes)
@@ -132,6 +136,7 @@ function computedRead() {
         }
     }
 
+    // ===== PULL PHASE: Recompute value by pulling from sources =====
     // Recompute if dirty or check (sources actually changed)
     if (flags & FLAG_NEEDS_WORK) {
         const wasDirty = (flags & FLAG_DIRTY) !== 0;
@@ -148,7 +153,8 @@ function computedRead() {
                     // Increment version to indicate value changed (for polling)
                     this[versionSymbol]++;
                     this[flagsSymbol] = (this[flagsSymbol] | FLAG_HAS_VALUE) & ~FLAG_HAS_ERROR;
-                    // Mark CHECK-only dependents as DIRTY
+                    // ===== PUSH PHASE (during pull): Mark CHECK-only dependents as DIRTY =====
+                    // When value changes during recomputation, upgrade dependent CHECK flags to DIRTY
                     for (const dep of this[dependencies]) {
                         const depFlags = dep[flagsSymbol];
                         if ((depFlags & (FLAG_COMPUTING | FLAG_NEEDS_WORK)) === FLAG_CHECK) {

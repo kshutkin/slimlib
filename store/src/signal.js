@@ -34,6 +34,8 @@ export function signal(initialValue) {
      * @returns {T}
      */
     const read = () => {
+        // === PULL PHASE ===
+        // When a computed/effect reads this signal, we register the dependency
         // Fast path: if not tracked or no current computing, skip tracking
         if (tracked && currentComputing) {
             deps ||= new Set();
@@ -41,6 +43,7 @@ export function signal(initialValue) {
             trackDependency(deps, undefined, () => value);
         }
         return value;
+        // === END PULL PHASE ===
     };
 
     /**
@@ -48,11 +51,15 @@ export function signal(initialValue) {
      * @param {T} newValue
      */
     read.set = newValue => {
+        // === PUSH PHASE ===
+        // When the signal value changes, we eagerly propagate dirty/check flags
+        // to all dependents via markDependents
         warnIfWriteInComputed('signal');
         if (!Object.is(value, newValue)) {
             value = newValue;
-            if (deps) markDependents(deps);
+            if (deps) markDependents(deps); // Push: notify all dependents
         }
+        // === END PUSH PHASE ===
     };
 
     return read;

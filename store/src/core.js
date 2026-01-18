@@ -1,3 +1,17 @@
+/**
+ * Core reactive system implementation using push/pull algorithm:
+ * 
+ * PUSH PHASE: When a source value changes (signal/state write):
+ *   - Increment globalVersion
+ *   - Eagerly propagate CHECK flags to all dependents
+ *   - Schedule effects for execution
+ * 
+ * PULL PHASE: When a computed/effect is read:
+ *   - Check if recomputation is needed (via flags and source versions)
+ *   - Lazily recompute by pulling values from sources
+ *   - Update cached value and version
+ */
+
 import {
     FLAG_CHECK,
     FLAG_COMPUTING,
@@ -46,6 +60,7 @@ export let tracked = true;
 
 /**
  * Add an effect to the batched set (if not already in it)
+ * PUSH PHASE: Part of effect scheduling during dirty propagation
  * @param {Computed<any>} node
  */
 export const batchedAdd = node => {
@@ -62,6 +77,7 @@ export const batchedAdd = node => {
 
 /**
  * Unwraps a proxied value to get the underlying object
+ * (Utility - not specific to push/pull phases)
  * @template T
  * @param {T} value
  * @returns {T}
@@ -71,6 +87,7 @@ export const unwrapValue = value => (value != null && /** @type {Record<symbol, 
 /**
  * Make a computed live - register it with all its sources
  * Called when a live consumer starts reading this computed
+ * PUSH PHASE: Enables push notifications to flow through this node
  * @param {Computed<any>} node
  */
 export const makeLive = node => {
@@ -86,6 +103,7 @@ export const makeLive = node => {
 /**
  * Make a computed non-live - unregister it from all its sources
  * Called when all live consumers stop depending on this computed
+ * PUSH PHASE: Disables push notifications through this node
  * @param {Computed<any>} node
  */
 export const makeNonLive = node => {
@@ -101,6 +119,7 @@ export const makeNonLive = node => {
 
 /**
  * Clear sources for a node starting from a specific index
+ * PULL PHASE: Cleanup during dependency tracking when sources change
  * @param {Computed<any>} node
  * @param {number} fromIndex - Index to start clearing from (default 0 clears all)
  */
@@ -136,6 +155,7 @@ export const clearSources = (node, fromIndex = 0) => {
  * Execute all pending effects immediately
  * This function can be called to manually trigger all scheduled effects
  * before the next microtask
+ * PULL PHASE: Executes batched effects, each effect pulls its dependencies
  */
 export const flushEffects = () => {
     flushScheduled = false;
@@ -159,6 +179,7 @@ export const flushEffects = () => {
 
 /**
  * Schedule flush via scheduler (default: microtask)
+ * PUSH PHASE: Schedules the transition from push to pull phase
  */
 export const scheduleFlush = () => {
     if (!flushScheduled) {
@@ -170,6 +191,7 @@ export const scheduleFlush = () => {
 /**
  * Track a dependency between currentComputing and a deps Set
  * Uses liveness tracking - only live consumers register with sources
+ * PULL PHASE: Records dependencies during computation for future invalidation
  * @param {Set<Computed<any>>} deps - The dependency set to track
  * @param {Computed<any>} [sourceNode] - The computed node being accessed (if any)
  * @param {() => any} [valueGetter] - Function to get current source value (for signal/state polling)
@@ -211,6 +233,7 @@ export const trackDependency = (deps, sourceNode, valueGetter) => {
 
 /**
  * Mark a node as needing check (eager propagation with equality cutoff)
+ * PUSH PHASE: Eagerly propagates CHECK flag up the dependency graph
  * @param {Computed<any>} node
  */
 export const markNeedsCheck = node => {
@@ -236,6 +259,7 @@ export const markNeedsCheck = node => {
 
 /**
  * Mark all dependents in a Set as needing check
+ * PUSH PHASE: Entry point for push propagation when a source value changes
  * @param {Set<Computed<any>>} deps - The dependency set to notify
  */
 export const markDependents = deps => {
@@ -250,6 +274,7 @@ export const markDependents = deps => {
 /**
  * Run a getter function with dependency tracking
  * Handles cycle detection, context setup, and source cleanup
+ * PULL PHASE: Core of pull - executes computation while tracking dependencies
  * @template T
  * @param {Computed<any>} node - The node being computed
  * @param {() => T} getter - The getter function to run
@@ -290,6 +315,7 @@ export const runWithTracking = (node, getter) => {
 /**
  * Execute a callback without tracking any reactive dependencies
  * Useful when reading signals/state without creating a dependency relationship
+ * PULL PHASE: Temporarily disables dependency tracking during pull
  * @template T
  * @param {() => T} callback - Function to execute without tracking
  * @returns {T} The return value of the callback
@@ -316,6 +342,7 @@ export const checkSourcesError = [undefined];
  * Check if any computed sources have changed or errored.
  * Used by CHECK path optimization in computed and effect.
  * If a source throws, the error is stored in checkSourcesError and true is returned.
+ * PULL PHASE: Verifies if sources actually changed before recomputing (equality cutoff)
  * @param {Array<{d: Set<Computed<any>>, n: Computed<any>, v: number, dv: number, g?: () => any, sv?: any}>} sourcesArray
  * @returns {boolean | null} true if changed or errored, false if unchanged, null if can't verify (has state sources or empty)
  */

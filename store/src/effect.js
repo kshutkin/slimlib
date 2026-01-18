@@ -2,6 +2,13 @@
  * @import { EffectCleanup } from './index.js'
  */
 
+// ============================================================================
+// PUSH/PULL REACTIVE SYSTEM - EFFECT MODULE
+// ============================================================================
+// Effects are always "live" - they receive push notifications when sources change.
+// When an effect runs, it PULLS values from its sources (computed/signal/state).
+// ============================================================================
+
 import { batched, checkComputedSources, clearSources, runWithTracking, scheduleFlush } from './core.js';
 import { cycleMessage, registerEffect, unregisterEffect, warnIfNoActiveScope } from './debug.js';
 import { FLAG_CHECK, FLAG_COMPUTING, FLAG_DIRTY, FLAG_EFFECT, FLAG_NEEDS_WORK } from './flags.js';
@@ -42,9 +49,13 @@ export const effect = callback => {
             throw new Error(cycleMessage);
         }
 
+        // ----------------------------------------------------------------
+        // PULL PHASE: Verify if sources actually changed before running
+        // ----------------------------------------------------------------
         // Bail-out optimization: if only CHECK flag is set (not DIRTY),
         // verify that computed sources actually changed before running
         if ((flags & FLAG_NEEDS_WORK) === FLAG_CHECK) {
+            // PULL: Read computed sources to check if they changed
             const result = checkComputedSources(eff[sources]);
             // If null, can't verify (has state sources or empty) - proceed to run
             // If false, sources didn't change - clear CHECK flag and skip
@@ -55,12 +66,16 @@ export const effect = callback => {
             }
         }
 
+        // ----------------------------------------------------------------
+        // PULL PHASE: Execute effect and track dependencies
+        // ----------------------------------------------------------------
         runWithTracking(eff, () => {
             // Run previous cleanup if it exists
             if (typeof cleanup === 'function') {
                 cleanup();
             }
             // Run the callback and store new cleanup
+            // (callback will PULL values from signals/state/computed)
             cleanup = callback();
         });
     });
@@ -86,6 +101,9 @@ export const effect = callback => {
         activeScope[trackSymbol](dispose);
     }
 
+    // ----------------------------------------------------------------
+    // Initial scheduling (triggers first PULL when flush runs)
+    // ----------------------------------------------------------------
     // Trigger first run via batched queue
     // node is already dirty
     // and effect is for sure with the latest id so we directly adding without the sort
