@@ -9,7 +9,7 @@
 // When an effect runs, it PULLS values from its sources (computed/signal/state).
 // ============================================================================
 
-import { batched, checkComputedSources, clearSources, runWithTracking, scheduleFlush } from './core.js';
+import { batched, batchedAddNew, checkComputedSources, clearSources, runWithTracking, scheduleFlush } from './core.js';
 import { cycleMessage, registerEffect, unregisterEffect, warnIfNoActiveScope } from './debug.js';
 import { FLAG_CHECK, FLAG_COMPUTING, FLAG_DIRTY, FLAG_EFFECT, FLAG_NEEDS_WORK } from './flags.js';
 import { activeScope } from './globals.js';
@@ -34,6 +34,7 @@ let effectCreationCounter = 1;
 export const effect = callback => {
     /** @type {void | EffectCleanup} */
     let cleanup;
+    let disposed = false;
 
     // Register effect for GC tracking (only in DEV mode)
     const gcToken = registerEffect();
@@ -43,6 +44,11 @@ export const effect = callback => {
 
     // Create callable that invokes effectRun with itself as `this`
     const eff = /** @type {Effect<void>} */ (() => {
+        // Skip if effect was disposed (may still be in batched queue from before disposal)
+        if (disposed) {
+            return;
+        }
+
         // Cycle detection: if this node is already being computed, we have a cycle
         const flags = eff[flagsSymbol];
         if (flags & FLAG_COMPUTING) {
@@ -84,9 +90,12 @@ export const effect = callback => {
     eff[sources] = [];
     eff[flagsSymbol] = FLAG_DIRTY | FLAG_EFFECT;
     eff[skippedDeps] = 0;
-    eff.i = effectCreationCounter++;
+    const effectId = effectCreationCounter++;
+    eff.i = effectId;
 
     const dispose = () => {
+        // Mark as disposed to prevent running if still in batched queue
+        disposed = true;
         // Unregister from GC tracking (only in DEV mode)
         unregisterEffect(gcToken);
         if (typeof cleanup === 'function') {
@@ -107,7 +116,7 @@ export const effect = callback => {
     // Trigger first run via batched queue
     // node is already dirty
     // and effect is for sure with the latest id so we directly adding without the sort
-    batched.add(eff);
+    batchedAddNew(eff, effectId);
     scheduleFlush();
 
     return dispose;

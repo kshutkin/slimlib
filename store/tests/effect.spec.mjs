@@ -928,6 +928,56 @@ describe('effect', () => {
             expect(executionOrder).toEqual([1, 3]);
         });
 
+        it('newly created effect during batch updates lastAddedId for correct ordering', async () => {
+            // This test catches a bug where effect creation uses batched.add() directly
+            // without updating lastAddedId, which can cause incorrect execution order
+            /** @type {string[]} */
+            const executionOrder = [];
+            const signalA = signal(0);
+            const signalB = signal(0);
+
+            // Create effect A (id=N) - depends on signalA
+            effect(() => {
+                signalA();
+                executionOrder.push('A');
+            });
+
+            // Create effect B (id=N+1) - depends on signalB
+            effect(() => {
+                signalB();
+                executionOrder.push('B');
+            });
+
+            await flushAll();
+            executionOrder.length = 0;
+
+            // In one sync block:
+            // 1. Trigger effect A (adds to batch via batchedAdd, lastAddedId = A.id)
+            // 2. Create new effect C (should update lastAddedId to C.id, the highest)
+            // 3. Trigger effect B (adds to batch via batchedAdd)
+            //
+            // If lastAddedId is not updated when C is created:
+            // - After step 1: lastAddedId = A.id
+            // - After step 2: lastAddedId still = A.id (BUG: should be C.id)
+            // - After step 3: B.id > lastAddedId, so needsSort stays false
+            // - Batch order is [A, C, B] but needsSort=false, so no sort happens
+            // - Execution order would be A, C, B instead of A, B, C
+            signalA.set(1);  // Marks A dirty, adds via batchedAdd
+
+            // Create effect C (highest id) - if this doesn't update lastAddedId, ordering breaks
+            effect(() => {
+                executionOrder.push('C');
+            });
+
+            signalB.set(1);  // Marks B dirty, adds via batchedAdd
+
+            await flushAll();
+
+            // Effects should execute in creation order: A, B, C
+            // If lastAddedId bug exists, order might be A, C, B (insertion order)
+            expect(executionOrder).toEqual(['A', 'B', 'C']);
+        });
+
         it('late-subscribing effect maintains creation order position', async () => {
             /** @type {number[]} */
             const executionOrder = [];

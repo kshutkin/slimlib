@@ -78,6 +78,18 @@ export const batchedAdd = node => {
 };
 
 /**
+ * Add a newly created effect to the batched set
+ * Used during effect creation - new effects always have the highest ID
+ * so we unconditionally update lastAddedId without checking order
+ * @param {Computed<any>} node
+ * @param {number} effectId
+ */
+export const batchedAddNew = (node, effectId) => {
+    lastAddedId = effectId;
+    batched.add(node);
+};
+
+/**
  * Unwraps a proxied value to get the underlying object
  * (Utility - not specific to push/pull phases)
  * @template T
@@ -349,11 +361,6 @@ export const untracked = callback => {
  * @returns {boolean | null} true if changed or errored, false if unchanged, null if can't verify (has state sources or empty)
  */
 export const checkComputedSources = (sourcesArray, skipStateCheck = false) => {
-    // Can't verify if empty
-    if (sourcesArray.length === 0) {
-        return null;
-    }
-
     let changed = false;
     const prevTracked = tracked;
     tracked = false;
