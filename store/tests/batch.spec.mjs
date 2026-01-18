@@ -279,10 +279,8 @@ describe('automatic batching', () => {
     });
 
     it('effect modifying multiple dependencies during execution re-batches once', async () => {
-        // This tests the branch in batchedAdd where node.n !== undefined
-        // When an effect modifies multiple dependencies during execution:
-        // 1. First modification: node.n is undefined -> adds to batched list
-        // 2. Second modification: node.n is defined -> hits early return branch
+        // When an effect modifies multiple dependencies during execution,
+        // batchedAdd is called multiple times but the Set deduplicates automatically
         const store = state({ a: 0, b: 0 });
         let runs = 0;
 
@@ -292,8 +290,7 @@ describe('automatic batching', () => {
             const b = store.b;
             if (a === 0 && b === 0) {
                 // Modify multiple dependencies during effect execution
-                // First change adds effect to new batched list (node.n becomes defined)
-                // Second change calls batchedAdd but node.n !== undefined (early return)
+                // Both changes call batchedAdd but the Set deduplicates
                 store.a = 1;
                 store.b = 1;
             }
@@ -308,8 +305,8 @@ describe('automatic batching', () => {
     });
 
     it('effect marked dirty multiple times before flush only runs once', async () => {
-        // This tests the branch in batchedAdd where node.n !== undefined
-        // (effect is already in batched list when marked dirty again)
+        // When multiple dependencies change synchronously, the effect is scheduled
+        // multiple times but the batched Set deduplicates automatically
         const store1 = state({ a: 0 });
         const store2 = state({ b: 0 });
         const store3 = state({ c: 0 });
@@ -327,9 +324,7 @@ describe('automatic batching', () => {
         expect(runs).toBe(1);
 
         // Change all three stores synchronously
-        // First change adds effect to batched list
-        // Second and third changes call batchedAdd but effect is already in list
-        // so they should hit the early return branch (node.n !== undefined)
+        // Each change calls batchedAdd but the Set deduplicates
         store1.a = 1;
         store2.b = 1;
         store3.c = 1;
@@ -591,10 +586,8 @@ describe('automatic batching with signals', () => {
     });
 
     it('effect modifying multiple dependencies during execution re-batches once', async () => {
-        // This tests the branch in batchedAdd where node.n !== undefined
-        // When an effect modifies multiple dependencies during execution:
-        // 1. First modification: node.n is undefined -> adds to batched list
-        // 2. Second modification: node.n is defined -> hits early return branch
+        // When an effect modifies multiple dependencies during execution,
+        // batchedAdd is called multiple times but the Set deduplicates automatically
         const a = signal(0);
         const b = signal(0);
         let runs = 0;
@@ -605,8 +598,7 @@ describe('automatic batching with signals', () => {
             const bVal = b();
             if (aVal === 0 && bVal === 0) {
                 // Modify multiple dependencies during effect execution
-                // First change adds effect to new batched list (node.n becomes defined)
-                // Second change calls batchedAdd but node.n !== undefined (early return)
+                // Both changes call batchedAdd but the Set deduplicates
                 a.set(1);
                 b.set(1);
             }
@@ -621,8 +613,8 @@ describe('automatic batching with signals', () => {
     });
 
     it('effect marked dirty multiple times before flush only runs once', async () => {
-        // This tests the branch in batchedAdd where node.n !== undefined
-        // (effect is already in batched list when marked dirty again)
+        // When multiple dependencies change synchronously, the effect is scheduled
+        // multiple times but the batched Set deduplicates automatically
         const a = signal(0);
         const b = signal(0);
         const c = signal(0);
@@ -640,9 +632,7 @@ describe('automatic batching with signals', () => {
         expect(runs).toBe(1);
 
         // Change all three signals synchronously
-        // First change adds effect to batched list
-        // Second and third changes call batchedAdd but effect is already in list
-        // so they should hit the early return branch (node.n !== undefined)
+        // Each change calls batchedAdd but the Set deduplicates
         a.set(1);
         b.set(1);
         c.set(1);
