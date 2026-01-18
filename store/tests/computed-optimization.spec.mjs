@@ -598,6 +598,84 @@ describe('computed optimization', () => {
         });
     });
 
+    describe('mixed dependencies (state and computed sources)', () => {
+        it('should handle non-live computed with both signal and computed sources', async () => {
+            const sig = signal(1);
+            const unrelated = signal(100);
+            let compCallCount = 0;
+            let mixedCallCount = 0;
+
+            const comp = computed(() => {
+                compCallCount++;
+                return sig() * 2;
+            });
+
+            // This computed depends on BOTH a signal (state source) and a computed
+            const mixed = computed(() => {
+                mixedCallCount++;
+                return sig() + comp();
+            });
+
+            // Create an effect that reads unrelated to make it increment globalVersion when changed
+            effect(() => {
+                unrelated();
+            });
+            await flushAll();
+
+            // Initial read
+            expect(mixed()).toBe(3); // 1 + 2
+            expect(mixedCallCount).toBe(1);
+            expect(compCallCount).toBe(1);
+
+            // Change unrelated signal (only globalVersion changes, not sig)
+            unrelated.set(200);
+            await flushAll();
+
+            // Read again - neither sig nor comp changed, should return cached
+            expect(mixed()).toBe(3);
+            expect(mixedCallCount).toBe(1); // Should not recompute
+            expect(compCallCount).toBe(1); // Should not recompute
+
+            // Now change sig - both should recompute
+            sig.set(5);
+            expect(mixed()).toBe(15); // 5 + 10
+            expect(mixedCallCount).toBe(2);
+            expect(compCallCount).toBe(2);
+        });
+
+        it('should recompute when computed source changes but state source unchanged', async () => {
+            const stateSig = signal(10);
+            const compTrigger = signal(1);
+            const unrelated = signal(100);
+            let compCallCount = 0;
+            let mixedCallCount = 0;
+
+            const comp = computed(() => {
+                compCallCount++;
+                return compTrigger() * 2;
+            });
+
+            // Mixed depends on both stateSig and comp
+            const mixed = computed(() => {
+                mixedCallCount++;
+                return stateSig() + comp();
+            });
+
+            effect(() => unrelated());
+            await flushAll();
+
+            // Initial read
+            expect(mixed()).toBe(12); // 10 + 2
+            expect(mixedCallCount).toBe(1);
+
+            // Change only compTrigger (affects comp but not stateSig)
+            compTrigger.set(5);
+            expect(mixed()).toBe(20); // 10 + 10
+            expect(mixedCallCount).toBe(2);
+            expect(compCallCount).toBe(2);
+        });
+    });
+
     describe('live computed CHECK with unchanged sources', () => {
         it('should return cached value when live computed sources produce same value', async () => {
             const trigger = signal(1);
