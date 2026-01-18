@@ -1050,6 +1050,76 @@ function runGraph(framework, graph, iterations) {
     }
 }
 
+// ============================================================================
+// Pure Computed Chain Benchmark
+// Tests FLAG_HAS_STATE_SOURCE optimization for non-live computed chains
+// ============================================================================
+
+async function pureComputedChain(framework) {
+    // This benchmark tests the optimization where non-live computeds
+    // that only depend on other computeds (no state/signals) can skip
+    // the polling loop and directly verify computed sources.
+    //
+    // Setup:
+    // - One signal at the root
+    // - A chain of computeds that only depend on other computeds
+    // - An unrelated signal/effect pair to increment globalVersion
+    // - Repeatedly read the chain after globalVersion changes (but root unchanged)
+    //
+    // The optimization saves one full loop iteration for pure-computed chains.
+
+    const chainLength = 50;
+    const iterations = 1000;
+    let root;
+    let unrelated;
+    let chain;
+    let effectDispose;
+
+    await runBenchmark(
+        framework,
+        'pureComputedChain',
+        fw => {
+            // Root signal - this will NOT change during the benchmark
+            root = fw.signal(1);
+
+            // Build a chain of computeds - each depends only on the previous computed
+            chain = [];
+            let prev = fw.computed(() => root.read() * 2);
+            chain.push(prev);
+
+            for (let i = 1; i < chainLength; i++) {
+                const p = prev;
+                prev = fw.computed(() => p.read() + 1);
+                chain.push(prev);
+            }
+
+            // Unrelated signal with effect - used to increment globalVersion
+            unrelated = fw.signal(0);
+            effectDispose = fw.effect(() => unrelated.read());
+
+            return effectDispose;
+        },
+        () => {
+            // Each iteration:
+            // 1. Change unrelated signal (increments globalVersion)
+            // 2. Read the entire computed chain (tests polling optimization)
+            //
+            // Since root never changes, the chain should return cached values.
+            // The optimization allows skipping the state-source polling loop
+            // for computeds that only depend on other computeds.
+            for (let i = 0; i < iterations; i++) {
+                framework.withBatch(() => unrelated.write(i));
+
+                // Read all computeds in the chain
+                // Non-live computeds must poll to check if sources changed
+                for (const c of chain) {
+                    c.read();
+                }
+            }
+        }
+    );
+}
+
 async function dynamicGraph(framework, name, width, totalLayers, staticFraction, nSources, readFraction, iterations) {
     let graph;
 
@@ -1090,6 +1160,8 @@ const benchmarks = [
     cellx1000,
     // Error handling
     errorRecovery,
+    // Pure computed chain optimization
+    pureComputedChain,
 ];
 
 const dynamicGraphConfigs = [
