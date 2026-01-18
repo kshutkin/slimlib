@@ -53,7 +53,9 @@ function computedRead() {
     // ===== PULL PHASE: Check if cached value can be returned =====
     // Combined check: node has cached result and doesn't need work
     const hasCached = flags & (FLAG_HAS_VALUE | FLAG_HAS_ERROR);
-    if (!(flags & FLAG_NEEDS_WORK) && hasCached) {
+
+    // biome-ignore lint/suspicious/noConfusingLabels: expected
+    checkCache: if (!(flags & FLAG_NEEDS_WORK) && hasCached) {
         // Fast-path: nothing has changed globally since last read
         if (this[lastGlobalVersionSymbol] === globalVersion) {
             if (flags & FLAG_HAS_ERROR) {
@@ -100,29 +102,26 @@ function computedRead() {
             if (stateSourceChanged) {
                 // State source changed - mark DIRTY and proceed to recompute
                 this[flagsSymbol] = flags |= FLAG_DIRTY;
-            } else if (computedSourcesToCheck) {
+                break checkCache;
+            }
+
+            if (computedSourcesToCheck) {
                 // Verify computed sources using shared function (skipStateCheck=true since pre-filtered)
                 const result = checkComputedSources(computedSourcesToCheck, true);
                 if (result) {
                     // Source threw or changed - mark DIRTY and let getter run
                     // (getter may handle error differently, e.g. try/catch with fallback)
                     this[flagsSymbol] = flags |= FLAG_DIRTY;
-                } else {
-                    // No sources changed - return cached value
-                    this[lastGlobalVersionSymbol] = globalVersion;
-                    if (flags & FLAG_HAS_ERROR) {
-                        throw this[valueSymbol];
-                    }
-                    return this[valueSymbol];
+                    break checkCache;
                 }
-            } else {
-                // No sources or all state sources unchanged - return cached
-                this[lastGlobalVersionSymbol] = globalVersion;
-                if (flags & FLAG_HAS_ERROR) {
-                    throw this[valueSymbol];
-                }
-                return this[valueSymbol];
             }
+
+            // No sources changed - return cached value
+            this[lastGlobalVersionSymbol] = globalVersion;
+            if (flags & FLAG_HAS_ERROR) {
+                throw this[valueSymbol];
+            }
+            return this[valueSymbol];
         }
     }
 
