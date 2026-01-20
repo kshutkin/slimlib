@@ -306,6 +306,31 @@ describe('store', () => {
             expect(store.map.get('key')).toBe(value);
         });
 
+        it('Date in store (mutation triggers update)', async () => {
+            const subscriber = vi.fn();
+            const initialDate = new Date('2024-01-01T00:00:00.000Z');
+            const store = state({ date: initialDate });
+            effect(() => subscriber(store.date.getTime()));
+            await flushAll();
+            expect(subscriber).toHaveBeenCalledWith(initialDate.getTime());
+            store.date.setFullYear(2025);
+            await flushAll();
+            expect(subscriber).toHaveBeenCalledTimes(2);
+            expect(store.date.getFullYear()).toBe(2025);
+        });
+
+        it('Set in store (mutation triggers update)', async () => {
+            const subscriber = vi.fn();
+            const store = state({ set: new Set() });
+            effect(() => subscriber(store.set.size));
+            await flushAll();
+            expect(subscriber).toHaveBeenCalledWith(0);
+            store.set.add('value');
+            await flushAll();
+            expect(subscriber).toHaveBeenCalledWith(1);
+            expect(store.set.has('value')).toBe(true);
+        });
+
         it('second level proxy triggers subscriber', async () => {
             const subscriber = vi.fn();
             const value = { prop: { value: { value2: 'test' } } };

@@ -12,6 +12,7 @@ Reactive state management for SPAs with automatic dependency tracking.
 - **Memory-safe** - uses liveness tracking internally, unused computeds are garbage collected automatically
 - **Dual usage** - computeds work both reactively (in effects) and imperatively (on-demand reads)
 - **Proxy-based state** - mutate objects naturally, no setters or immutable updates required
+- **Built-in support for Date, Set, Map** - call mutation methods directly and effects will re-run, no need for a wrapper
 - **TypeScript support** - full type inference
 
 [Changelog](./CHANGELOG.md)
