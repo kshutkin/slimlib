@@ -27,7 +27,7 @@ import { warnIfWriteInComputed } from './debug.js';
 export function signal(initialValue) {
     let value = /** @type {T} */ (initialValue);
     /** @type {Set<Computed<any>> | null} */
-    let deps = null;
+    let deps;
 
     /**
      * Read the signal value and track dependency
@@ -38,9 +38,9 @@ export function signal(initialValue) {
         // When a computed/effect reads this signal, we register the dependency
         // Fast path: if not tracked or no current computing, skip tracking
         if (tracked && currentComputing) {
-            deps ||= new Set();
             // Pass value getter for polling optimization (value revert detection)
-            trackDependency(deps, undefined, () => value);
+            // biome-ignore lint/suspicious/noAssignInExpressions: optimization
+            trackDependency((deps ||= new Set()), undefined, () => value);
         }
         return value;
         // === END PULL PHASE ===

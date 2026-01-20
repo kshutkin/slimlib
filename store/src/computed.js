@@ -104,8 +104,7 @@ function computedRead() {
                     }
                 }
 
-                if (stateSourceChanged ||
-                    (computedSourcesToCheck && checkComputedSources(computedSourcesToCheck, true))) {
+                if (stateSourceChanged || (computedSourcesToCheck && checkComputedSources(computedSourcesToCheck, true))) {
                     // Source changed or threw - mark DIRTY and proceed to recompute
                     this[flagsSymbol] = flags |= FLAG_DIRTY;
                     break checkCache;
@@ -189,7 +188,7 @@ function computedRead() {
                 // Increment version since the result changed (to error)
                 this[versionSymbol]++;
                 this[valueSymbol] = e;
-                this[flagsSymbol] = (this[flagsSymbol] & ~(FLAG_HAS_VALUE)) | FLAG_HAS_ERROR;
+                this[flagsSymbol] = (this[flagsSymbol] & ~FLAG_HAS_VALUE) | FLAG_HAS_ERROR;
                 this[lastGlobalVersionSymbol] = globalVersion;
             }
         });
@@ -216,12 +215,11 @@ export const computed = (getter, equals = Object.is) => {
 
     // Initialize all properties directly on the callable (no prototype needed)
     context[sources] = [];
-    context[dependencies] = new Set;
+    context[dependencies] = new Set();
     context[flagsSymbol] = FLAG_DIRTY;
-    context[skippedDeps] = 0;
+    context[skippedDeps] = context[versionSymbol] = 0;
     context[getterSymbol] = getter;
     context[equalsSymbol] = equals;
-    context[versionSymbol] = 0;
 
     return context;
 };
