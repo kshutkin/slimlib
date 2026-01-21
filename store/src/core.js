@@ -12,6 +12,7 @@
  *   - Update cached value and version
  */
 
+import { computedRead } from './computed.js';
 import { safeForEach } from './debug.js';
 import {
     FLAG_CHECK,
@@ -25,9 +26,7 @@ import {
     FLAG_NEEDS_WORK,
     FLAG_SKIP_NOTIFY,
 } from './flags.js';
-import {
-    scheduler
-} from './globals.js';
+import { scheduler } from './globals.js';
 import { dependencies, depsVersionSymbol, flagsSymbol, skippedDeps, sources, unwrap, versionSymbol } from './symbols.js';
 
 export { depsVersionSymbol };
@@ -47,7 +46,7 @@ let flushScheduled = false;
 export let globalVersion = 0;
 
 /** @type {Set<Computed<any>>} */
-export let batched = new Set;
+export let batched = new Set();
 
 /** @type {number} */
 let lastAddedId = 0;
@@ -181,7 +180,7 @@ export const flushEffects = () => {
     if (needsSort) {
         nodes.sort((a, b) => /** @type {number} */ (a.i) - /** @type {number} */ (b.i));
     }
-    batched = new Set;
+    batched = new Set();
     lastAddedId = 0;
     needsSort = false;
     safeForEach(nodes);
@@ -221,7 +220,14 @@ export const trackDependency = (deps, sourceNode, valueGetter) => {
         // Push source entry - version will be updated after source computes
         // For state sources (no node), track deps version, value getter, and last seen value for polling
         const currentValue = valueGetter?.();
-        sourcesArray.push({ d: deps, n: sourceNode, v: 0, dv: /** @type {any} */ (deps)[depsVersionSymbol] || 0, g: valueGetter, sv: currentValue });
+        sourcesArray.push({
+            d: deps,
+            n: sourceNode,
+            v: 0,
+            dv: /** @type {any} */ (deps)[depsVersionSymbol] || 0,
+            g: valueGetter,
+            sv: currentValue,
+        });
 
         // Mark that this node has state/signal sources (for polling optimization)
         if (!sourceNode) {
@@ -284,7 +290,7 @@ export const markNeedsCheck = node => {
 export const markDependents = deps => {
     ++globalVersion;
     // Increment deps version for non-live computed polling
-    /** @type {any} */ (deps)[depsVersionSymbol] = (/** @type {any} */ (deps)[depsVersionSymbol] || 0) + 1;
+    /** @type {any} */ (deps)[depsVersionSymbol] = /** @type {any} */ (deps[depsVersionSymbol] || 0) + 1;
     for (const dep of deps) {
         markNeedsCheck(dep);
     }
@@ -373,7 +379,7 @@ export const checkComputedSources = (sourcesArray, skipStateCheck = false) => {
         }
         // Access source to trigger its recomputation if needed
         try {
-            sourceNode();
+            computedRead.call(sourceNode);
         } catch {
             // Error counts as changed - caller will recompute and may handle differently
             tracked = prevTracked;

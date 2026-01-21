@@ -35,15 +35,18 @@ import {
  * @this {Computed<T>}
  * @returns {T}
  */
-function computedRead() {
+export function computedRead() {
+    // biome-ignore lint/complexity/noUselessThisAlias: optimization
+    const self = /** @type {Computed<any>} */ (/** @type {unknown} */ (this));
+
     // ===== PULL PHASE: Register this computed as a dependency of the current consumer =====
     // Track if someone is reading us
     if (tracked && currentComputing) {
-        trackDependency(this[dependencies], this);
+        trackDependency(self[dependencies], self);
     }
 
-    let flags = this[flagsSymbol];
-    const sourcesArray = this[sources];
+    let flags = self[flagsSymbol];
+    const sourcesArray = self[sources];
 
     // Cycle detection: if this computed is already being computed, we have a cycle
     // This matches TC39 Signals proposal behavior: throw an error on cyclic reads
@@ -58,11 +61,11 @@ function computedRead() {
     // biome-ignore lint/suspicious/noConfusingLabels: expected
     checkCache: if (!(flags & FLAG_NEEDS_WORK) && hasCached) {
         // Fast-path: nothing has changed globally since last read
-        if (this[lastGlobalVersionSymbol] === globalVersion) {
+        if (self[lastGlobalVersionSymbol] === globalVersion) {
             if (flags & FLAG_HAS_ERROR) {
-                throw this[valueSymbol];
+                throw self[valueSymbol];
             }
-            return this[valueSymbol];
+            return self[valueSymbol];
         }
 
         // ===== PULL PHASE: Poll sources for non-live computeds =====
@@ -106,22 +109,22 @@ function computedRead() {
 
                 if (stateSourceChanged || (computedSourcesToCheck && checkComputedSources(computedSourcesToCheck, true))) {
                     // Source changed or threw - mark DIRTY and proceed to recompute
-                    this[flagsSymbol] = flags |= FLAG_DIRTY;
+                    self[flagsSymbol] = flags |= FLAG_DIRTY;
                     break checkCache;
                 }
             } else if (checkComputedSources(sourcesArray, true)) {
                 // All sources are computed - directly check them without polling loop
                 // Source changed or threw - mark DIRTY and proceed to recompute
-                this[flagsSymbol] = flags |= FLAG_DIRTY;
+                self[flagsSymbol] = flags |= FLAG_DIRTY;
                 break checkCache;
             }
 
             // No sources changed - return cached value
-            this[lastGlobalVersionSymbol] = globalVersion;
+            self[lastGlobalVersionSymbol] = globalVersion;
             if (flags & FLAG_HAS_ERROR) {
-                throw this[valueSymbol];
+                throw self[valueSymbol];
             }
-            return this[valueSymbol];
+            return self[valueSymbol];
         }
     }
 
@@ -137,15 +140,15 @@ function computedRead() {
             if (result) {
                 // Sources changed or errored - mark DIRTY and let getter run
                 // (getter may handle error differently, e.g. try/catch with fallback)
-                this[flagsSymbol] = flags = (flags & ~FLAG_CHECK) | FLAG_DIRTY;
+                self[flagsSymbol] = flags = (flags & ~FLAG_CHECK) | FLAG_DIRTY;
             } else {
                 // Sources unchanged, clear CHECK flag and return cached value
-                this[flagsSymbol] = flags & ~FLAG_CHECK;
-                this[lastGlobalVersionSymbol] = globalVersion;
+                self[flagsSymbol] = flags & ~FLAG_CHECK;
+                self[lastGlobalVersionSymbol] = globalVersion;
                 if (flags & FLAG_HAS_ERROR) {
-                    throw this[valueSymbol];
+                    throw self[valueSymbol];
                 }
-                return this[valueSymbol];
+                return self[valueSymbol];
             }
         }
     }
@@ -155,51 +158,51 @@ function computedRead() {
     if (flags & FLAG_NEEDS_WORK) {
         const wasDirty = (flags & FLAG_DIRTY) !== 0;
 
-        runWithTracking(this, () => {
+        runWithTracking(self, () => {
             try {
-                const newValue = this[getterSymbol]();
+                const newValue = self[getterSymbol]();
 
                 // Check if value actually changed (common path: no error recovery)
-                const changed = !(flags & FLAG_HAS_VALUE) || !this[equalsSymbol](this[valueSymbol], newValue);
+                const changed = !(flags & FLAG_HAS_VALUE) || !self[equalsSymbol](self[valueSymbol], newValue);
 
                 if (changed) {
-                    this[valueSymbol] = newValue;
+                    self[valueSymbol] = newValue;
                     // Increment version to indicate value changed (for polling)
-                    this[versionSymbol]++;
-                    this[flagsSymbol] = (this[flagsSymbol] | FLAG_HAS_VALUE) & ~FLAG_HAS_ERROR;
+                    self[versionSymbol]++;
+                    self[flagsSymbol] = (self[flagsSymbol] | FLAG_HAS_VALUE) & ~FLAG_HAS_ERROR;
                     // ===== PUSH PHASE (during pull): Mark CHECK-only dependents as DIRTY =====
                     // When value changes during recomputation, upgrade dependent CHECK flags to DIRTY
-                    for (const dep of this[dependencies]) {
+                    for (const dep of self[dependencies]) {
                         const depFlags = dep[flagsSymbol];
                         if ((depFlags & FLAG_SKIP_NOTIFY) === FLAG_CHECK) {
                             dep[flagsSymbol] = depFlags | FLAG_DIRTY;
                         }
                     }
                 } else if (wasDirty) {
-                    this[flagsSymbol] |= FLAG_HAS_VALUE;
+                    self[flagsSymbol] |= FLAG_HAS_VALUE;
                 }
 
                 // Update last seen global version
-                this[lastGlobalVersionSymbol] = globalVersion;
+                self[lastGlobalVersionSymbol] = globalVersion;
             } catch (e) {
                 // Per TC39 Signals proposal: cache the error and mark as clean with error flag
                 // The error will be rethrown on subsequent reads until a dependency changes
                 // Reuse valueSymbol for error storage since a computed can't have both value and error
                 // Increment version since the result changed (to error)
-                this[versionSymbol]++;
-                this[valueSymbol] = e;
-                this[flagsSymbol] = (this[flagsSymbol] & ~FLAG_HAS_VALUE) | FLAG_HAS_ERROR;
-                this[lastGlobalVersionSymbol] = globalVersion;
+                self[versionSymbol]++;
+                self[valueSymbol] = e;
+                self[flagsSymbol] = (self[flagsSymbol] & ~FLAG_HAS_VALUE) | FLAG_HAS_ERROR;
+                self[lastGlobalVersionSymbol] = globalVersion;
             }
         });
     }
 
     // Check if we have a cached error to rethrow (stored in valueSymbol)
-    if (this[flagsSymbol] & FLAG_HAS_ERROR) {
-        throw this[valueSymbol];
+    if (self[flagsSymbol] & FLAG_HAS_ERROR) {
+        throw self[valueSymbol];
     }
 
-    return this[valueSymbol];
+    return self[valueSymbol];
 }
 
 /**
@@ -209,17 +212,13 @@ function computedRead() {
  * @param {(a: T, b: T) => boolean} [equals=Object.is] - Equality comparison function
  * @returns {Computed<T>}
  */
-export const computed = (getter, equals = Object.is) => {
-    // Create callable that invokes computedRead with itself as `this`
-    const context = /** @type {Computed<T>} */ (() => computedRead.call(context));
-
-    // Initialize all properties directly on the callable (no prototype needed)
-    context[sources] = [];
-    context[dependencies] = new Set();
-    context[flagsSymbol] = FLAG_DIRTY;
-    context[skippedDeps] = context[versionSymbol] = 0;
-    context[getterSymbol] = getter;
-    context[equalsSymbol] = equals;
-
-    return context;
-};
+export const computed = (getter, equals = Object.is) =>
+    computedRead.bind({
+        [sources]: [],
+        [dependencies]: new Set(),
+        [flagsSymbol]: FLAG_DIRTY,
+        [skippedDeps]: 0,
+        [versionSymbol]: 0,
+        [getterSymbol]: getter,
+        [equalsSymbol]: equals,
+    });
