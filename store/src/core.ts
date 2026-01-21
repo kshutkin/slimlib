@@ -14,18 +14,7 @@
 
 import { computedRead } from './computed';
 import { safeForEach } from './debug';
-import {
-    FLAG_CHECK,
-    FLAG_COMPUTING,
-    FLAG_COMPUTING_EFFECT,
-    FLAG_DIRTY,
-    FLAG_EFFECT,
-    FLAG_HAS_STATE_SOURCE,
-    FLAG_IS_LIVE,
-    FLAG_LIVE,
-    FLAG_NEEDS_WORK,
-    FLAG_SKIP_NOTIFY,
-} from './flags';
+import { Flag } from './flags';
 import { scheduler } from './globals';
 import { dependencies, depsVersionSymbol, flagsSymbol, skippedDeps, sources, unwrap, versionSymbol } from './symbols';
 import type { Computed, SourceEntry } from './types';
@@ -53,7 +42,7 @@ export let tracked = true;
 /**
  * Add an effect to the batched set
  * PUSH PHASE: Part of effect scheduling during dirty propagation
- * Caller must check FLAG_NEEDS_WORK before calling to avoid duplicates
+ * Caller must check Flag.NEEDS_WORK before calling to avoid duplicates
  */
 export const batchedAdd = (node: Computed<any>): void => {
     const nodeId = node.i as number;
@@ -87,10 +76,10 @@ export const unwrapValue = <T>(value: T): T => (value != null && (value as unkno
  * PUSH PHASE: Enables push notifications to flow through this node
  */
 export const makeLive = (node: Computed<any>): void => {
-    node[flagsSymbol] |= FLAG_LIVE;
+    node[flagsSymbol] |= Flag.LIVE;
     for (const { d: deps, n: sourceNode } of node[sources] as SourceEntry[]) {
         deps.add(node);
-        if (sourceNode && !(sourceNode[flagsSymbol] & FLAG_IS_LIVE)) {
+        if (sourceNode && !(sourceNode[flagsSymbol] & Flag.IS_LIVE)) {
             makeLive(sourceNode);
         }
     }
@@ -102,12 +91,12 @@ export const makeLive = (node: Computed<any>): void => {
  * PUSH PHASE: Disables push notifications through this node
  */
 export const makeNonLive = (node: Computed<any>): void => {
-    node[flagsSymbol] &= ~FLAG_LIVE;
+    node[flagsSymbol] &= ~Flag.LIVE;
     for (const { d: deps, n: sourceNode } of node[sources] as SourceEntry[]) {
         deps.delete(node);
         const sourceNodeFlag = sourceNode?.[flagsSymbol];
-        // Check: has FLAG_LIVE but not FLAG_EFFECT (effects never become non-live)
-        if ((sourceNodeFlag & FLAG_IS_LIVE) === FLAG_LIVE && !(sourceNode as Computed<any>)[dependencies].size) {
+        // Check: has Flag.LIVE but not Flag.EFFECT (effects never become non-live)
+        if ((sourceNodeFlag & Flag.IS_LIVE) === Flag.LIVE && !(sourceNode as Computed<any>)[dependencies].size) {
             makeNonLive(sourceNode as Computed<any>);
         }
     }
@@ -119,7 +108,7 @@ export const makeNonLive = (node: Computed<any>): void => {
  */
 export const clearSources = (node: Computed<any>, fromIndex = 0): void => {
     const sourcesArray = node[sources] as SourceEntry[];
-    const isLive = node[flagsSymbol] & FLAG_IS_LIVE;
+    const isLive = node[flagsSymbol] & Flag.IS_LIVE;
 
     for (let i = fromIndex; i < sourcesArray.length; i++) {
         const { d: deps, n: sourceNode } = sourcesArray[i]!;
@@ -136,8 +125,8 @@ export const clearSources = (node: Computed<any>, fromIndex = 0): void => {
             // If source is a computed and we're live, check if it became non-live
             if (isLive) {
                 const sourceNodeFlag = sourceNode?.[flagsSymbol];
-                // Check: has FLAG_LIVE but not FLAG_EFFECT (effects never become non-live)
-                if ((sourceNodeFlag & FLAG_IS_LIVE) === FLAG_LIVE && !(sourceNode as Computed<any>)[dependencies].size) {
+                // Check: has Flag.LIVE but not Flag.EFFECT (effects never become non-live)
+                if ((sourceNodeFlag & Flag.IS_LIVE) === Flag.LIVE && !(sourceNode as Computed<any>)[dependencies].size) {
                     makeNonLive(sourceNode as Computed<any>);
                 }
             }
@@ -205,10 +194,10 @@ export const trackStateDependency = (deps: Set<Computed<any>>, valueGetter: () =
         });
 
         // Mark that this node has state/signal sources (for polling optimization)
-        node[flagsSymbol] |= FLAG_HAS_STATE_SOURCE;
+        node[flagsSymbol] |= Flag.HAS_STATE_SOURCE;
 
         // Only register with source if we're live
-        if (node[flagsSymbol] & FLAG_IS_LIVE) {
+        if (node[flagsSymbol] & Flag.IS_LIVE) {
             deps.add(node);
         }
     } else {
@@ -217,8 +206,8 @@ export const trackStateDependency = (deps: Set<Computed<any>>, valueGetter: () =
         entry.dv = (deps as any)[depsVersionSymbol] || 0;
         entry.g = valueGetter;
         entry.sv = valueGetter();
-        // Re-set FLAG_HAS_STATE_SOURCE (may have been cleared by runWithTracking)
-        node[flagsSymbol] |= FLAG_HAS_STATE_SOURCE;
+        // Re-set Flag.HAS_STATE_SOURCE (may have been cleared by runWithTracking)
+        node[flagsSymbol] |= Flag.HAS_STATE_SOURCE;
     }
     ++node[skippedDeps];
 };
@@ -229,15 +218,15 @@ export const trackStateDependency = (deps: Set<Computed<any>>, valueGetter: () =
  */
 export const markNeedsCheck = (node: Computed<any>): void => {
     const flags = node[flagsSymbol];
-    if ((flags & FLAG_COMPUTING_EFFECT) === FLAG_COMPUTING_EFFECT) {
-        if (!(flags & FLAG_DIRTY)) {
-            node[flagsSymbol] = flags | FLAG_DIRTY;
+    if ((flags & Flag.COMPUTING_EFFECT) === Flag.COMPUTING_EFFECT) {
+        if (!(flags & Flag.DIRTY)) {
+            node[flagsSymbol] = flags | Flag.DIRTY;
             batchedAdd(node);
             scheduleFlush();
         }
-    } else if (!(flags & FLAG_SKIP_NOTIFY)) {
-        node[flagsSymbol] = flags | FLAG_CHECK;
-        if (flags & FLAG_EFFECT) {
+    } else if (!(flags & Flag.SKIP_NOTIFY)) {
+        node[flagsSymbol] = flags | Flag.CHECK;
+        if (flags & Flag.EFFECT) {
             batchedAdd(node);
             scheduleFlush();
         }
@@ -269,10 +258,10 @@ export const markDependents = (deps: Set<Computed<any>>): void => {
  * PULL PHASE: Core of pull - executes computation while tracking dependencies
  */
 export const runWithTracking = <T>(node: Computed<any>, getter: () => T): T => {
-    // Clear FLAG_NEEDS_WORK and FLAG_HAS_STATE_SOURCE (will be recalculated during tracking)
+    // Clear Flag.NEEDS_WORK and Flag.HAS_STATE_SOURCE (will be recalculated during tracking)
     // Note: Even when called from checkComputedSources (which sets tracked=false), this works
     // because runWithTracking sets tracked=true, so trackDependency will re-set the flag
-    node[flagsSymbol] = (node[flagsSymbol] & ~(FLAG_NEEDS_WORK | FLAG_HAS_STATE_SOURCE)) | FLAG_COMPUTING;
+    node[flagsSymbol] = (node[flagsSymbol] & ~(Flag.NEEDS_WORK | Flag.HAS_STATE_SOURCE)) | Flag.COMPUTING;
     node[skippedDeps] = 0;
 
     const prev = currentComputing;
@@ -285,7 +274,7 @@ export const runWithTracking = <T>(node: Computed<any>, getter: () => T): T => {
     } finally {
         currentComputing = prev;
         tracked = prevTracked;
-        node[flagsSymbol] &= ~FLAG_COMPUTING;
+        node[flagsSymbol] &= ~Flag.COMPUTING;
         const sourcesArray = node[sources] as SourceEntry[];
         const skipped = node[skippedDeps] as number;
         const updateLen = Math.min(skipped, sourcesArray.length);

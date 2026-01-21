@@ -1,16 +1,6 @@
 import { checkComputedSources, clearSources, currentComputing, globalVersion, makeLive, runWithTracking, tracked } from './core';
 import { cycleMessage } from './debug';
-import {
-    FLAG_CHECK,
-    FLAG_COMPUTING,
-    FLAG_DIRTY,
-    FLAG_HAS_ERROR,
-    FLAG_HAS_STATE_SOURCE,
-    FLAG_HAS_VALUE,
-    FLAG_IS_LIVE,
-    FLAG_NEEDS_WORK,
-    FLAG_SKIP_NOTIFY,
-} from './flags';
+import { Flag } from './flags';
 import {
     dependencies,
     depsVersionSymbol,
@@ -58,10 +48,10 @@ export function computedRead<T>(this: Computed<T>): T {
             });
 
             // Only register with source if we're live
-            if (consumer[flagsSymbol] & FLAG_IS_LIVE) {
+            if (consumer[flagsSymbol] & Flag.IS_LIVE) {
                 deps.add(consumer);
                 // If source computed is not live, make it live
-                if (!(self[flagsSymbol] & FLAG_IS_LIVE)) {
+                if (!(self[flagsSymbol] & Flag.IS_LIVE)) {
                     makeLive(self);
                 }
             }
@@ -74,19 +64,19 @@ export function computedRead<T>(this: Computed<T>): T {
 
     // Cycle detection: if this computed is already being computed, we have a cycle
     // This matches TC39 Signals proposal behavior: throw an error on cyclic reads
-    if (flags & FLAG_COMPUTING) {
+    if (flags & Flag.COMPUTING) {
         throw new Error(cycleMessage);
     }
 
     // ===== PULL PHASE: Check if cached value can be returned =====
     // Combined check: node has cached result and doesn't need work
-    const hasCached = flags & (FLAG_HAS_VALUE | FLAG_HAS_ERROR);
+    const hasCached = flags & (Flag.HAS_VALUE | Flag.HAS_ERROR);
 
     // biome-ignore lint/suspicious/noConfusingLabels: expected
-    checkCache: if (!(flags & FLAG_NEEDS_WORK) && hasCached) {
+    checkCache: if (!(flags & Flag.NEEDS_WORK) && hasCached) {
         // Fast-path: nothing has changed globally since last read
         if (self[lastGlobalVersionSymbol] === globalVersion) {
-            if (flags & FLAG_HAS_ERROR) {
+            if (flags & Flag.HAS_ERROR) {
                 throw self[valueSymbol];
             }
             return self[valueSymbol];
@@ -94,12 +84,12 @@ export function computedRead<T>(this: Computed<T>): T {
 
         // ===== PULL PHASE: Poll sources for non-live computeds =====
         // Non-live nodes poll instead of receiving push notifications
-        if (!(flags & FLAG_IS_LIVE)) {
+        if (!(flags & Flag.IS_LIVE)) {
             let stateSourceChanged = false;
 
             // Fast path: if no state/signal sources, skip the polling loop entirely
             // and just verify computed sources
-            if (flags & FLAG_HAS_STATE_SOURCE) {
+            if (flags & Flag.HAS_STATE_SOURCE) {
                 // Has state sources - must poll each one
                 let computedSourcesToCheck: SourceEntry[] | null = null;
 
@@ -132,19 +122,19 @@ export function computedRead<T>(this: Computed<T>): T {
 
                 if (stateSourceChanged || (computedSourcesToCheck && checkComputedSources(computedSourcesToCheck, true))) {
                     // Source changed or threw - mark DIRTY and proceed to recompute
-                    self[flagsSymbol] = flags |= FLAG_DIRTY;
+                    self[flagsSymbol] = flags |= Flag.DIRTY;
                     break checkCache;
                 }
             } else if (checkComputedSources(sourcesArray, true)) {
                 // All sources are computed - directly check them without polling loop
                 // Source changed or threw - mark DIRTY and proceed to recompute
-                self[flagsSymbol] = flags |= FLAG_DIRTY;
+                self[flagsSymbol] = flags |= Flag.DIRTY;
                 break checkCache;
             }
 
             // No sources changed - return cached value
             self[lastGlobalVersionSymbol] = globalVersion;
-            if (flags & FLAG_HAS_ERROR) {
+            if (flags & Flag.HAS_ERROR) {
                 throw self[valueSymbol];
             }
             return self[valueSymbol];
@@ -154,21 +144,21 @@ export function computedRead<T>(this: Computed<T>): T {
     // ===== PULL PHASE: Verify CHECK state for live computeds =====
     // Live computeds receive CHECK via push - verify sources before recomputing
     // Non-live computeds already verified above during polling
-    // Note: Check for FLAG_HAS_VALUE OR FLAG_HAS_ERROR since cached errors should also use this path
-    // Note: Using FLAG_NEEDS_WORK instead of FLAG_CHECK_ONLY since computeds never have FLAG_EFFECT
-    if ((flags & FLAG_NEEDS_WORK) === FLAG_CHECK && hasCached) {
+    // Note: Check for Flag.HAS_VALUE OR Flag.HAS_ERROR since cached errors should also use this path
+    // Note: Using Flag.NEEDS_WORK instead of Flag.CHECK_ONLY since computeds never have Flag.EFFECT
+    if ((flags & Flag.NEEDS_WORK) === Flag.CHECK && hasCached) {
         const result = checkComputedSources(sourcesArray);
         // If null, can't verify (has state sources or empty) - keep CHECK flag
         if (result !== null) {
             if (result) {
                 // Sources changed or errored - mark DIRTY and let getter run
                 // (getter may handle error differently, e.g. try/catch with fallback)
-                self[flagsSymbol] = flags = (flags & ~FLAG_CHECK) | FLAG_DIRTY;
+                self[flagsSymbol] = flags = (flags & ~Flag.CHECK) | Flag.DIRTY;
             } else {
                 // Sources unchanged, clear CHECK flag and return cached value
-                self[flagsSymbol] = flags & ~FLAG_CHECK;
+                self[flagsSymbol] = flags & ~Flag.CHECK;
                 self[lastGlobalVersionSymbol] = globalVersion;
-                if (flags & FLAG_HAS_ERROR) {
+                if (flags & Flag.HAS_ERROR) {
                     throw self[valueSymbol];
                 }
                 return self[valueSymbol];
@@ -178,31 +168,31 @@ export function computedRead<T>(this: Computed<T>): T {
 
     // ===== PULL PHASE: Recompute value by pulling from sources =====
     // Recompute if dirty or check (sources actually changed)
-    if (flags & FLAG_NEEDS_WORK) {
-        const wasDirty = (flags & FLAG_DIRTY) !== 0;
+    if (flags & Flag.NEEDS_WORK) {
+        const wasDirty = (flags & Flag.DIRTY) !== 0;
 
         runWithTracking(self, () => {
             try {
                 const newValue = self[getterSymbol]();
 
                 // Check if value actually changed (common path: no error recovery)
-                const changed = !(flags & FLAG_HAS_VALUE) || !self[equalsSymbol](self[valueSymbol], newValue);
+                const changed = !(flags & Flag.HAS_VALUE) || !self[equalsSymbol](self[valueSymbol], newValue);
 
                 if (changed) {
                     self[valueSymbol] = newValue;
                     // Increment version to indicate value changed (for polling)
                     self[versionSymbol]++;
-                    self[flagsSymbol] = (self[flagsSymbol] | FLAG_HAS_VALUE) & ~FLAG_HAS_ERROR;
+                    self[flagsSymbol] = (self[flagsSymbol] | Flag.HAS_VALUE) & ~Flag.HAS_ERROR;
                     // ===== PUSH PHASE (during pull): Mark CHECK-only dependents as DIRTY =====
                     // When value changes during recomputation, upgrade dependent CHECK flags to DIRTY
                     for (const dep of self[dependencies] as Set<Computed<any>>) {
                         const depFlags = dep[flagsSymbol];
-                        if ((depFlags & FLAG_SKIP_NOTIFY) === FLAG_CHECK) {
-                            dep[flagsSymbol] = depFlags | FLAG_DIRTY;
+                        if ((depFlags & Flag.SKIP_NOTIFY) === Flag.CHECK) {
+                            dep[flagsSymbol] = depFlags | Flag.DIRTY;
                         }
                     }
                 } else if (wasDirty) {
-                    self[flagsSymbol] |= FLAG_HAS_VALUE;
+                    self[flagsSymbol] |= Flag.HAS_VALUE;
                 }
 
                 // Update last seen global version
@@ -214,14 +204,14 @@ export function computedRead<T>(this: Computed<T>): T {
                 // Increment version since the result changed (to error)
                 self[versionSymbol]++;
                 self[valueSymbol] = e;
-                self[flagsSymbol] = (self[flagsSymbol] & ~FLAG_HAS_VALUE) | FLAG_HAS_ERROR;
+                self[flagsSymbol] = (self[flagsSymbol] & ~Flag.HAS_VALUE) | Flag.HAS_ERROR;
                 self[lastGlobalVersionSymbol] = globalVersion;
             }
         });
     }
 
     // Check if we have a cached error to rethrow (stored in valueSymbol)
-    if (self[flagsSymbol] & FLAG_HAS_ERROR) {
+    if (self[flagsSymbol] & Flag.HAS_ERROR) {
         throw self[valueSymbol];
     }
 
@@ -235,7 +225,7 @@ export const computed = <T>(getter: () => T, equals: (a: T, b: T) => boolean = O
     computedRead.bind({
         [sources]: [],
         [dependencies]: new Set(),
-        [flagsSymbol]: FLAG_DIRTY,
+        [flagsSymbol]: Flag.DIRTY,
         [skippedDeps]: 0,
         [versionSymbol]: 0,
         [getterSymbol]: getter,

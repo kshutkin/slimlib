@@ -1,7 +1,7 @@
 import { DEV } from 'esm-env';
 
 import { currentComputing } from './core';
-import { FLAG_EFFECT } from './flags';
+import { Flag } from './flags';
 import { flagsSymbol } from './symbols';
 import type { Scope } from './types';
 
@@ -51,7 +51,7 @@ export const safeForEach = (fns: Iterable<() => void>): void => {
  * Only runs in DEV mode and when configured
  */
 export const warnIfWriteInComputed = (context: string): void => {
-    if (DEV && debugConfigFlags & WARN_ON_WRITE_IN_COMPUTED && currentComputing && !(currentComputing[flagsSymbol] & FLAG_EFFECT)) {
+    if (DEV && debugConfigFlags & WARN_ON_WRITE_IN_COMPUTED && currentComputing && !(currentComputing[flagsSymbol] & Flag.EFFECT)) {
         console.warn(
             `[@slimlib/store] Writing to ${context} inside a computed is not recommended. The computed will not automatically re-run when this value changes, which may lead to stale values.`
         );

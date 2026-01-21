@@ -1,6 +1,6 @@
 import { batched, batchedAddNew, checkComputedSources, clearSources, runWithTracking, scheduleFlush } from './core';
 import { cycleMessage, registerEffect, unregisterEffect, warnIfNoActiveScope } from './debug';
-import { FLAG_CHECK, FLAG_COMPUTING, FLAG_DIRTY, FLAG_EFFECT, FLAG_NEEDS_WORK } from './flags';
+import { Flag } from './flags';
 import { activeScope } from './globals';
 import { flagsSymbol, skippedDeps, sources, trackSymbol } from './symbols';
 import type { Effect, EffectCleanup, SourceEntry } from './types';
@@ -33,7 +33,7 @@ export const effect = (callback: () => void | EffectCleanup): (() => void) => {
 
         // Cycle detection: if this node is already being computed, we have a cycle
         const flags = eff[flagsSymbol] as number;
-        if (flags & FLAG_COMPUTING) {
+        if (flags & Flag.COMPUTING) {
             throw new Error(cycleMessage);
         }
 
@@ -42,14 +42,14 @@ export const effect = (callback: () => void | EffectCleanup): (() => void) => {
         // ----------------------------------------------------------------
         // Bail-out optimization: if only CHECK flag is set (not DIRTY),
         // verify that computed sources actually changed before running
-        if ((flags & FLAG_NEEDS_WORK) === FLAG_CHECK) {
+        if ((flags & Flag.NEEDS_WORK) === Flag.CHECK) {
             // PULL: Read computed sources to check if they changed
             const result = checkComputedSources(eff[sources] as SourceEntry[]);
             // If null, can't verify (has state sources or empty) - proceed to run
             // If false, sources didn't change - clear CHECK flag and skip
             // If true, sources changed or errored - proceed to run
             if (result === false) {
-                eff[flagsSymbol] = flags & ~FLAG_CHECK;
+                eff[flagsSymbol] = flags & ~Flag.CHECK;
                 return;
             }
         }
@@ -70,7 +70,7 @@ export const effect = (callback: () => void | EffectCleanup): (() => void) => {
 
     // Initialize properties
     eff[sources] = [];
-    eff[flagsSymbol] = FLAG_DIRTY | FLAG_EFFECT;
+    eff[flagsSymbol] = Flag.DIRTY | Flag.EFFECT;
     eff[skippedDeps] = 0;
     const effectId = effectCreationCounter++;
     eff.i = effectId;
