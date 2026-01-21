@@ -73,7 +73,7 @@ export const effect = (callback: () => void | EffectCleanup): (() => void) => {
     eff[flagsSymbol] = Flag.DIRTY | Flag.EFFECT;
     eff[skippedDeps] = 0;
     const effectId = effectCreationCounter++;
-    eff.i = effectId;
+    eff.$_id = effectId;
 
     const dispose = (): void => {
         // Mark as disposed to prevent running if still in batched queue

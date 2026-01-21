@@ -31,7 +31,7 @@ export function computedRead<T>(this: Computed<T>): T {
         const skipIndex = consumer[skippedDeps] as number;
         const deps = self[dependencies] as Set<Computed<any>>;
 
-        if (consumerSources[skipIndex]?.d !== deps) {
+        if (consumerSources[skipIndex]?.$_dependents !== deps) {
             // Different dependency - clear old ones from this point and rebuild
             if (skipIndex < consumerSources.length) {
                 clearSources(consumer, skipIndex);
@@ -39,12 +39,12 @@ export function computedRead<T>(this: Computed<T>): T {
 
             // Push source entry - version will be updated after source computes
             consumerSources.push({
-                d: deps,
-                n: self,
-                v: 0,
-                dv: 0,
-                g: undefined,
-                sv: undefined,
+                $_dependents: deps,
+                $_node: self,
+                $_version: 0,
+                $_depsVersion: 0,
+                $_getter: undefined,
+                $_storedValue: undefined,
             });
 
             // Only register with source if we're live
@@ -94,18 +94,18 @@ export function computedRead<T>(this: Computed<T>): T {
                 let computedSourcesToCheck: SourceEntry[] | null = null;
 
                 for (const source of sourcesArray) {
-                    if (!source.n) {
+                    if (!source.$_node) {
                         // State source - check if deps version changed
-                        const currentDepsVersion = (source.d as any)[depsVersionSymbol] || 0;
-                        if (source.dv !== currentDepsVersion) {
+                        const currentDepsVersion = (source.$_dependents as any)[depsVersionSymbol] || 0;
+                        if (source.$_depsVersion !== currentDepsVersion) {
                             // Deps version changed, check if actual value reverted (primitives only)
-                            const storedValue = source.sv;
+                            const storedValue = source.$_storedValue;
                             const storedType = typeof storedValue;
-                            if (source.g && (storedValue === null || (storedType !== 'object' && storedType !== 'function'))) {
-                                const currentValue = source.g();
+                            if (source.$_getter && (storedValue === null || (storedType !== 'object' && storedType !== 'function'))) {
+                                const currentValue = source.$_getter();
                                 if (Object.is(currentValue, storedValue)) {
-                                    // Value reverted - update dv and continue checking
-                                    source.dv = currentDepsVersion;
+                                    // Value reverted - update depsVersion and continue checking
+                                    source.$_depsVersion = currentDepsVersion;
                                     continue;
                                 }
                             }

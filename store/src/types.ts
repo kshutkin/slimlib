@@ -33,21 +33,21 @@ export type Signal<T> = (() => T) & { set: (value: T) => void };
 /**
  * A computed value that automatically tracks dependencies and caches results
  */
-export type Computed<T> = (() => T) & { [key: symbol]: any; i?: number };
+export type Computed<T> = (() => T) & { [key: symbol]: any; $_id?: number };
 
 /**
  * Source entry for tracking dependencies
  */
 export type SourceEntry<T = any> = {
-    d: Set<Computed<any>>;
-    n: Computed<any> | undefined;
-    v: number;
-    dv: number;
-    g?: () => T;
-    sv?: T;
+    $_dependents: Set<Computed<any>>;
+    $_node: Computed<any> | undefined;
+    $_version: number;
+    $_depsVersion: number;
+    $_getter?: () => T;
+    $_storedValue?: T;
 };
 
 /**
  * Effect type - internal representation
  */
-export type Effect<T> = (() => T) & { [key: symbol]: any; i?: number };
+export type Effect<T> = (() => T) & { [key: symbol]: any; $_id?: number };

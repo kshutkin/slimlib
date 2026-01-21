@@ -5,7 +5,7 @@ import type { Scope } from './types';
  * When set, effects created will be tracked to this scope
  * Can be set via setActiveScope() or automatically during scope() callbacks
  */
-export let activeScope: Scope | undefined = undefined;
+export let activeScope: Scope | undefined;
 
 /**
  * Set the active scope for effect tracking

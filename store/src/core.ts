@@ -45,7 +45,7 @@ export let tracked = true;
  * Caller must check Flag.NEEDS_WORK before calling to avoid duplicates
  */
 export const batchedAdd = (node: Computed<any>): void => {
-    const nodeId = node.i as number;
+    const nodeId = node.$_id as number;
     // Track if we're adding out of order
     if (nodeId < lastAddedId) {
         needsSort = true;
@@ -77,8 +77,8 @@ export const unwrapValue = <T>(value: T): T => (value != null && (value as unkno
  */
 export const makeLive = (node: Computed<any>): void => {
     node[flagsSymbol] |= Flag.LIVE;
-    for (const { d: deps, n: sourceNode } of node[sources] as SourceEntry[]) {
-        deps.add(node);
+    for (const { $_dependents, $_node: sourceNode } of node[sources] as SourceEntry[]) {
+        $_dependents.add(node);
         if (sourceNode && !(sourceNode[flagsSymbol] & Flag.IS_LIVE)) {
             makeLive(sourceNode);
         }
@@ -92,8 +92,8 @@ export const makeLive = (node: Computed<any>): void => {
  */
 export const makeNonLive = (node: Computed<any>): void => {
     node[flagsSymbol] &= ~Flag.LIVE;
-    for (const { d: deps, n: sourceNode } of node[sources] as SourceEntry[]) {
-        deps.delete(node);
+    for (const { $_dependents, $_node: sourceNode } of node[sources] as SourceEntry[]) {
+        $_dependents.delete(node);
         const sourceNodeFlag = sourceNode?.[flagsSymbol];
         // Check: has Flag.LIVE but not Flag.EFFECT (effects never become non-live)
         if ((sourceNodeFlag & Flag.IS_LIVE) === Flag.LIVE && !(sourceNode as Computed<any>)[dependencies].size) {
@@ -111,17 +111,17 @@ export const clearSources = (node: Computed<any>, fromIndex = 0): void => {
     const isLive = node[flagsSymbol] & Flag.IS_LIVE;
 
     for (let i = fromIndex; i < sourcesArray.length; i++) {
-        const { d: deps, n: sourceNode } = sourcesArray[i]!;
+        const { $_dependents, $_node: sourceNode } = sourcesArray[i]!;
 
         // Check if this deps is retained (exists in kept portion) - avoid removing shared deps
         let retained = false;
         for (let j = 0; j < fromIndex && !retained; j++) {
-            retained = sourcesArray[j]!.d === deps;
+            retained = sourcesArray[j]!.$_dependents === $_dependents;
         }
 
         if (!retained) {
             // Always remove from deps to prevent stale notifications
-            deps.delete(node);
+            $_dependents.delete(node);
             // If source is a computed and we're live, check if it became non-live
             if (isLive) {
                 const sourceNodeFlag = sourceNode?.[flagsSymbol];
@@ -146,7 +146,7 @@ export const flushEffects = (): void => {
     // Collect nodes, only sort if effects were added out of order
     const nodes: Computed<any>[] = [...batched];
     if (needsSort) {
-        nodes.sort((a, b) => (a.i as number) - (b.i as number));
+        nodes.sort((a, b) => (a.$_id as number) - (b.$_id as number));
     }
     batched = new Set();
     lastAddedId = 0;
@@ -176,7 +176,7 @@ export const trackStateDependency = (deps: Set<Computed<any>>, valueGetter: () =
     const sourcesArray = node[sources] as SourceEntry[];
     const skipIndex = node[skippedDeps] as number;
 
-    if (sourcesArray[skipIndex]?.d !== deps) {
+    if (sourcesArray[skipIndex]?.$_dependents !== deps) {
         // Different dependency - clear old ones from this point and rebuild
         if (skipIndex < sourcesArray.length) {
             clearSources(node, skipIndex);
@@ -185,12 +185,12 @@ export const trackStateDependency = (deps: Set<Computed<any>>, valueGetter: () =
         // Track deps version, value getter, and last seen value for polling
         const currentValue = valueGetter();
         sourcesArray.push({
-            d: deps,
-            n: undefined,
-            v: 0,
-            dv: (deps as any)[depsVersionSymbol] || 0,
-            g: valueGetter,
-            sv: currentValue,
+            $_dependents: deps,
+            $_node: undefined,
+            $_version: 0,
+            $_depsVersion: (deps as any)[depsVersionSymbol] || 0,
+            $_getter: valueGetter,
+            $_storedValue: currentValue,
         });
 
         // Mark that this node has state/signal sources (for polling optimization)
@@ -201,11 +201,11 @@ export const trackStateDependency = (deps: Set<Computed<any>>, valueGetter: () =
             deps.add(node);
         }
     } else {
-        // Same state source - update dv, g, and sv for accurate polling
+        // Same state source - update depsVersion, getter, and storedValue for accurate polling
         const entry = sourcesArray[skipIndex];
-        entry.dv = (deps as any)[depsVersionSymbol] || 0;
-        entry.g = valueGetter;
-        entry.sv = valueGetter();
+        entry.$_depsVersion = (deps as any)[depsVersionSymbol] || 0;
+        entry.$_getter = valueGetter;
+        entry.$_storedValue = valueGetter();
         // Re-set Flag.HAS_STATE_SOURCE (may have been cleared by runWithTracking)
         node[flagsSymbol] |= Flag.HAS_STATE_SOURCE;
     }
@@ -280,8 +280,8 @@ export const runWithTracking = <T>(node: Computed<any>, getter: () => T): T => {
         const updateLen = Math.min(skipped, sourcesArray.length);
         for (let i = 0; i < updateLen; i++) {
             const entry = sourcesArray[i]!;
-            if (entry.n) {
-                entry.v = entry.n[versionSymbol];
+            if (entry.$_node) {
+                entry.$_version = entry.$_node[versionSymbol];
             }
             // Note: state source dv and sv are updated when trackDependency is called during recomputation
         }
@@ -317,8 +317,8 @@ export const checkComputedSources = (sourcesArray: SourceEntry[], skipStateCheck
     const prevTracked = tracked;
     tracked = false;
     for (const sourceEntry of sourcesArray) {
-        const sourceNode = sourceEntry.n;
-        // Check for state source (no .n) - can't verify, bail out
+        const sourceNode = sourceEntry.$_node;
+        // Check for state source (no node property) - can't verify, bail out
         if (!skipStateCheck && !sourceNode) {
             tracked = prevTracked;
             return null;
@@ -332,9 +332,9 @@ export const checkComputedSources = (sourcesArray: SourceEntry[], skipStateCheck
             return true;
         }
         // Check if source version changed (meaning its value changed)
-        if (sourceEntry.v !== (sourceNode as Computed<any>)[versionSymbol]) {
+        if (sourceEntry.$_version !== (sourceNode as Computed<any>)[versionSymbol]) {
             changed = true;
-            sourceEntry.v = (sourceNode as Computed<any>)[versionSymbol];
+            sourceEntry.$_version = (sourceNode as Computed<any>)[versionSymbol];
         }
     }
     tracked = prevTracked;
