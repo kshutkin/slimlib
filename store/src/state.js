@@ -1,4 +1,4 @@
-import { currentComputing, markDependents, trackDependency, tracked, unwrapValue } from './core.js';
+import { currentComputing, markDependents, trackStateDependency, tracked, unwrapValue } from './core.js';
 import { warnIfWriteInComputed } from './debug.js';
 import { propertyDepsSymbol, unwrap } from './symbols.js';
 
@@ -101,7 +101,7 @@ export function state(object = /** @type {T} */ ({})) {
                     // PULL: Bidirectional linking with optimization
                     // Pass value getter for polling optimization (value revert detection)
                     // Capture target and property for later value retrieval
-                    trackDependency(deps, undefined, () => /** @type {Record<string | symbol, any>} */ (target)[p]);
+                    trackStateDependency(deps, () => /** @type {Record<string | symbol, any>} */ (target)[p]);
                 }
 
                 // Fast path for primitives (most common case)

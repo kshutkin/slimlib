@@ -1,4 +1,4 @@
-import { checkComputedSources, currentComputing, globalVersion, runWithTracking, trackDependency, tracked } from './core.js';
+import { checkComputedSources, clearSources, currentComputing, globalVersion, makeLive, runWithTracking, tracked } from './core.js';
 import { cycleMessage } from './debug.js';
 import {
     FLAG_CHECK,
@@ -42,7 +42,38 @@ export function computedRead() {
     // ===== PULL PHASE: Register this computed as a dependency of the current consumer =====
     // Track if someone is reading us
     if (tracked && currentComputing) {
-        trackDependency(self[dependencies], self);
+        // Inline tracking for computed dependencies
+        const consumer = /** @type {Computed<any>} */ (currentComputing);
+        const consumerSources = consumer[sources];
+        const skipIndex = consumer[skippedDeps];
+        const deps = self[dependencies];
+
+        if (consumerSources[skipIndex]?.d !== deps) {
+            // Different dependency - clear old ones from this point and rebuild
+            if (skipIndex < consumerSources.length) {
+                clearSources(consumer, skipIndex);
+            }
+
+            // Push source entry - version will be updated after source computes
+            consumerSources.push({
+                d: deps,
+                n: self,
+                v: 0,
+                dv: 0,
+                g: undefined,
+                sv: undefined,
+            });
+
+            // Only register with source if we're live
+            if (consumer[flagsSymbol] & FLAG_IS_LIVE) {
+                deps.add(consumer);
+                // If source computed is not live, make it live
+                if (!(self[flagsSymbol] & FLAG_IS_LIVE)) {
+                    makeLive(self);
+                }
+            }
+        }
+        ++consumer[skippedDeps];
     }
 
     let flags = self[flagsSymbol];

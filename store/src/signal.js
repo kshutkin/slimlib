@@ -2,7 +2,7 @@
  * @import { Computed, Signal } from './index.js'
  */
 
-import { currentComputing, markDependents, trackDependency, tracked } from './core.js';
+import { currentComputing, markDependents, trackStateDependency, tracked } from './core.js';
 import { warnIfWriteInComputed } from './debug.js';
 
 /**
@@ -40,7 +40,7 @@ export function signal(initialValue) {
         if (tracked && currentComputing) {
             // Pass value getter for polling optimization (value revert detection)
             // biome-ignore lint/suspicious/noAssignInExpressions: optimization
-            trackDependency((deps ||= new Set()), undefined, () => value);
+            trackStateDependency((deps ||= new Set()), () => value);
         }
         return value;
         // === END PULL PHASE ===

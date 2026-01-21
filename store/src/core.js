@@ -198,14 +198,13 @@ export const scheduleFlush = () => {
 };
 
 /**
- * Track a dependency between currentComputing and a deps Set
+ * Track a state/signal dependency between currentComputing and a deps Set
  * Uses liveness tracking - only live consumers register with sources
  * PULL PHASE: Records dependencies during computation for future invalidation
  * @param {Set<Computed<any>>} deps - The dependency set to track
- * @param {Computed<any>} [sourceNode] - The computed node being accessed (if any)
- * @param {() => any} [valueGetter] - Function to get current source value (for signal/state polling)
+ * @param {() => any} valueGetter - Function to get current source value (for polling optimization)
  */
-export const trackDependency = (deps, sourceNode, valueGetter) => {
+export const trackStateDependency = (deps, valueGetter) => {
     // Callers guarantee tracked && currentComputing are true
     const node = /** @type {Computed<any>} */ (currentComputing);
     const sourcesArray = node[sources];
@@ -217,12 +216,11 @@ export const trackDependency = (deps, sourceNode, valueGetter) => {
             clearSources(node, skipIndex);
         }
 
-        // Push source entry - version will be updated after source computes
-        // For state sources (no node), track deps version, value getter, and last seen value for polling
-        const currentValue = valueGetter?.();
+        // Track deps version, value getter, and last seen value for polling
+        const currentValue = valueGetter();
         sourcesArray.push({
             d: deps,
-            n: sourceNode,
+            n: undefined,
             v: 0,
             dv: /** @type {any} */ (deps)[depsVersionSymbol] || 0,
             g: valueGetter,
@@ -230,19 +228,13 @@ export const trackDependency = (deps, sourceNode, valueGetter) => {
         });
 
         // Mark that this node has state/signal sources (for polling optimization)
-        if (!sourceNode) {
-            node[flagsSymbol] |= FLAG_HAS_STATE_SOURCE;
-        }
+        node[flagsSymbol] |= FLAG_HAS_STATE_SOURCE;
 
         // Only register with source if we're live
         if (node[flagsSymbol] & FLAG_IS_LIVE) {
             deps.add(node);
-            // If source is a computed that's not live, make it live
-            if (sourceNode && !(sourceNode[flagsSymbol] & FLAG_IS_LIVE)) {
-                makeLive(sourceNode);
-            }
         }
-    } else if (!sourceNode && valueGetter) {
+    } else {
         // Same state source - update dv, g, and sv for accurate polling
         const entry = sourcesArray[skipIndex];
         entry.dv = /** @type {any} */ (deps)[depsVersionSymbol] || 0;
