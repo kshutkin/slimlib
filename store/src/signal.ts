@@ -1,39 +1,26 @@
-/**
- * @import { Computed, Signal } from './index.js'
- */
-
-import { currentComputing, markDependents, trackStateDependency, tracked } from './core.js';
-import { warnIfWriteInComputed } from './debug.js';
+import { currentComputing, markDependents, trackStateDependency, tracked } from './core';
+import { warnIfWriteInComputed } from './debug';
+import type { Computed, Signal } from './types';
 
 /**
  * Create a simple signal without an initial value
- * @template T
- * @overload
- * @returns {Signal<T | undefined>}
  */
+export function signal<T>(): Signal<T | undefined>;
 /**
  * Create a simple signal with an initial value
- * @template T
- * @overload
- * @param {T} initialValue - Initial value for the signal
- * @returns {Signal<T>}
  */
+export function signal<T>(initialValue: T): Signal<T>;
 /**
  * Create a simple signal
- * @template T
- * @param {T} [initialValue] - Optional initial value for the signal
- * @returns {Signal<T>}
  */
-export function signal(initialValue) {
-    let value = /** @type {T} */ (initialValue);
-    /** @type {Set<Computed<any>> | null} */
-    let deps;
+export function signal<T>(initialValue?: T): Signal<T> {
+    let value = initialValue as T;
+    let deps: Set<Computed<any>> | null;
 
     /**
      * Read the signal value and track dependency
-     * @returns {T}
      */
-    const read = () => {
+    const read = (): T => {
         // === PULL PHASE ===
         // When a computed/effect reads this signal, we register the dependency
         // Fast path: if not tracked or no current computing, skip tracking
@@ -48,9 +35,8 @@ export function signal(initialValue) {
 
     /**
      * Set a new value and notify dependents
-     * @param {T} newValue
      */
-    read.set = newValue => {
+    read.set = (newValue: T): void => {
         // === PUSH PHASE ===
         // When the signal value changes, we eagerly propagate dirty/check flags
         // to all dependents via markDependents

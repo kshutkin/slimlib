@@ -1,19 +1,9 @@
-/**
- * @import { EffectCleanup } from './index.js'
- */
-
-// ============================================================================
-// PUSH/PULL REACTIVE SYSTEM - EFFECT MODULE
-// ============================================================================
-// Effects are always "live" - they receive push notifications when sources change.
-// When an effect runs, it PULLS values from its sources (computed/signal/state).
-// ============================================================================
-
-import { batched, batchedAddNew, checkComputedSources, clearSources, runWithTracking, scheduleFlush } from './core.js';
-import { cycleMessage, registerEffect, unregisterEffect, warnIfNoActiveScope } from './debug.js';
-import { FLAG_CHECK, FLAG_COMPUTING, FLAG_DIRTY, FLAG_EFFECT, FLAG_NEEDS_WORK } from './flags.js';
-import { activeScope } from './globals.js';
-import { flagsSymbol, skippedDeps, sources, trackSymbol } from './symbols.js';
+import { batched, batchedAddNew, checkComputedSources, clearSources, runWithTracking, scheduleFlush } from './core';
+import { cycleMessage, registerEffect, unregisterEffect, warnIfNoActiveScope } from './debug';
+import { FLAG_CHECK, FLAG_COMPUTING, FLAG_DIRTY, FLAG_EFFECT, FLAG_NEEDS_WORK } from './flags';
+import { activeScope } from './globals';
+import { flagsSymbol, skippedDeps, sources, trackSymbol } from './symbols';
+import type { Effect, EffectCleanup, SourceEntry } from './types';
 
 /**
  * Effect creation counter - increments on every effect creation
@@ -22,18 +12,10 @@ import { flagsSymbol, skippedDeps, sources, trackSymbol } from './symbols.js';
 let effectCreationCounter = 1;
 
 /**
- * @template T
- * @typedef {(() => T) & { [key: symbol]: any, i?: number }} Effect
- */
-
-/**
  * Creates a reactive effect that runs when dependencies change
- * @param {() => void | EffectCleanup} callback - Effect function, can optionally return a cleanup function
- * @returns {() => void} Dispose function to stop the effect
  */
-export const effect = callback => {
-    /** @type {void | EffectCleanup} */
-    let cleanup;
+export const effect = (callback: () => void | EffectCleanup): (() => void) => {
+    let cleanup: void | EffectCleanup;
     let disposed = false;
 
     // Register effect for GC tracking (only in DEV mode)
@@ -43,14 +25,14 @@ export const effect = callback => {
     warnIfNoActiveScope(activeScope);
 
     // Create callable that invokes effectRun with itself as `this`
-    const eff = /** @type {Effect<void>} */ (() => {
+    const eff = (() => {
         // Skip if effect was disposed (may still be in batched queue from before disposal)
         if (disposed) {
             return;
         }
 
         // Cycle detection: if this node is already being computed, we have a cycle
-        const flags = eff[flagsSymbol];
+        const flags = eff[flagsSymbol] as number;
         if (flags & FLAG_COMPUTING) {
             throw new Error(cycleMessage);
         }
@@ -62,7 +44,7 @@ export const effect = callback => {
         // verify that computed sources actually changed before running
         if ((flags & FLAG_NEEDS_WORK) === FLAG_CHECK) {
             // PULL: Read computed sources to check if they changed
-            const result = checkComputedSources(eff[sources]);
+            const result = checkComputedSources(eff[sources] as SourceEntry[]);
             // If null, can't verify (has state sources or empty) - proceed to run
             // If false, sources didn't change - clear CHECK flag and skip
             // If true, sources changed or errored - proceed to run
@@ -84,7 +66,7 @@ export const effect = callback => {
             // (callback will PULL values from signals/state/computed)
             cleanup = callback();
         });
-    });
+    }) as Effect<void>;
 
     // Initialize properties
     eff[sources] = [];
@@ -93,7 +75,7 @@ export const effect = callback => {
     const effectId = effectCreationCounter++;
     eff.i = effectId;
 
-    const dispose = () => {
+    const dispose = (): void => {
         // Mark as disposed to prevent running if still in batched queue
         disposed = true;
         // Unregister from GC tracking (only in DEV mode)

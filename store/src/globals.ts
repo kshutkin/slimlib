@@ -1,38 +1,30 @@
-/**
- * @import { Scope } from './index.js'
- */
+import type { Scope } from './types';
 
 /**
  * Active scope for effect tracking
  * When set, effects created will be tracked to this scope
  * Can be set via setActiveScope() or automatically during scope() callbacks
- * @type {Scope | undefined}
  */
-export let activeScope = undefined;
+export let activeScope: Scope | undefined = undefined;
 
 /**
  * Set the active scope for effect tracking
  * Effects created outside of a scope() callback will be tracked to this scope
  * Pass undefined to clear the active scope
- * @param {Scope | undefined} scope - The scope to set as active, or undefined to clear
- * @returns {void}
  */
-export const setActiveScope = scope => {
+export const setActiveScope = (scope: Scope | undefined): void => {
     activeScope = scope;
 };
 
 /**
  * Scheduler function used to schedule effect execution
  * Defaults to queueMicrotask, can be replaced with setScheduler
- * @type {(callback: () => void) => void}
  */
-export let scheduler = queueMicrotask;
+export let scheduler: (callback: () => void) => void = queueMicrotask;
 
 /**
  * Set a custom scheduler function for effect execution
- * @param {(callback: () => void) => void} newScheduler - The new scheduler function
- * @returns {void}
  */
-export const setScheduler = newScheduler => {
+export const setScheduler = (newScheduler: (callback: () => void) => void): void => {
     scheduler = newScheduler;
 };

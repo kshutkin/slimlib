@@ -1,5 +1,5 @@
-import { checkComputedSources, clearSources, currentComputing, globalVersion, makeLive, runWithTracking, tracked } from './core.js';
-import { cycleMessage } from './debug.js';
+import { checkComputedSources, clearSources, currentComputing, globalVersion, makeLive, runWithTracking, tracked } from './core';
+import { cycleMessage } from './debug';
 import {
     FLAG_CHECK,
     FLAG_COMPUTING,
@@ -10,7 +10,7 @@ import {
     FLAG_IS_LIVE,
     FLAG_NEEDS_WORK,
     FLAG_SKIP_NOTIFY,
-} from './flags.js';
+} from './flags';
 import {
     dependencies,
     depsVersionSymbol,
@@ -22,31 +22,24 @@ import {
     sources,
     valueSymbol,
     versionSymbol,
-} from './symbols.js';
+} from './symbols';
+import type { Computed, SourceEntry } from './types';
 
 /**
- * @template T
- * @typedef {import('./index.js').Computed<T>} Computed
- */
-
-/**
- * @template T
  * Read function for computed nodes
- * @this {Computed<T>}
- * @returns {T}
  */
-export function computedRead() {
+export function computedRead<T>(this: Computed<T>): T {
     // biome-ignore lint/complexity/noUselessThisAlias: optimization
-    const self = /** @type {Computed<any>} */ (/** @type {unknown} */ (this));
+    const self = this as Computed<any>;
 
     // ===== PULL PHASE: Register this computed as a dependency of the current consumer =====
     // Track if someone is reading us
     if (tracked && currentComputing) {
         // Inline tracking for computed dependencies
-        const consumer = /** @type {Computed<any>} */ (currentComputing);
-        const consumerSources = consumer[sources];
-        const skipIndex = consumer[skippedDeps];
-        const deps = self[dependencies];
+        const consumer = currentComputing as Computed<any>;
+        const consumerSources = consumer[sources] as SourceEntry[];
+        const skipIndex = consumer[skippedDeps] as number;
+        const deps = self[dependencies] as Set<Computed<any>>;
 
         if (consumerSources[skipIndex]?.d !== deps) {
             // Different dependency - clear old ones from this point and rebuild
@@ -76,8 +69,8 @@ export function computedRead() {
         ++consumer[skippedDeps];
     }
 
-    let flags = self[flagsSymbol];
-    const sourcesArray = self[sources];
+    let flags = self[flagsSymbol] as number;
+    const sourcesArray = self[sources] as SourceEntry[];
 
     // Cycle detection: if this computed is already being computed, we have a cycle
     // This matches TC39 Signals proposal behavior: throw an error on cyclic reads
@@ -108,13 +101,12 @@ export function computedRead() {
             // and just verify computed sources
             if (flags & FLAG_HAS_STATE_SOURCE) {
                 // Has state sources - must poll each one
-                /** @type {Array<{d: Set<import('./index.js').Computed<any>>, n: import('./index.js').Computed<any>, v: number, dv: number, g?: () => any, sv?: any}> | null} */
-                let computedSourcesToCheck = null;
+                let computedSourcesToCheck: SourceEntry[] | null = null;
 
                 for (const source of sourcesArray) {
                     if (!source.n) {
                         // State source - check if deps version changed
-                        const currentDepsVersion = source.d[depsVersionSymbol] || 0;
+                        const currentDepsVersion = (source.d as any)[depsVersionSymbol] || 0;
                         if (source.dv !== currentDepsVersion) {
                             // Deps version changed, check if actual value reverted (primitives only)
                             const storedValue = source.sv;
@@ -203,7 +195,7 @@ export function computedRead() {
                     self[flagsSymbol] = (self[flagsSymbol] | FLAG_HAS_VALUE) & ~FLAG_HAS_ERROR;
                     // ===== PUSH PHASE (during pull): Mark CHECK-only dependents as DIRTY =====
                     // When value changes during recomputation, upgrade dependent CHECK flags to DIRTY
-                    for (const dep of self[dependencies]) {
+                    for (const dep of self[dependencies] as Set<Computed<any>>) {
                         const depFlags = dep[flagsSymbol];
                         if ((depFlags & FLAG_SKIP_NOTIFY) === FLAG_CHECK) {
                             dep[flagsSymbol] = depFlags | FLAG_DIRTY;
@@ -238,12 +230,8 @@ export function computedRead() {
 
 /**
  * Creates a computed value that automatically tracks dependencies and caches results
- * @template T
- * @param {() => T} getter
- * @param {(a: T, b: T) => boolean} [equals=Object.is] - Equality comparison function
- * @returns {Computed<T>}
  */
-export const computed = (getter, equals = Object.is) =>
+export const computed = <T>(getter: () => T, equals: (a: T, b: T) => boolean = Object.is): Computed<T> =>
     computedRead.bind({
         [sources]: [],
         [dependencies]: new Set(),
@@ -252,4 +240,4 @@ export const computed = (getter, equals = Object.is) =>
         [versionSymbol]: 0,
         [getterSymbol]: getter,
         [equalsSymbol]: equals,
-    });
+    } as Computed<T>) as Computed<T>;

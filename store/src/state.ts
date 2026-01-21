@@ -1,30 +1,20 @@
-import { currentComputing, markDependents, trackStateDependency, tracked, unwrapValue } from './core.js';
-import { warnIfWriteInComputed } from './debug.js';
-import { propertyDepsSymbol, unwrap } from './symbols.js';
-
-/**
- * @template T
- * @typedef {import('./index.js').Computed<T>} Computed
- */
+import { currentComputing, markDependents, trackStateDependency, tracked, unwrapValue } from './core';
+import { warnIfWriteInComputed } from './debug';
+import { propertyDepsSymbol, unwrap } from './symbols';
+import type { Computed } from './types';
 
 /**
  * Creates a store without an initial object
- * @overload
- * @returns {object}
  */
+export function state(): object;
 /**
  * Creates a store with an initial object
- * @template {object} T
- * @overload
- * @param {T} object - Object to make reactive
- * @returns {T}
  */
+export function state<T extends object>(object: T): T;
 /**
- * @template {object} T
- * @param {T} [object] - Optional object to make reactive
- * @returns {T}
+ * Creates a reactive state object
  */
-export function state(object = /** @type {T} */ ({})) {
+export function state<T extends object>(object: T = {} as T): T {
     // State uses a proxy to intercept reads and writes
     // - Reads trigger PULL phase (trackDependency registers the consumer)
     // - Writes trigger PUSH phase (markDependents propagates dirty flags)
@@ -33,13 +23,9 @@ export function state(object = /** @type {T} */ ({})) {
     /**
      * PUSH PHASE: Notify all dependents that a property changed
      * This propagates dirty/check flags to all live consumers
-     * @param {object} target
-     * @param {string | symbol} property
      */
-    const notifyPropertyDependents = (target, property) => {
-        const propsMap = /** @type {Map<string | symbol, Set<Computed<any>>> | undefined} */ (
-            /** @type {any} */ (target)[propertyDepsSymbol]
-        );
+    const notifyPropertyDependents = (target: object, property: string | symbol): void => {
+        const propsMap = (target as any)[propertyDepsSymbol] as Map<string | symbol, Set<Computed<any>>> | undefined;
         if (!propsMap) return;
         const deps = propsMap.get(property);
         if (deps) {
@@ -47,18 +33,12 @@ export function state(object = /** @type {T} */ ({})) {
         }
     };
 
-    /**
-     * @template {object} T
-     * @param {T} object
-     * @returns {T}
-     */
-    const createProxy = object => {
+    const createProxy = <U extends object>(object: U): U => {
         if (proxiesCache.has(object)) {
-            return /** @type {T} */ (proxiesCache.get(object));
+            return proxiesCache.get(object) as U;
         }
 
-        /** @type {Map<string | symbol, Function>} */
-        const methodCache = new Map();
+        const methodCache = new Map<string | symbol, Function>();
 
         const proxy = new Proxy(object, {
             // PUSH PHASE: Setting a property notifies all dependents
@@ -66,8 +46,8 @@ export function state(object = /** @type {T} */ ({})) {
                 warnIfWriteInComputed('state');
                 const realValue = unwrapValue(newValue);
                 // Use direct property access instead of Reflect for performance
-                if (!Object.is(/** @type {Record<string | symbol, any>} */ (target)[p], realValue)) {
-                    /** @type {Record<string | symbol, any>} */ (target)[p] = realValue;
+                if (!Object.is((target as Record<string | symbol, any>)[p], realValue)) {
+                    (target as Record<string | symbol, any>)[p] = realValue;
                     // PUSH: Propagate dirty flags to dependents
                     notifyPropertyDependents(target, p);
                 }
@@ -77,14 +57,12 @@ export function state(object = /** @type {T} */ ({})) {
             get(target, p) {
                 if (p === unwrap) return target;
                 // Use direct property access instead of Reflect for performance
-                const propValue = /** @type {Record<string | symbol, any>} */ (target)[p];
+                const propValue = (target as Record<string | symbol, any>)[p];
 
                 // PULL: Track dependency if we're inside an effect/computed
                 if (tracked && currentComputing) {
                     // Get or create the Map for this target (stored as non-enumerable property)
-                    let propsMap = /** @type {Map<string | symbol, Set<Computed<any>>> | undefined} */ (
-                        /** @type {any} */ (target)[propertyDepsSymbol]
-                    );
+                    let propsMap = (target as any)[propertyDepsSymbol] as Map<string | symbol, Set<Computed<any>>> | undefined;
                     if (!propsMap) {
                         propsMap = new Map();
                         Object.defineProperty(target, propertyDepsSymbol, { value: propsMap });
@@ -101,7 +79,7 @@ export function state(object = /** @type {T} */ ({})) {
                     // PULL: Bidirectional linking with optimization
                     // Pass value getter for polling optimization (value revert detection)
                     // Capture target and property for later value retrieval
-                    trackStateDependency(deps, () => /** @type {Record<string | symbol, any>} */ (target)[p]);
+                    trackStateDependency(deps, () => (target as Record<string | symbol, any>)[p]);
                 }
 
                 // Fast path for primitives (most common case)
@@ -117,9 +95,9 @@ export function state(object = /** @type {T} */ ({})) {
                     // Check cache first to avoid creating new function on every access
                     let cached = methodCache.get(p);
                     if (!cached) {
-                        cached = /** @param {...any} args */ (...args) => {
+                        cached = (...args: any[]) => {
                             // Re-read the method in case it changed
-                            const method = /** @type {Function} */ (/** @type {Record<string | symbol, any>} */ (target)[p]);
+                            const method = (target as Record<string | symbol, any>)[p] as Function;
                             // Unwrap in-place - args is already a new array from rest params
                             for (let i = 0; i < args.length; ++i) {
                                 args[i] = unwrapValue(args[i]);
@@ -129,9 +107,7 @@ export function state(object = /** @type {T} */ ({})) {
                             // Only notify if we're NOT currently inside an effect/computed execution
                             // to avoid infinite loops when reading during effect
                             if (!currentComputing) {
-                                const propsMap = /** @type {Map<string | symbol, Set<Computed<any>>> | undefined} */ (
-                                    /** @type {any} */ (target)[propertyDepsSymbol]
-                                );
+                                const propsMap = (target as any)[propertyDepsSymbol] as Map<string | symbol, Set<Computed<any>>> | undefined;
                                 if (!propsMap) return result;
                                 for (const deps of propsMap.values()) {
                                     // PUSH: Propagate dirty flags to all property dependents
@@ -146,7 +122,7 @@ export function state(object = /** @type {T} */ ({})) {
                 }
 
                 // Object - create nested proxy
-                return createProxy(/** @type {any} */ (propValue));
+                return createProxy(propValue as any);
             },
             // PUSH PHASE: Defining a property notifies dependents
             defineProperty(target, property, attributes) {
@@ -172,7 +148,7 @@ export function state(object = /** @type {T} */ ({})) {
             },
         });
         proxiesCache.set(object, proxy);
-        return /** @type {T} */ (proxy);
+        return proxy as U;
     };
 
     return createProxy(object);

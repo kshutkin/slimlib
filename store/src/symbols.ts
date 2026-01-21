@@ -13,6 +13,19 @@ export const [
     childrenSymbol,
     versionSymbol,
     depsVersionSymbol,
-] = /** @type {[symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol]}*/ (
-    Array.from({ length: 14 }, () => Symbol())
-);
+] = Array.from({ length: 14 }, () => Symbol()) as [
+    symbol,
+    symbol,
+    symbol,
+    symbol,
+    symbol,
+    symbol,
+    symbol,
+    symbol,
+    symbol,
+    symbol,
+    symbol,
+    symbol,
+    symbol,
+    symbol,
+];
