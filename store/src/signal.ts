@@ -28,7 +28,7 @@ export function signal<T>(initialValue?: T): Signal<T> {
         if (tracked && currentComputing) {
             // Pass value getter for polling optimization (value revert detection)
             // biome-ignore lint/suspicious/noAssignInExpressions: optimization
-            trackStateDependency((deps ||= new Set() as DepsSet<ReactiveNode>), () => value);
+            trackStateDependency((deps ||= new Set() as DepsSet<ReactiveNode>), () => value, value);
         }
         return value;
         // === END PULL PHASE ===

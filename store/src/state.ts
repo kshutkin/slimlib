@@ -79,7 +79,7 @@ export function state<T extends object>(object: T = {} as T): T {
                     // PULL: Bidirectional linking with optimization
                     // Pass value getter for polling optimization (value revert detection)
                     // Capture target and property for later value retrieval
-                    trackStateDependency(deps as DepsSet<ReactiveNode>, () => (target as Record<string | symbol, unknown>)[p]);
+                    trackStateDependency(deps as DepsSet<ReactiveNode>, () => (target as Record<string | symbol, unknown>)[p], propValue);
                 }
 
                 // Fast path for primitives (most common case)

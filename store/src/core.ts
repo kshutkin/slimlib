@@ -173,7 +173,11 @@ export const scheduleFlush = (): void => {
  * Uses liveness tracking - only live consumers register with sources
  * PULL PHASE: Records dependencies during computation for future invalidation
  */
-export const trackStateDependency = <T>(deps: DepsSet<ReactiveNode>, valueGetter: () => T): void => {
+export const trackStateDependency = <T>(
+    deps: DepsSet<ReactiveNode>,
+    valueGetter: () => T,
+    cachedValue: T
+): void => {
     // Callers guarantee tracked && currentComputing are true
 
     const sourcesArray = (currentComputing as ReactiveNode).$_sources;
@@ -186,14 +190,13 @@ export const trackStateDependency = <T>(deps: DepsSet<ReactiveNode>, valueGetter
         }
 
         // Track deps version, value getter, and last seen value for polling
-        const currentValue = valueGetter();
         sourcesArray.push({
             $_dependents: deps,
             $_node: undefined,
             $_version: 0,
             $_depsVersion: (deps as DepsSet<ReactiveNode>).$_depsVersion || 0,
             $_getter: valueGetter,
-            $_storedValue: currentValue,
+            $_storedValue: cachedValue,
         });
 
         // Mark that this node has state/signal sources (for polling optimization)
@@ -208,7 +211,7 @@ export const trackStateDependency = <T>(deps: DepsSet<ReactiveNode>, valueGetter
         const entry = sourcesArray[skipIndex];
         entry.$_depsVersion = (deps as DepsSet<ReactiveNode>).$_depsVersion || 0;
         entry.$_getter = valueGetter;
-        entry.$_storedValue = valueGetter();
+        entry.$_storedValue = cachedValue;
         // Re-set Flag.HAS_STATE_SOURCE (may have been cleared by runWithTracking)
         (currentComputing as ReactiveNode).$_flags |= Flag.HAS_STATE_SOURCE;
     }
@@ -228,6 +231,9 @@ export const markNeedsCheck = (node: ReactiveNode): void => {
             scheduleFlush();
         }
     } else if (!(flags & Flag.SKIP_NOTIFY)) {
+        // SKIP_NOTIFY includes CHECK, so nodes already marked CHECK
+        // won't enter this block - preventing redundant graph traversal
+        // in deep graphs with shared ancestors
         node.$_flags = flags | Flag.CHECK;
         if (flags & Flag.EFFECT) {
             batchedAdd(node);
