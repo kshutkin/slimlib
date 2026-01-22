@@ -3,7 +3,7 @@ import { cycleMessage, registerEffect, unregisterEffect, warnIfNoActiveScope } f
 import { Flag } from './flags';
 import { activeScope } from './globals';
 import { trackSymbol } from './symbols';
-import type { InternalEffect, ReactiveNode, SourceEntry } from './internal-types';
+import type { InternalEffect, ReactiveNode } from './internal-types';
 import type { EffectCleanup } from './types';
 
 /**
@@ -47,7 +47,7 @@ export const effect = (callback: () => void | EffectCleanup): (() => void) => {
         // verify that computed sources actually changed before running
         if ((flags & Flag.NEEDS_WORK) === Flag.CHECK) {
             // PULL: Read computed sources to check if they changed
-            const result = checkComputedSources(eff.$_sources as SourceEntry[]);
+            const result = checkComputedSources(eff.$_sources);
             // If null, can't verify (has state sources or empty) - proceed to run
             // If false, sources didn't change - clear CHECK flag and skip
             // If true, sources changed or errored - proceed to run
