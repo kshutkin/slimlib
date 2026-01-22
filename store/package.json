@@ -9,12 +9,12 @@
     "module": "./dist/index.mjs",
     "exports": {
         ".": {
-            "types": "./dist/index.d.ts",
+            "types": "./types/index.d.ts",
             "default": "./dist/index.mjs"
         },
         "./package.json": "./package.json"
     },
-    "types": "./dist/index.d.ts",
+    "types": "./types/index.d.ts",
     "files": [
         "src",
         "types",
@@ -33,10 +33,10 @@
         "proxy"
     ],
     "scripts": {
-        "build": "rollup -c",
+        "build": "rollup -c && dts-buddy -m @slimlib/store:./src/index.ts",
         "test": "vitest run --coverage --config ../vitest.config.mjs",
         "bench": "node tests/benchmark.mjs -n 50 -f ./results.csv",
-        "build-compress": "pkgbld --formats=es --compress=es --no-update-package-json --include-externals",
+        "build-compress": "BUILD_COMPRESS=true rollup -c && dts-buddy -m @slimlib/store:./src/index.ts",
         "prepack": "pkgprn"
     },
     "dependencies": {
@@ -52,6 +52,7 @@
         "@rollup/plugin-commonjs": "^28.0.2",
         "@rollup/plugin-json": "^6.1.0",
         "@rollup/plugin-node-resolve": "^16.0.0",
+        "@rollup/plugin-terser": "^0.4.4",
         "@vue/reactivity": "^3.5.0",
         "alien-signals": "^1.0.13",
         "estree-walker": "^3.0.3",

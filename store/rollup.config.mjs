@@ -4,9 +4,12 @@ import rollupPluginNodeResolve from '@rollup/plugin-node-resolve';
 import rollupExtrasPluginClean from '@rollup-extras/plugin-clean';
 import rollupExtrasPluginExternals from '@rollup-extras/plugin-externals';
 import rollupPluginTypescript2 from 'rollup-plugin-typescript2';
+import rollupPluginTerser from '@rollup/plugin-terser';
 import MagicString from 'magic-string';
 import { walk } from 'estree-walker';
-new Map([['index', 'ts']]);
+
+// Check if we're in compress mode (set via environment variable)
+const isCompress = process.env.BUILD_COMPRESS === 'true';
 
 // Custom plugin to mangle $_ prefixed properties using AST
 function manglePropertiesPlugin() {
@@ -99,6 +102,60 @@ function manglePropertiesPlugin() {
     };
 }
 
+// Build output plugins based on mode
+function getOutputPlugins() {
+    const plugins = [
+        rollupExtrasPluginClean(),
+        manglePropertiesPlugin(),
+    ];
+
+    if (isCompress) {
+        plugins.push(rollupPluginTerser({
+            compress: {
+                passes: 2,
+                pure_getters: true,
+                unsafe: true,
+            },
+            mangle: {
+                properties: false, // We already handle property mangling
+            },
+            format: {
+                comments: false,
+            },
+        }));
+    }
+
+    return plugins;
+}
+
+// Build input plugins based on mode
+function getInputPlugins() {
+    const plugins = [
+        rollupPluginJson(),
+    ];
+
+    // In compress mode, don't externalize dependencies (bundle everything)
+    if (!isCompress) {
+        plugins.push(rollupExtrasPluginExternals({}));
+    }
+
+    plugins.push(
+        rollupPluginNodeResolve(),
+        rollupPluginCommonjs(),
+        rollupPluginTypescript2({
+            tsconfigOverride: {
+                compilerOptions: {
+                    composite: false,
+                    declaration: false,
+                    declarationMap: false,
+                },
+            },
+        }),
+    );
+
+    return plugins;
+}
+
 export default [
     {
         input: ['./src/index.ts'],
@@ -107,20 +164,11 @@ export default [
                 format: 'es',
                 dir: 'dist',
                 entryFileNames: '[name].mjs',
-                plugins: [
-                    rollupExtrasPluginClean(),
-                    manglePropertiesPlugin(),
-                ],
-                sourcemap: true,
+                plugins: getOutputPlugins(),
+                sourcemap: !isCompress,
                 chunkFileNames: '[name].mjs',
             },
         ],
-        plugins: [
-            rollupPluginJson(),
-            rollupExtrasPluginExternals({}),
-            rollupPluginNodeResolve(),
-            rollupPluginCommonjs(),
-            rollupPluginTypescript2(),
-        ],
+        plugins: getInputPlugins(),
     },
 ];
