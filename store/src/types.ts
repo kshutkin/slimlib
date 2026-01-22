@@ -27,7 +27,7 @@ export type ScopeFunction = ((callback: ScopeCallback) => Scope) & (() => undefi
  * A reactive scope for managing effect lifecycles
  * Scopes can be nested and automatically clean up their tracked effects when disposed
  */
-export type Scope = ScopeFunction & { [key: symbol]: any };
+export type Scope = ScopeFunction & { [key: symbol]: unknown };
 
 /**
  * Signal type - a callable that returns the current value with a set method

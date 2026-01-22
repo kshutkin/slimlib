@@ -15,7 +15,9 @@ let effectCreationCounter = 1;
 /**
  * Creates a reactive effect that runs when dependencies change
  */
+// biome-ignore lint/suspicious/noConfusingVoidType: void is semantically correct here - callback may return nothing or a cleanup function
 export const effect = (callback: () => void | EffectCleanup): (() => void) => {
+    // biome-ignore lint/suspicious/noConfusingVoidType: matches callback return type
     let cleanup: void | EffectCleanup;
     let disposed = false;
 
@@ -91,7 +93,7 @@ export const effect = (callback: () => void | EffectCleanup): (() => void) => {
 
     // Track to appropriate scope
     if (activeScope) {
-        activeScope[trackSymbol](dispose);
+        (activeScope[trackSymbol] as (dispose: () => void) => void)(dispose);
     }
 
     // ----------------------------------------------------------------

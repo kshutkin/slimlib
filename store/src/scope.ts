@@ -44,7 +44,7 @@ export const scope = (callback?: ScopeCallback, parent: Scope | undefined | null
 
             // Remove from parent
             if (parent) {
-                parent[childrenSymbol].delete(ctx);
+                (parent[childrenSymbol] as Set<Scope>).delete(ctx);
             }
 
             return;
@@ -72,7 +72,7 @@ export const scope = (callback?: ScopeCallback, parent: Scope | undefined | null
 
     // Register with parent
     if (parent) {
-        parent[childrenSymbol].add(ctx);
+        (parent[childrenSymbol] as Set<Scope>).add(ctx);
     }
 
     // Run initial callback if provided

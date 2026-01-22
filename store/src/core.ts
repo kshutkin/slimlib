@@ -93,7 +93,7 @@ export const makeNonLive = (node: ReactiveNode): void => {
     for (const { $_dependents, $_node: sourceNode } of node.$_sources) {
         $_dependents.delete(node);
         // Check: has Flag.LIVE but not Flag.EFFECT (effects never become non-live)
-        if (sourceNode && (sourceNode.$_flags & Flag.IS_LIVE) === Flag.LIVE && !sourceNode.$_deps!.size) {
+        if (sourceNode && (sourceNode.$_flags & Flag.IS_LIVE) === Flag.LIVE && !(sourceNode.$_deps as Set<ReactiveNode>).size) {
             makeNonLive(sourceNode);
         }
     }
@@ -108,19 +108,19 @@ export const clearSources = (node: ReactiveNode, fromIndex = 0): void => {
     const isLive = node.$_flags & Flag.IS_LIVE;
 
     for (let i = fromIndex; i < sourcesArray.length; i++) {
-        const { $_dependents, $_node: sourceNode } = sourcesArray[i]!;
+        const { $_dependents, $_node: sourceNode } = sourcesArray[i] as SourceEntry;
 
         // Check if this deps is retained (exists in kept portion) - avoid removing shared deps
         let retained = false;
         for (let j = 0; j < fromIndex && !retained; j++) {
-            retained = sourcesArray[j]!.$_dependents === $_dependents;
+            retained = (sourcesArray[j] as SourceEntry).$_dependents === $_dependents;
         }
 
         if (!retained) {
             // Always remove from deps to prevent stale notifications
             $_dependents.delete(node);
             // If source is a computed and we're live, check if it became non-live
-            if (isLive && sourceNode && (sourceNode.$_flags & Flag.IS_LIVE) === Flag.LIVE && !sourceNode.$_deps!.size) {
+            if (isLive && sourceNode && (sourceNode.$_flags & Flag.IS_LIVE) === Flag.LIVE && !(sourceNode.$_deps as Set<ReactiveNode>).size) {
                 makeNonLive(sourceNode);
             }
         }
@@ -166,13 +166,13 @@ export const scheduleFlush = (): void => {
 export const trackStateDependency = <T>(deps: DepsSet<ReactiveNode>, valueGetter: () => T): void => {
     // Callers guarantee tracked && currentComputing are true
 
-    const sourcesArray = currentComputing!.$_sources;
-    const skipIndex = currentComputing!.$_skipped;
+    const sourcesArray = (currentComputing as ReactiveNode).$_sources;
+    const skipIndex = (currentComputing as ReactiveNode).$_skipped;
 
     if (sourcesArray[skipIndex]?.$_dependents !== deps) {
         // Different dependency - clear old ones from this point and rebuild
         if (skipIndex < sourcesArray.length) {
-            clearSources(currentComputing!, skipIndex);
+            clearSources(currentComputing as ReactiveNode, skipIndex);
         }
 
         // Track deps version, value getter, and last seen value for polling
@@ -187,11 +187,11 @@ export const trackStateDependency = <T>(deps: DepsSet<ReactiveNode>, valueGetter
         });
 
         // Mark that this node has state/signal sources (for polling optimization)
-        currentComputing!.$_flags |= Flag.HAS_STATE_SOURCE;
+        (currentComputing as ReactiveNode).$_flags |= Flag.HAS_STATE_SOURCE;
 
         // Only register with source if we're live
-        if (currentComputing!.$_flags & Flag.IS_LIVE) {
-            deps.add(currentComputing!);
+        if ((currentComputing as ReactiveNode).$_flags & Flag.IS_LIVE) {
+            deps.add(currentComputing as ReactiveNode);
         }
     } else {
         // Same state source - update depsVersion, getter, and storedValue for accurate polling
@@ -200,9 +200,9 @@ export const trackStateDependency = <T>(deps: DepsSet<ReactiveNode>, valueGetter
         entry.$_getter = valueGetter;
         entry.$_storedValue = valueGetter();
         // Re-set Flag.HAS_STATE_SOURCE (may have been cleared by runWithTracking)
-        currentComputing!.$_flags |= Flag.HAS_STATE_SOURCE;
+        (currentComputing as ReactiveNode).$_flags |= Flag.HAS_STATE_SOURCE;
     }
-    ++currentComputing!.$_skipped;
+    ++(currentComputing as ReactiveNode).$_skipped;
 };
 
 /**
@@ -272,7 +272,7 @@ export const runWithTracking = <T>(node: ReactiveNode, getter: () => T): T => {
         const skipped = node.$_skipped;
         const updateLen = Math.min(skipped, sourcesArray.length);
         for (let i = 0; i < updateLen; i++) {
-            const entry = sourcesArray[i]!;
+            const entry = sourcesArray[i] as SourceEntry;
             if (entry.$_node) {
                 entry.$_version = entry.$_node.$_version;
             }

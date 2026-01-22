@@ -84,7 +84,7 @@ export const registerEffect: () => object | undefined = DEV
           // Capture stack trace at effect creation for better debugging
           // Remove the first few lines (Error + registerEffect call) to get to the actual effect() call
           const relevantStack = String(new Error().stack).split('\n').slice(3).join('\n');
-          effectRegistry!.register(token, relevantStack, token);
+          (effectRegistry as FinalizationRegistry<string>).register(token, relevantStack, token);
           return token;
       }
     : () => undefined;

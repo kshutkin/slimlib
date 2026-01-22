@@ -11,7 +11,7 @@ export type DepsSet<T> = Set<T> & { $_depsVersion?: number };
 /**
  * Source entry for tracking dependencies
  */
-export type SourceEntry<T = any> = {
+export type SourceEntry<T = unknown> = {
     $_dependents: DepsSet<ReactiveNode>;
     $_node: ReactiveNode | undefined;
     $_version: number;
@@ -31,9 +31,9 @@ export type ReactiveNode = (() => void) & {
     $_version: number;
     $_deps?: Set<ReactiveNode>;
     $_lastGlobalVersion?: number;
-    $_value?: any;
-    $_getter?: () => any;
-    $_equals?: (a: any, b: any) => boolean;
+    $_value?: unknown;
+    $_getter?: () => unknown;
+    $_equals?: (a: unknown, b: unknown) => boolean;
     $_id?: number;
 };
 
@@ -63,4 +63,12 @@ export type InternalEffect = (() => void) & {
     $_skipped: number;
     $_version: number;
     $_id?: number;
+};
+
+/**
+ * Internal scope type with known symbol-keyed properties
+ * Used internally to access scope internals that are not exposed in public Scope type
+ */
+export type InternalScope = {
+    [key: symbol]: unknown;
 };
