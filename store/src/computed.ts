@@ -106,7 +106,6 @@ export function computedRead<T>(self: ReactiveNode): T {
                     }
                     if (source.$_version !== sourceNode.$_version) {
                         sourceChanged = true;
-                        source.$_version = sourceNode.$_version;
                         break; // EXIT EARLY - don't process remaining sources
                     }
                 }
