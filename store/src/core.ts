@@ -316,7 +316,6 @@ export const untracked = <T>(callback: () => T): T => {
  * PULL PHASE: Verifies if sources actually changed before recomputing (equality cutoff)
  */
 export const checkComputedSources = (sourcesArray: SourceEntry[]): boolean | null => {
-    let changed = false;
     const prevTracked = tracked;
     tracked = false;
     for (const sourceEntry of sourcesArray) {
@@ -335,11 +334,12 @@ export const checkComputedSources = (sourcesArray: SourceEntry[]): boolean | nul
             return true;
         }
         // Check if source version changed (meaning its value changed)
+        // Early exit - runWithTracking will update all versions during recomputation
         if (sourceEntry.$_version !== (sourceNode as ReactiveNode).$_version) {
-            changed = true;
-            sourceEntry.$_version = (sourceNode as ReactiveNode).$_version;
+            tracked = prevTracked;
+            return true;
         }
     }
     tracked = prevTracked;
-    return changed;
+    return false;
 };
