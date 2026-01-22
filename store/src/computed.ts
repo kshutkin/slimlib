@@ -1,14 +1,15 @@
 import { checkComputedSources, clearSources, currentComputing, globalVersion, makeLive, runWithTracking, tracked } from './core';
 import { cycleMessage } from './debug';
 import { Flag } from './flags';
-import type { Computed, ReactiveNode, SourceEntry } from './types';
+import type { DepsSet, InternalComputed, ReactiveNode, SourceEntry } from './internal-types';
+import type { Computed } from './types';
 
 /**
  * Read function for computed nodes
  */
 export function computedRead<T>(this: ReactiveNode): T {
     // biome-ignore lint/complexity/noUselessThisAlias: optimization
-    const self = this as Computed<any>;
+    const self = this as InternalComputed<T>;
 
     // ===== PULL PHASE: Register this computed as a dependency of the current consumer =====
     // Track if someone is reading us
@@ -66,7 +67,7 @@ export function computedRead<T>(this: ReactiveNode): T {
             if (flags & Flag.HAS_ERROR) {
                 throw self.$_value;
             }
-            return self.$_value;
+            return self.$_value as T;
         }
 
         // ===== PULL PHASE: Poll sources for non-live computeds =====
@@ -83,7 +84,7 @@ export function computedRead<T>(this: ReactiveNode): T {
                 for (const source of sourcesArray) {
                     if (!source.$_node) {
                         // State source - check if deps version changed
-                        const currentDepsVersion = (source.$_dependents as any).$_depsVersion || 0;
+                        const currentDepsVersion = (source.$_dependents as DepsSet<ReactiveNode>).$_depsVersion || 0;
                         if (source.$_depsVersion !== currentDepsVersion) {
                             // Deps version changed, check if actual value reverted (primitives only)
                             const storedValue = source.$_storedValue;
@@ -124,7 +125,7 @@ export function computedRead<T>(this: ReactiveNode): T {
             if (flags & Flag.HAS_ERROR) {
                 throw self.$_value;
             }
-            return self.$_value;
+            return self.$_value as T;
         }
     }
 
@@ -148,7 +149,7 @@ export function computedRead<T>(this: ReactiveNode): T {
                 if (flags & Flag.HAS_ERROR) {
                     throw self.$_value;
                 }
-                return self.$_value;
+                return self.$_value as T;
             }
         }
     }
@@ -163,7 +164,7 @@ export function computedRead<T>(this: ReactiveNode): T {
                 const newValue = self.$_getter!();
 
                 // Check if value actually changed (common path: no error recovery)
-                const changed = !(flags & Flag.HAS_VALUE) || !self.$_equals!(self.$_value, newValue);
+                const changed = !(flags & Flag.HAS_VALUE) || !self.$_equals!(self.$_value as T, newValue);
 
                 if (changed) {
                     self.$_value = newValue;
@@ -190,7 +191,7 @@ export function computedRead<T>(this: ReactiveNode): T {
                 // Reuse valueSymbol for error storage since a computed can't have both value and error
                 // Increment version since the result changed (to error)
                 self.$_version++;
-                self.$_value = e;
+                self.$_value = e as T;
                 self.$_flags = (self.$_flags & ~Flag.HAS_VALUE) | Flag.HAS_ERROR;
                 self.$_lastGlobalVersion = globalVersion;
             }
@@ -202,14 +203,14 @@ export function computedRead<T>(this: ReactiveNode): T {
         throw self.$_value;
     }
 
-    return self.$_value;
+    return self.$_value as T;
 }
 
 /**
  * Creates a computed value that automatically tracks dependencies and caches results
  */
 export const computed = <T>(getter: () => T, equals: (a: T, b: T) => boolean = Object.is): Computed<T> =>
-    (computedRead as (this: Computed<T>) => T).bind({
+    (computedRead as unknown as (this: InternalComputed<T>) => T).bind({
         $_sources: [],
         $_deps: new Set(),
         $_flags: Flag.DIRTY,
@@ -217,4 +218,4 @@ export const computed = <T>(getter: () => T, equals: (a: T, b: T) => boolean = O
         $_version: 0,
         $_getter: getter,
         $_equals: equals,
-    } as unknown as Computed<T>) as Computed<T>;
+    } as unknown as InternalComputed<T>) as Computed<T>;

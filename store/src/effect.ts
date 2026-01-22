@@ -3,7 +3,8 @@ import { cycleMessage, registerEffect, unregisterEffect, warnIfNoActiveScope } f
 import { Flag } from './flags';
 import { activeScope } from './globals';
 import { trackSymbol } from './symbols';
-import type { Effect, EffectCleanup, SourceEntry } from './types';
+import type { InternalEffect, ReactiveNode, SourceEntry } from './internal-types';
+import type { EffectCleanup } from './types';
 
 /**
  * Effect creation counter - increments on every effect creation
@@ -57,7 +58,7 @@ export const effect = (callback: () => void | EffectCleanup): (() => void) => {
         // ----------------------------------------------------------------
         // PULL PHASE: Execute effect and track dependencies
         // ----------------------------------------------------------------
-        runWithTracking(eff, () => {
+        runWithTracking(eff as unknown as ReactiveNode, () => {
             // Run previous cleanup if it exists
             if (typeof cleanup === 'function') {
                 cleanup();
@@ -66,7 +67,7 @@ export const effect = (callback: () => void | EffectCleanup): (() => void) => {
             // (callback will PULL values from signals/state/computed)
             cleanup = callback();
         });
-    }) as Effect<void>;
+    }) as InternalEffect;
 
     // Initialize properties
     eff.$_sources = [];
@@ -84,8 +85,8 @@ export const effect = (callback: () => void | EffectCleanup): (() => void) => {
         if (typeof cleanup === 'function') {
             cleanup();
         }
-        clearSources(eff);
-        batched.delete(eff);
+        clearSources(eff as unknown as ReactiveNode);
+        batched.delete(eff as unknown as ReactiveNode);
     };
 
     // Track to appropriate scope
@@ -99,7 +100,7 @@ export const effect = (callback: () => void | EffectCleanup): (() => void) => {
     // Trigger first run via batched queue
     // node is already dirty
     // and effect is for sure with the latest id so we directly adding without the sort
-    batchedAddNew(eff, effectId);
+    batchedAddNew(eff as unknown as ReactiveNode, effectId);
     scheduleFlush();
 
     return dispose;

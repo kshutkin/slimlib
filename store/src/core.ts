@@ -17,7 +17,7 @@ import { safeForEach } from './debug';
 import { Flag } from './flags';
 import { scheduler } from './globals';
 import { unwrap } from './symbols';
-import type { ReactiveNode, SourceEntry } from './types';
+import type { DepsSet, ReactiveNode, SourceEntry } from './internal-types';
 
 let flushScheduled = false;
 
@@ -66,7 +66,7 @@ export const batchedAddNew = (node: ReactiveNode, effectId: number): void => {
  * Unwraps a proxied value to get the underlying object
  * (Utility - not specific to push/pull phases)
  */
-export const unwrapValue = <T>(value: T): T => (value != null && (value as unknown as Record<symbol, any>)[unwrap]) || value;
+export const unwrapValue = <T>(value: T): T => (value != null && (value as unknown as Record<symbol, unknown>)[unwrap] as T) || value;
 
 /**
  * Make a computed live - register it with all its sources
@@ -163,7 +163,7 @@ export const scheduleFlush = (): void => {
  * Uses liveness tracking - only live consumers register with sources
  * PULL PHASE: Records dependencies during computation for future invalidation
  */
-export const trackStateDependency = (deps: Set<ReactiveNode>, valueGetter: () => any): void => {
+export const trackStateDependency = <T>(deps: DepsSet<ReactiveNode>, valueGetter: () => T): void => {
     // Callers guarantee tracked && currentComputing are true
 
     const sourcesArray = currentComputing!.$_sources;
@@ -181,7 +181,7 @@ export const trackStateDependency = (deps: Set<ReactiveNode>, valueGetter: () =>
             $_dependents: deps,
             $_node: undefined,
             $_version: 0,
-            $_depsVersion: (deps as any).$_depsVersion || 0,
+            $_depsVersion: (deps as DepsSet<ReactiveNode>).$_depsVersion || 0,
             $_getter: valueGetter,
             $_storedValue: currentValue,
         });
@@ -196,7 +196,7 @@ export const trackStateDependency = (deps: Set<ReactiveNode>, valueGetter: () =>
     } else {
         // Same state source - update depsVersion, getter, and storedValue for accurate polling
         const entry = sourcesArray[skipIndex];
-        entry.$_depsVersion = (deps as any).$_depsVersion || 0;
+        entry.$_depsVersion = (deps as DepsSet<ReactiveNode>).$_depsVersion || 0;
         entry.$_getter = valueGetter;
         entry.$_storedValue = valueGetter();
         // Re-set Flag.HAS_STATE_SOURCE (may have been cleared by runWithTracking)
@@ -236,10 +236,10 @@ export const markNeedsCheck = (node: ReactiveNode): void => {
  * Mark all dependents in a Set as needing check
  * PUSH PHASE: Entry point for push propagation when a source value changes
  */
-export const markDependents = (deps: Set<ReactiveNode>): void => {
+export const markDependents = (deps: DepsSet<ReactiveNode>): void => {
     ++globalVersion;
     // Increment deps version for non-live computed polling
-    (deps as any).$_depsVersion = ((deps as any).$_depsVersion || 0) + 1;
+    (deps as DepsSet<ReactiveNode>).$_depsVersion = ((deps as DepsSet<ReactiveNode>).$_depsVersion || 0) + 1;
     for (const dep of deps) {
         markNeedsCheck(dep);
     }

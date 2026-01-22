@@ -1,4 +1,8 @@
 /**
+ * Public types for the reactive store
+ */
+
+/**
  * Cleanup function returned by effect callback
  */
 export type EffectCleanup = () => void;
@@ -31,57 +35,13 @@ export type Scope = ScopeFunction & { [key: symbol]: any };
 export type Signal<T> = (() => T) & { set: (value: T) => void };
 
 /**
- * Base type for reactive nodes (computed and effect)
- * Uses $_ prefixed properties for minification
- */
-export type ReactiveNode = (() => void) & {
-    $_sources: SourceEntry[];
-    $_flags: number;
-    $_skipped: number;
-    $_version: number;
-    $_deps?: Set<ReactiveNode>;
-    $_lastGlobalVersion?: number;
-    $_value?: any;
-    $_getter?: () => any;
-    $_equals?: (a: any, b: any) => boolean;
-    $_id?: number;
-};
-
-/**
- * Source entry for tracking dependencies
- */
-export type SourceEntry<T = any> = {
-    $_dependents: Set<ReactiveNode>;
-    $_node: ReactiveNode | undefined;
-    $_version: number;
-    $_depsVersion: number;
-    $_getter?: () => T;
-    $_storedValue?: T;
-};
-
-/**
  * A computed value that automatically tracks dependencies and caches results
+ * Calling the function returns the current computed value
  */
-export type Computed<T> = (() => T) & {
-    $_sources: SourceEntry[];
-    $_deps: Set<ReactiveNode>;
-    $_flags: number;
-    $_skipped: number;
-    $_version: number;
-    $_lastGlobalVersion?: number;
-    $_value?: T;
-    $_getter?: () => T;
-    $_equals?: (a: T, b: T) => boolean;
-    $_id?: number;
-};
+export type Computed<T> = () => T;
 
 /**
- * Effect type - internal representation
+ * An effect is represented by its dispose function
+ * Calling this function will stop the effect and run any cleanup
  */
-export type Effect<T> = (() => T) & {
-    $_sources: SourceEntry[];
-    $_flags: number;
-    $_skipped: number;
-    $_version: number;
-    $_id?: number;
-};
+export type Effect = () => void;

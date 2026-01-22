@@ -1,6 +1,7 @@
 import { currentComputing, markDependents, trackStateDependency, tracked } from './core';
 import { warnIfWriteInComputed } from './debug';
-import type { Computed, Signal } from './types';
+import type { DepsSet, ReactiveNode } from './internal-types';
+import type { Signal } from './types';
 
 /**
  * Create a simple signal without an initial value
@@ -15,7 +16,7 @@ export function signal<T>(initialValue: T): Signal<T>;
  */
 export function signal<T>(initialValue?: T): Signal<T> {
     let value = initialValue as T;
-    let deps: Set<Computed<any>> | null;
+    let deps: DepsSet<ReactiveNode> | null;
 
     /**
      * Read the signal value and track dependency
@@ -27,7 +28,7 @@ export function signal<T>(initialValue?: T): Signal<T> {
         if (tracked && currentComputing) {
             // Pass value getter for polling optimization (value revert detection)
             // biome-ignore lint/suspicious/noAssignInExpressions: optimization
-            trackStateDependency((deps ||= new Set()), () => value);
+            trackStateDependency((deps ||= new Set() as DepsSet<ReactiveNode>), () => value);
         }
         return value;
         // === END PULL PHASE ===

@@ -1,7 +1,7 @@
 import { currentComputing, markDependents, trackStateDependency, tracked, unwrapValue } from './core';
 import { warnIfWriteInComputed } from './debug';
 import { propertyDepsSymbol, unwrap } from './symbols';
-import type { Computed } from './types';
+import type { DepsSet, ReactiveNode } from './internal-types';
 
 /**
  * Creates a store without an initial object
@@ -25,11 +25,11 @@ export function state<T extends object>(object: T = {} as T): T {
      * This propagates dirty/check flags to all live consumers
      */
     const notifyPropertyDependents = (target: object, property: string | symbol): void => {
-        const propsMap = (target as any)[propertyDepsSymbol] as Map<string | symbol, Set<Computed<any>>> | undefined;
+        const propsMap = (target as Record<symbol, unknown>)[propertyDepsSymbol] as Map<string | symbol, DepsSet<ReactiveNode>> | undefined;
         if (!propsMap) return;
         const deps = propsMap.get(property);
         if (deps) {
-            markDependents(deps);
+            markDependents(deps as DepsSet<ReactiveNode>);
         }
     };
 
@@ -38,7 +38,7 @@ export function state<T extends object>(object: T = {} as T): T {
             return proxiesCache.get(object) as U;
         }
 
-        const methodCache = new Map<string | symbol, Function>();
+        const methodCache = new Map<string | symbol, (...args: unknown[]) => unknown>();
 
         const proxy = new Proxy(object, {
             // PUSH PHASE: Setting a property notifies all dependents
@@ -46,8 +46,8 @@ export function state<T extends object>(object: T = {} as T): T {
                 warnIfWriteInComputed('state');
                 const realValue = unwrapValue(newValue);
                 // Use direct property access instead of Reflect for performance
-                if (!Object.is((target as Record<string | symbol, any>)[p], realValue)) {
-                    (target as Record<string | symbol, any>)[p] = realValue;
+                if (!Object.is((target as Record<string | symbol, unknown>)[p], realValue)) {
+                    (target as Record<string | symbol, unknown>)[p] = realValue;
                     // PUSH: Propagate dirty flags to dependents
                     notifyPropertyDependents(target, p);
                 }
@@ -57,12 +57,12 @@ export function state<T extends object>(object: T = {} as T): T {
             get(target, p) {
                 if (p === unwrap) return target;
                 // Use direct property access instead of Reflect for performance
-                const propValue = (target as Record<string | symbol, any>)[p];
+                const propValue = (target as Record<string | symbol, unknown>)[p];
 
                 // PULL: Track dependency if we're inside an effect/computed
                 if (tracked && currentComputing) {
                     // Get or create the Map for this target (stored as non-enumerable property)
-                    let propsMap = (target as any)[propertyDepsSymbol] as Map<string | symbol, Set<Computed<any>>> | undefined;
+                    let propsMap = (target as Record<symbol, unknown>)[propertyDepsSymbol] as Map<string | symbol, DepsSet<ReactiveNode>> | undefined;
                     if (!propsMap) {
                         propsMap = new Map();
                         Object.defineProperty(target, propertyDepsSymbol, { value: propsMap });
@@ -73,13 +73,13 @@ export function state<T extends object>(object: T = {} as T): T {
 
                     if (!deps) {
                         // biome-ignore lint/suspicious/noAssignInExpressions: optimization
-                        propsMap.set(p, (deps = new Set()));
+                        propsMap.set(p, (deps = new Set() as DepsSet<ReactiveNode>));
                     }
 
                     // PULL: Bidirectional linking with optimization
                     // Pass value getter for polling optimization (value revert detection)
                     // Capture target and property for later value retrieval
-                    trackStateDependency(deps, () => (target as Record<string | symbol, any>)[p]);
+                    trackStateDependency(deps as DepsSet<ReactiveNode>, () => (target as Record<string | symbol, unknown>)[p]);
                 }
 
                 // Fast path for primitives (most common case)
@@ -95,9 +95,9 @@ export function state<T extends object>(object: T = {} as T): T {
                     // Check cache first to avoid creating new function on every access
                     let cached = methodCache.get(p);
                     if (!cached) {
-                        cached = (...args: any[]) => {
+                        cached = (...args: unknown[]) => {
                             // Re-read the method in case it changed
-                            const method = (target as Record<string | symbol, any>)[p] as Function;
+                            const method = (target as Record<string | symbol, unknown>)[p] as (...args: unknown[]) => unknown;
                             // Unwrap in-place - args is already a new array from rest params
                             for (let i = 0; i < args.length; ++i) {
                                 args[i] = unwrapValue(args[i]);
@@ -107,7 +107,7 @@ export function state<T extends object>(object: T = {} as T): T {
                             // Only notify if we're NOT currently inside an effect/computed execution
                             // to avoid infinite loops when reading during effect
                             if (!currentComputing) {
-                                const propsMap = (target as any)[propertyDepsSymbol] as Map<string | symbol, Set<Computed<any>>> | undefined;
+                                const propsMap = (target as Record<symbol, unknown>)[propertyDepsSymbol] as Map<string | symbol, DepsSet<ReactiveNode>> | undefined;
                                 if (!propsMap) return result;
                                 for (const deps of propsMap.values()) {
                                     // PUSH: Propagate dirty flags to all property dependents
@@ -122,7 +122,7 @@ export function state<T extends object>(object: T = {} as T): T {
                 }
 
                 // Object - create nested proxy
-                return createProxy(propValue as any);
+                return createProxy(propValue as object);
             },
             // PUSH PHASE: Defining a property notifies dependents
             defineProperty(target, property, attributes) {
