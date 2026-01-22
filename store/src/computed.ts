@@ -72,58 +72,48 @@ export function computedRead<T>(self: ReactiveNode): T {
         if (!(flags & Flag.IS_LIVE)) {
             let sourceChanged = false;
 
-            // Fast path: if no state/signal sources, skip the polling loop entirely
-            // and just verify computed sources
-            if (flags & Flag.HAS_STATE_SOURCE) {
-                // Has state sources - must poll each one, check computed sources inline
-                // Disable tracking while polling computed sources to avoid unnecessary dependency tracking
-                const prevTracked = setTracked(false);
-                for (const source of sourcesArray) {
-                    if (!source.$_node) {
-                        // State source - check if deps version changed
-                        const currentDepsVersion = (source.$_dependents as DepsSet<ReactiveNode>).$_depsVersion || 0;
-                        if (source.$_depsVersion !== currentDepsVersion) {
-                            // Deps version changed, check if actual value reverted (primitives only)
-                            const storedValue = source.$_storedValue;
-                            const storedType = typeof storedValue;
-                            if (source.$_getter && (storedValue === null || (storedType !== 'object' && storedType !== 'function'))) {
-                                const currentValue = source.$_getter();
-                                if (Object.is(currentValue, storedValue)) {
-                                    // Value reverted - update depsVersion and continue checking
-                                    source.$_depsVersion = currentDepsVersion;
-                                    continue;
-                                }
+            // Disable tracking while polling sources to avoid unnecessary dependency tracking
+            const prevTracked = setTracked(false);
+            for (const source of sourcesArray) {
+                if (!source.$_node) {
+                    // State source - check if deps version changed
+                    const currentDepsVersion = (source.$_dependents as DepsSet<ReactiveNode>).$_depsVersion || 0;
+                    if (source.$_depsVersion !== currentDepsVersion) {
+                        // Deps version changed, check if actual value reverted (primitives only)
+                        const storedValue = source.$_storedValue;
+                        const storedType = typeof storedValue;
+                        if (source.$_getter && (storedValue === null || (storedType !== 'object' && storedType !== 'function'))) {
+                            const currentValue = source.$_getter();
+                            if (Object.is(currentValue, storedValue)) {
+                                // Value reverted - update depsVersion and continue checking
+                                source.$_depsVersion = currentDepsVersion;
+                                continue;
                             }
-                            // Value actually changed - mark DIRTY and skip remaining
-                            sourceChanged = true;
-                            break;
                         }
-                    } else {
-                        // Computed source - check inline to avoid temporary array allocation
-                        const sourceNode = source.$_node;
-                        try {
-                            computedRead(sourceNode);
-                        } catch {
-                            // Error counts as changed
-                            sourceChanged = true;
-                            break;
-                        }
-                        if (source.$_version !== sourceNode.$_version) {
-                            sourceChanged = true;
-                            source.$_version = sourceNode.$_version;
-                            break; // EXIT EARLY - don't process remaining sources
-                        }
+                        // Value actually changed - mark DIRTY and skip remaining
+                        sourceChanged = true;
+                        break;
+                    }
+                } else {
+                    // Computed source - check inline to avoid temporary array allocation
+                    const sourceNode = source.$_node;
+                    try {
+                        computedRead(sourceNode);
+                    } catch {
+                        // Error counts as changed
+                        sourceChanged = true;
+                        break;
+                    }
+                    if (source.$_version !== sourceNode.$_version) {
+                        sourceChanged = true;
+                        source.$_version = sourceNode.$_version;
+                        break; // EXIT EARLY - don't process remaining sources
                     }
                 }
-                setTracked(prevTracked);
+            }
+            setTracked(prevTracked);
 
-                if (sourceChanged) {
-                    // Source changed or threw - mark DIRTY and proceed to recompute
-                    self.$_flags = flags |= Flag.DIRTY;
-                    break checkCache;
-                }
-            } else if (checkComputedSources(sourcesArray, true)) {
-                // All sources are computed - directly check them without polling loop
+            if (sourceChanged) {
                 // Source changed or threw - mark DIRTY and proceed to recompute
                 self.$_flags = flags |= Flag.DIRTY;
                 break checkCache;

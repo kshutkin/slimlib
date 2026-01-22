@@ -315,14 +315,14 @@ export const untracked = <T>(callback: () => T): T => {
  * Used by CHECK path optimization in computed and effect.
  * PULL PHASE: Verifies if sources actually changed before recomputing (equality cutoff)
  */
-export const checkComputedSources = (sourcesArray: SourceEntry[], skipStateCheck = false): boolean | null => {
+export const checkComputedSources = (sourcesArray: SourceEntry[]): boolean | null => {
     let changed = false;
     const prevTracked = tracked;
     tracked = false;
     for (const sourceEntry of sourcesArray) {
         const sourceNode = sourceEntry.$_node;
         // Check for state source (no node property) - can't verify, bail out
-        if (!skipStateCheck && !sourceNode) {
+        if (!sourceNode) {
             tracked = prevTracked;
             return null;
         }
