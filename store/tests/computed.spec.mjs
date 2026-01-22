@@ -1069,4 +1069,46 @@ describe('computed', () => {
         expect(comp()).toBe(15); // 10 + 5
         expect(computeCount).toBe(4);
     });
+
+    it('non-live computed with mixed sources (state + computed) handles error from computed source during polling', () => {
+        // This test exercises the catch block in the polling loop for non-live computeds
+        // that have HAS_STATE_SOURCE flag (mixed state and computed sources).
+        // When polling sources, if a computed source throws, the error should mark
+        // sourceChanged = true and trigger recomputation.
+        const store = state({ flag: true, value: 5 });
+
+        // This computed throws when value < 0
+        const errorProne = computed(() => {
+            if (store.value < 0) throw new Error('computed error');
+            return store.value;
+        });
+
+        // This computed reads BOTH state (flag) AND computed (errorProne)
+        // So it will have HAS_STATE_SOURCE flag set
+        const mixed = computed(() => {
+            const f = store.flag;
+            return f ? errorProne() : 0;
+        });
+
+        // Initial read - caches value, mixed is non-live (no effect)
+        expect(mixed()).toBe(5);
+
+        // Change value to cause errorProne to throw
+        // mixed is non-live, so it doesn't get CHECK flag pushed
+        store.value = -1;
+
+        // Now when mixed is read:
+        // 1. It's non-live, has cached value, doesn't have NEEDS_WORK
+        // 2. globalVersion has changed, so it needs to poll sources
+        // 3. It has HAS_STATE_SOURCE, so it enters the polling loop
+        // 4. First source (flag) - state source, depsVersion unchanged
+        // 5. Second source (errorProne) - computed source, computedRead throws
+        // 6. The catch block sets sourceChanged = true, breaks
+        // 7. mixed is marked DIRTY and recomputes, propagating the error
+        expect(() => mixed()).toThrow('computed error');
+
+        // Recover by changing value back
+        store.value = 10;
+        expect(mixed()).toBe(10);
+    });
 });
