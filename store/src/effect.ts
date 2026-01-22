@@ -2,7 +2,7 @@ import { batched, batchedAddNew, checkComputedSources, clearSources, runWithTrac
 import { cycleMessage, registerEffect, unregisterEffect, warnIfNoActiveScope } from './debug';
 import { Flag } from './flags';
 import { activeScope } from './globals';
-import { flagsSymbol, skippedDeps, sources, trackSymbol } from './symbols';
+import { trackSymbol } from './symbols';
 import type { Effect, EffectCleanup, SourceEntry } from './types';
 
 /**
@@ -32,7 +32,7 @@ export const effect = (callback: () => void | EffectCleanup): (() => void) => {
         }
 
         // Cycle detection: if this node is already being computed, we have a cycle
-        const flags = eff[flagsSymbol] as number;
+        const flags = eff.$_flags;
         if (flags & Flag.COMPUTING) {
             throw new Error(cycleMessage);
         }
@@ -44,12 +44,12 @@ export const effect = (callback: () => void | EffectCleanup): (() => void) => {
         // verify that computed sources actually changed before running
         if ((flags & Flag.NEEDS_WORK) === Flag.CHECK) {
             // PULL: Read computed sources to check if they changed
-            const result = checkComputedSources(eff[sources] as SourceEntry[]);
+            const result = checkComputedSources(eff.$_sources as SourceEntry[]);
             // If null, can't verify (has state sources or empty) - proceed to run
             // If false, sources didn't change - clear CHECK flag and skip
             // If true, sources changed or errored - proceed to run
             if (result === false) {
-                eff[flagsSymbol] = flags & ~Flag.CHECK;
+                eff.$_flags = flags & ~Flag.CHECK;
                 return;
             }
         }
@@ -69,9 +69,10 @@ export const effect = (callback: () => void | EffectCleanup): (() => void) => {
     }) as Effect<void>;
 
     // Initialize properties
-    eff[sources] = [];
-    eff[flagsSymbol] = Flag.DIRTY | Flag.EFFECT;
-    eff[skippedDeps] = 0;
+    eff.$_sources = [];
+    eff.$_flags = Flag.DIRTY | Flag.EFFECT;
+    eff.$_skipped = 0;
+    eff.$_version = 0;
     const effectId = effectCreationCounter++;
     eff.$_id = effectId;
 

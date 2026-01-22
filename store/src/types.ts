@@ -31,16 +31,28 @@ export type Scope = ScopeFunction & { [key: symbol]: any };
 export type Signal<T> = (() => T) & { set: (value: T) => void };
 
 /**
- * A computed value that automatically tracks dependencies and caches results
+ * Base type for reactive nodes (computed and effect)
+ * Uses $_ prefixed properties for minification
  */
-export type Computed<T> = (() => T) & { [key: symbol]: any; $_id?: number };
+export type ReactiveNode = (() => void) & {
+    $_sources: SourceEntry[];
+    $_flags: number;
+    $_skipped: number;
+    $_version: number;
+    $_deps?: Set<ReactiveNode>;
+    $_lastGlobalVersion?: number;
+    $_value?: any;
+    $_getter?: () => any;
+    $_equals?: (a: any, b: any) => boolean;
+    $_id?: number;
+};
 
 /**
  * Source entry for tracking dependencies
  */
 export type SourceEntry<T = any> = {
-    $_dependents: Set<Computed<any>>;
-    $_node: Computed<any> | undefined;
+    $_dependents: Set<ReactiveNode>;
+    $_node: ReactiveNode | undefined;
     $_version: number;
     $_depsVersion: number;
     $_getter?: () => T;
@@ -48,6 +60,28 @@ export type SourceEntry<T = any> = {
 };
 
 /**
+ * A computed value that automatically tracks dependencies and caches results
+ */
+export type Computed<T> = (() => T) & {
+    $_sources: SourceEntry[];
+    $_deps: Set<ReactiveNode>;
+    $_flags: number;
+    $_skipped: number;
+    $_version: number;
+    $_lastGlobalVersion?: number;
+    $_value?: T;
+    $_getter?: () => T;
+    $_equals?: (a: T, b: T) => boolean;
+    $_id?: number;
+};
+
+/**
  * Effect type - internal representation
  */
-export type Effect<T> = (() => T) & { [key: symbol]: any; $_id?: number };
+export type Effect<T> = (() => T) & {
+    $_sources: SourceEntry[];
+    $_flags: number;
+    $_skipped: number;
+    $_version: number;
+    $_id?: number;
+};

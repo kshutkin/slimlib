@@ -1,24 +1,12 @@
 import { checkComputedSources, clearSources, currentComputing, globalVersion, makeLive, runWithTracking, tracked } from './core';
 import { cycleMessage } from './debug';
 import { Flag } from './flags';
-import {
-    dependencies,
-    depsVersionSymbol,
-    equalsSymbol,
-    flagsSymbol,
-    getterSymbol,
-    lastGlobalVersionSymbol,
-    skippedDeps,
-    sources,
-    valueSymbol,
-    versionSymbol,
-} from './symbols';
-import type { Computed, SourceEntry } from './types';
+import type { Computed, ReactiveNode, SourceEntry } from './types';
 
 /**
  * Read function for computed nodes
  */
-export function computedRead<T>(this: Computed<T>): T {
+export function computedRead<T>(this: ReactiveNode): T {
     // biome-ignore lint/complexity/noUselessThisAlias: optimization
     const self = this as Computed<any>;
 
@@ -26,15 +14,14 @@ export function computedRead<T>(this: Computed<T>): T {
     // Track if someone is reading us
     if (tracked && currentComputing) {
         // Inline tracking for computed dependencies
-        const consumer = currentComputing as Computed<any>;
-        const consumerSources = consumer[sources] as SourceEntry[];
-        const skipIndex = consumer[skippedDeps] as number;
-        const deps = self[dependencies] as Set<Computed<any>>;
+        const consumerSources = currentComputing.$_sources;
+        const skipIndex = currentComputing.$_skipped;
+        const deps = self.$_deps;
 
         if (consumerSources[skipIndex]?.$_dependents !== deps) {
             // Different dependency - clear old ones from this point and rebuild
             if (skipIndex < consumerSources.length) {
-                clearSources(consumer, skipIndex);
+                clearSources(currentComputing, skipIndex);
             }
 
             // Push source entry - version will be updated after source computes
@@ -48,19 +35,19 @@ export function computedRead<T>(this: Computed<T>): T {
             });
 
             // Only register with source if we're live
-            if (consumer[flagsSymbol] & Flag.IS_LIVE) {
-                deps.add(consumer);
+            if (currentComputing.$_flags & Flag.IS_LIVE) {
+                deps.add(currentComputing);
                 // If source computed is not live, make it live
-                if (!(self[flagsSymbol] & Flag.IS_LIVE)) {
+                if (!(self.$_flags & Flag.IS_LIVE)) {
                     makeLive(self);
                 }
             }
         }
-        ++consumer[skippedDeps];
+        ++currentComputing.$_skipped;
     }
 
-    let flags = self[flagsSymbol] as number;
-    const sourcesArray = self[sources] as SourceEntry[];
+    let flags = self.$_flags;
+    const sourcesArray = self.$_sources;
 
     // Cycle detection: if this computed is already being computed, we have a cycle
     // This matches TC39 Signals proposal behavior: throw an error on cyclic reads
@@ -75,11 +62,11 @@ export function computedRead<T>(this: Computed<T>): T {
     // biome-ignore lint/suspicious/noConfusingLabels: expected
     checkCache: if (!(flags & Flag.NEEDS_WORK) && hasCached) {
         // Fast-path: nothing has changed globally since last read
-        if (self[lastGlobalVersionSymbol] === globalVersion) {
+        if (self.$_lastGlobalVersion === globalVersion) {
             if (flags & Flag.HAS_ERROR) {
-                throw self[valueSymbol];
+                throw self.$_value;
             }
-            return self[valueSymbol];
+            return self.$_value;
         }
 
         // ===== PULL PHASE: Poll sources for non-live computeds =====
@@ -96,7 +83,7 @@ export function computedRead<T>(this: Computed<T>): T {
                 for (const source of sourcesArray) {
                     if (!source.$_node) {
                         // State source - check if deps version changed
-                        const currentDepsVersion = (source.$_dependents as any)[depsVersionSymbol] || 0;
+                        const currentDepsVersion = (source.$_dependents as any).$_depsVersion || 0;
                         if (source.$_depsVersion !== currentDepsVersion) {
                             // Deps version changed, check if actual value reverted (primitives only)
                             const storedValue = source.$_storedValue;
@@ -122,22 +109,22 @@ export function computedRead<T>(this: Computed<T>): T {
 
                 if (stateSourceChanged || (computedSourcesToCheck && checkComputedSources(computedSourcesToCheck, true))) {
                     // Source changed or threw - mark DIRTY and proceed to recompute
-                    self[flagsSymbol] = flags |= Flag.DIRTY;
+                    self.$_flags = flags |= Flag.DIRTY;
                     break checkCache;
                 }
             } else if (checkComputedSources(sourcesArray, true)) {
                 // All sources are computed - directly check them without polling loop
                 // Source changed or threw - mark DIRTY and proceed to recompute
-                self[flagsSymbol] = flags |= Flag.DIRTY;
+                self.$_flags = flags |= Flag.DIRTY;
                 break checkCache;
             }
 
             // No sources changed - return cached value
-            self[lastGlobalVersionSymbol] = globalVersion;
+            self.$_lastGlobalVersion = globalVersion;
             if (flags & Flag.HAS_ERROR) {
-                throw self[valueSymbol];
+                throw self.$_value;
             }
-            return self[valueSymbol];
+            return self.$_value;
         }
     }
 
@@ -153,15 +140,15 @@ export function computedRead<T>(this: Computed<T>): T {
             if (result) {
                 // Sources changed or errored - mark DIRTY and let getter run
                 // (getter may handle error differently, e.g. try/catch with fallback)
-                self[flagsSymbol] = flags = (flags & ~Flag.CHECK) | Flag.DIRTY;
+                self.$_flags = flags = (flags & ~Flag.CHECK) | Flag.DIRTY;
             } else {
                 // Sources unchanged, clear CHECK flag and return cached value
-                self[flagsSymbol] = flags & ~Flag.CHECK;
-                self[lastGlobalVersionSymbol] = globalVersion;
+                self.$_flags = flags & ~Flag.CHECK;
+                self.$_lastGlobalVersion = globalVersion;
                 if (flags & Flag.HAS_ERROR) {
-                    throw self[valueSymbol];
+                    throw self.$_value;
                 }
-                return self[valueSymbol];
+                return self.$_value;
             }
         }
     }
@@ -173,61 +160,61 @@ export function computedRead<T>(this: Computed<T>): T {
 
         runWithTracking(self, () => {
             try {
-                const newValue = self[getterSymbol]();
+                const newValue = self.$_getter!();
 
                 // Check if value actually changed (common path: no error recovery)
-                const changed = !(flags & Flag.HAS_VALUE) || !self[equalsSymbol](self[valueSymbol], newValue);
+                const changed = !(flags & Flag.HAS_VALUE) || !self.$_equals!(self.$_value, newValue);
 
                 if (changed) {
-                    self[valueSymbol] = newValue;
+                    self.$_value = newValue;
                     // Increment version to indicate value changed (for polling)
-                    self[versionSymbol]++;
-                    self[flagsSymbol] = (self[flagsSymbol] | Flag.HAS_VALUE) & ~Flag.HAS_ERROR;
+                    self.$_version++;
+                    self.$_flags = (self.$_flags | Flag.HAS_VALUE) & ~Flag.HAS_ERROR;
                     // ===== PUSH PHASE (during pull): Mark CHECK-only dependents as DIRTY =====
                     // When value changes during recomputation, upgrade dependent CHECK flags to DIRTY
-                    for (const dep of self[dependencies] as Set<Computed<any>>) {
-                        const depFlags = dep[flagsSymbol];
+                    for (const dep of self.$_deps) {
+                        const depFlags = dep.$_flags;
                         if ((depFlags & Flag.SKIP_NOTIFY) === Flag.CHECK) {
-                            dep[flagsSymbol] = depFlags | Flag.DIRTY;
+                            dep.$_flags = depFlags | Flag.DIRTY;
                         }
                     }
                 } else if (wasDirty) {
-                    self[flagsSymbol] |= Flag.HAS_VALUE;
+                    self.$_flags |= Flag.HAS_VALUE;
                 }
 
                 // Update last seen global version
-                self[lastGlobalVersionSymbol] = globalVersion;
+                self.$_lastGlobalVersion = globalVersion;
             } catch (e) {
                 // Per TC39 Signals proposal: cache the error and mark as clean with error flag
                 // The error will be rethrown on subsequent reads until a dependency changes
                 // Reuse valueSymbol for error storage since a computed can't have both value and error
                 // Increment version since the result changed (to error)
-                self[versionSymbol]++;
-                self[valueSymbol] = e;
-                self[flagsSymbol] = (self[flagsSymbol] & ~Flag.HAS_VALUE) | Flag.HAS_ERROR;
-                self[lastGlobalVersionSymbol] = globalVersion;
+                self.$_version++;
+                self.$_value = e;
+                self.$_flags = (self.$_flags & ~Flag.HAS_VALUE) | Flag.HAS_ERROR;
+                self.$_lastGlobalVersion = globalVersion;
             }
         });
     }
 
     // Check if we have a cached error to rethrow (stored in valueSymbol)
-    if (self[flagsSymbol] & Flag.HAS_ERROR) {
-        throw self[valueSymbol];
+    if (self.$_flags & Flag.HAS_ERROR) {
+        throw self.$_value;
     }
 
-    return self[valueSymbol];
+    return self.$_value;
 }
 
 /**
  * Creates a computed value that automatically tracks dependencies and caches results
  */
 export const computed = <T>(getter: () => T, equals: (a: T, b: T) => boolean = Object.is): Computed<T> =>
-    computedRead.bind({
-        [sources]: [],
-        [dependencies]: new Set(),
-        [flagsSymbol]: Flag.DIRTY,
-        [skippedDeps]: 0,
-        [versionSymbol]: 0,
-        [getterSymbol]: getter,
-        [equalsSymbol]: equals,
-    } as Computed<T>) as Computed<T>;
+    (computedRead as (this: Computed<T>) => T).bind({
+        $_sources: [],
+        $_deps: new Set(),
+        $_flags: Flag.DIRTY,
+        $_skipped: 0,
+        $_version: 0,
+        $_getter: getter,
+        $_equals: equals,
+    } as unknown as Computed<T>) as Computed<T>;

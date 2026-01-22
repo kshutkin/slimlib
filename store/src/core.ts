@@ -16,10 +16,8 @@ import { computedRead } from './computed';
 import { safeForEach } from './debug';
 import { Flag } from './flags';
 import { scheduler } from './globals';
-import { dependencies, depsVersionSymbol, flagsSymbol, skippedDeps, sources, unwrap, versionSymbol } from './symbols';
-import type { Computed, SourceEntry } from './types';
-
-export { depsVersionSymbol };
+import { unwrap } from './symbols';
+import type { ReactiveNode, SourceEntry } from './types';
 
 let flushScheduled = false;
 
@@ -29,14 +27,14 @@ let flushScheduled = false;
  */
 export let globalVersion = 0;
 
-export let batched: Set<Computed<any>> = new Set();
+export let batched: Set<ReactiveNode> = new Set();
 
 let lastAddedId = 0;
 
 let needsSort = false;
 
 // Computation tracking state
-export let currentComputing: Computed<any> | null = null;
+export let currentComputing: ReactiveNode | null = null;
 export let tracked = true;
 
 /**
@@ -44,7 +42,7 @@ export let tracked = true;
  * PUSH PHASE: Part of effect scheduling during dirty propagation
  * Caller must check Flag.NEEDS_WORK before calling to avoid duplicates
  */
-export const batchedAdd = (node: Computed<any>): void => {
+export const batchedAdd = (node: ReactiveNode): void => {
     const nodeId = node.$_id as number;
     // Track if we're adding out of order
     if (nodeId < lastAddedId) {
@@ -59,7 +57,7 @@ export const batchedAdd = (node: Computed<any>): void => {
  * Used during effect creation - new effects always have the highest ID
  * so we unconditionally update lastAddedId without checking order
  */
-export const batchedAddNew = (node: Computed<any>, effectId: number): void => {
+export const batchedAddNew = (node: ReactiveNode, effectId: number): void => {
     lastAddedId = effectId;
     batched.add(node);
 };
@@ -75,11 +73,11 @@ export const unwrapValue = <T>(value: T): T => (value != null && (value as unkno
  * Called when a live consumer starts reading this computed
  * PUSH PHASE: Enables push notifications to flow through this node
  */
-export const makeLive = (node: Computed<any>): void => {
-    node[flagsSymbol] |= Flag.LIVE;
-    for (const { $_dependents, $_node: sourceNode } of node[sources] as SourceEntry[]) {
+export const makeLive = (node: ReactiveNode): void => {
+    node.$_flags |= Flag.LIVE;
+    for (const { $_dependents, $_node: sourceNode } of node.$_sources) {
         $_dependents.add(node);
-        if (sourceNode && !(sourceNode[flagsSymbol] & Flag.IS_LIVE)) {
+        if (sourceNode && !(sourceNode.$_flags & Flag.IS_LIVE)) {
             makeLive(sourceNode);
         }
     }
@@ -90,14 +88,13 @@ export const makeLive = (node: Computed<any>): void => {
  * Called when all live consumers stop depending on this computed
  * PUSH PHASE: Disables push notifications through this node
  */
-export const makeNonLive = (node: Computed<any>): void => {
-    node[flagsSymbol] &= ~Flag.LIVE;
-    for (const { $_dependents, $_node: sourceNode } of node[sources] as SourceEntry[]) {
+export const makeNonLive = (node: ReactiveNode): void => {
+    node.$_flags &= ~Flag.LIVE;
+    for (const { $_dependents, $_node: sourceNode } of node.$_sources) {
         $_dependents.delete(node);
-        const sourceNodeFlag = sourceNode?.[flagsSymbol];
         // Check: has Flag.LIVE but not Flag.EFFECT (effects never become non-live)
-        if ((sourceNodeFlag & Flag.IS_LIVE) === Flag.LIVE && !(sourceNode as Computed<any>)[dependencies].size) {
-            makeNonLive(sourceNode as Computed<any>);
+        if (sourceNode && (sourceNode.$_flags & Flag.IS_LIVE) === Flag.LIVE && !sourceNode.$_deps!.size) {
+            makeNonLive(sourceNode);
         }
     }
 };
@@ -106,9 +103,9 @@ export const makeNonLive = (node: Computed<any>): void => {
  * Clear sources for a node starting from a specific index
  * PULL PHASE: Cleanup during dependency tracking when sources change
  */
-export const clearSources = (node: Computed<any>, fromIndex = 0): void => {
-    const sourcesArray = node[sources] as SourceEntry[];
-    const isLive = node[flagsSymbol] & Flag.IS_LIVE;
+export const clearSources = (node: ReactiveNode, fromIndex = 0): void => {
+    const sourcesArray = node.$_sources;
+    const isLive = node.$_flags & Flag.IS_LIVE;
 
     for (let i = fromIndex; i < sourcesArray.length; i++) {
         const { $_dependents, $_node: sourceNode } = sourcesArray[i]!;
@@ -123,12 +120,8 @@ export const clearSources = (node: Computed<any>, fromIndex = 0): void => {
             // Always remove from deps to prevent stale notifications
             $_dependents.delete(node);
             // If source is a computed and we're live, check if it became non-live
-            if (isLive) {
-                const sourceNodeFlag = sourceNode?.[flagsSymbol];
-                // Check: has Flag.LIVE but not Flag.EFFECT (effects never become non-live)
-                if ((sourceNodeFlag & Flag.IS_LIVE) === Flag.LIVE && !(sourceNode as Computed<any>)[dependencies].size) {
-                    makeNonLive(sourceNode as Computed<any>);
-                }
+            if (isLive && sourceNode && (sourceNode.$_flags & Flag.IS_LIVE) === Flag.LIVE && !sourceNode.$_deps!.size) {
+                makeNonLive(sourceNode);
             }
         }
     }
@@ -144,7 +137,7 @@ export const clearSources = (node: Computed<any>, fromIndex = 0): void => {
 export const flushEffects = (): void => {
     flushScheduled = false;
     // Collect nodes, only sort if effects were added out of order
-    const nodes: Computed<any>[] = [...batched];
+    const nodes: ReactiveNode[] = [...batched];
     if (needsSort) {
         nodes.sort((a, b) => (a.$_id as number) - (b.$_id as number));
     }
@@ -170,16 +163,16 @@ export const scheduleFlush = (): void => {
  * Uses liveness tracking - only live consumers register with sources
  * PULL PHASE: Records dependencies during computation for future invalidation
  */
-export const trackStateDependency = (deps: Set<Computed<any>>, valueGetter: () => any): void => {
+export const trackStateDependency = (deps: Set<ReactiveNode>, valueGetter: () => any): void => {
     // Callers guarantee tracked && currentComputing are true
-    const node = currentComputing as Computed<any>;
-    const sourcesArray = node[sources] as SourceEntry[];
-    const skipIndex = node[skippedDeps] as number;
+
+    const sourcesArray = currentComputing!.$_sources;
+    const skipIndex = currentComputing!.$_skipped;
 
     if (sourcesArray[skipIndex]?.$_dependents !== deps) {
         // Different dependency - clear old ones from this point and rebuild
         if (skipIndex < sourcesArray.length) {
-            clearSources(node, skipIndex);
+            clearSources(currentComputing!, skipIndex);
         }
 
         // Track deps version, value getter, and last seen value for polling
@@ -188,49 +181,49 @@ export const trackStateDependency = (deps: Set<Computed<any>>, valueGetter: () =
             $_dependents: deps,
             $_node: undefined,
             $_version: 0,
-            $_depsVersion: (deps as any)[depsVersionSymbol] || 0,
+            $_depsVersion: (deps as any).$_depsVersion || 0,
             $_getter: valueGetter,
             $_storedValue: currentValue,
         });
 
         // Mark that this node has state/signal sources (for polling optimization)
-        node[flagsSymbol] |= Flag.HAS_STATE_SOURCE;
+        currentComputing!.$_flags |= Flag.HAS_STATE_SOURCE;
 
         // Only register with source if we're live
-        if (node[flagsSymbol] & Flag.IS_LIVE) {
-            deps.add(node);
+        if (currentComputing!.$_flags & Flag.IS_LIVE) {
+            deps.add(currentComputing!);
         }
     } else {
         // Same state source - update depsVersion, getter, and storedValue for accurate polling
         const entry = sourcesArray[skipIndex];
-        entry.$_depsVersion = (deps as any)[depsVersionSymbol] || 0;
+        entry.$_depsVersion = (deps as any).$_depsVersion || 0;
         entry.$_getter = valueGetter;
         entry.$_storedValue = valueGetter();
         // Re-set Flag.HAS_STATE_SOURCE (may have been cleared by runWithTracking)
-        node[flagsSymbol] |= Flag.HAS_STATE_SOURCE;
+        currentComputing!.$_flags |= Flag.HAS_STATE_SOURCE;
     }
-    ++node[skippedDeps];
+    ++currentComputing!.$_skipped;
 };
 
 /**
  * Mark a node as needing check (eager propagation with equality cutoff)
  * PUSH PHASE: Eagerly propagates CHECK flag up the dependency graph
  */
-export const markNeedsCheck = (node: Computed<any>): void => {
-    const flags = node[flagsSymbol];
+export const markNeedsCheck = (node: ReactiveNode): void => {
+    const flags = node.$_flags;
     if ((flags & Flag.COMPUTING_EFFECT) === Flag.COMPUTING_EFFECT) {
         if (!(flags & Flag.DIRTY)) {
-            node[flagsSymbol] = flags | Flag.DIRTY;
+            node.$_flags = flags | Flag.DIRTY;
             batchedAdd(node);
             scheduleFlush();
         }
     } else if (!(flags & Flag.SKIP_NOTIFY)) {
-        node[flagsSymbol] = flags | Flag.CHECK;
+        node.$_flags = flags | Flag.CHECK;
         if (flags & Flag.EFFECT) {
             batchedAdd(node);
             scheduleFlush();
         }
-        const deps = node[dependencies] as Set<Computed<any>> | undefined;
+        const deps = node.$_deps;
         if (deps) {
             for (const dep of deps) {
                 markNeedsCheck(dep);
@@ -243,10 +236,10 @@ export const markNeedsCheck = (node: Computed<any>): void => {
  * Mark all dependents in a Set as needing check
  * PUSH PHASE: Entry point for push propagation when a source value changes
  */
-export const markDependents = (deps: Set<Computed<any>>): void => {
+export const markDependents = (deps: Set<ReactiveNode>): void => {
     ++globalVersion;
     // Increment deps version for non-live computed polling
-    (deps as any)[depsVersionSymbol] = ((deps as any)[depsVersionSymbol] || 0) + 1;
+    (deps as any).$_depsVersion = ((deps as any).$_depsVersion || 0) + 1;
     for (const dep of deps) {
         markNeedsCheck(dep);
     }
@@ -257,12 +250,12 @@ export const markDependents = (deps: Set<Computed<any>>): void => {
  * Handles cycle detection, context setup, and source cleanup
  * PULL PHASE: Core of pull - executes computation while tracking dependencies
  */
-export const runWithTracking = <T>(node: Computed<any>, getter: () => T): T => {
+export const runWithTracking = <T>(node: ReactiveNode, getter: () => T): T => {
     // Clear Flag.NEEDS_WORK and Flag.HAS_STATE_SOURCE (will be recalculated during tracking)
     // Note: Even when called from checkComputedSources (which sets tracked=false), this works
     // because runWithTracking sets tracked=true, so trackDependency will re-set the flag
-    node[flagsSymbol] = (node[flagsSymbol] & ~(Flag.NEEDS_WORK | Flag.HAS_STATE_SOURCE)) | Flag.COMPUTING;
-    node[skippedDeps] = 0;
+    node.$_flags = (node.$_flags & ~(Flag.NEEDS_WORK | Flag.HAS_STATE_SOURCE)) | Flag.COMPUTING;
+    node.$_skipped = 0;
 
     const prev = currentComputing;
     const prevTracked = tracked;
@@ -274,14 +267,14 @@ export const runWithTracking = <T>(node: Computed<any>, getter: () => T): T => {
     } finally {
         currentComputing = prev;
         tracked = prevTracked;
-        node[flagsSymbol] &= ~Flag.COMPUTING;
-        const sourcesArray = node[sources] as SourceEntry[];
-        const skipped = node[skippedDeps] as number;
+        node.$_flags &= ~Flag.COMPUTING;
+        const sourcesArray = node.$_sources;
+        const skipped = node.$_skipped;
         const updateLen = Math.min(skipped, sourcesArray.length);
         for (let i = 0; i < updateLen; i++) {
             const entry = sourcesArray[i]!;
             if (entry.$_node) {
-                entry.$_version = entry.$_node[versionSymbol];
+                entry.$_version = entry.$_node.$_version;
             }
             // Note: state source dv and sv are updated when trackDependency is called during recomputation
         }
@@ -325,16 +318,16 @@ export const checkComputedSources = (sourcesArray: SourceEntry[], skipStateCheck
         }
         // Access source to trigger its recomputation if needed
         try {
-            computedRead.call(sourceNode as Computed<any>);
+            computedRead.call(sourceNode as ReactiveNode);
         } catch {
             // Error counts as changed - caller will recompute and may handle differently
             tracked = prevTracked;
             return true;
         }
         // Check if source version changed (meaning its value changed)
-        if (sourceEntry.$_version !== (sourceNode as Computed<any>)[versionSymbol]) {
+        if (sourceEntry.$_version !== (sourceNode as ReactiveNode).$_version) {
             changed = true;
-            sourceEntry.$_version = (sourceNode as Computed<any>)[versionSymbol];
+            sourceEntry.$_version = (sourceNode as ReactiveNode).$_version;
         }
     }
     tracked = prevTracked;

@@ -2,7 +2,6 @@ import { DEV } from 'esm-env';
 
 import { currentComputing } from './core';
 import { Flag } from './flags';
-import { flagsSymbol } from './symbols';
 import type { Scope } from './types';
 
 /**
@@ -51,7 +50,7 @@ export const safeForEach = (fns: Iterable<() => void>): void => {
  * Only runs in DEV mode and when configured
  */
 export const warnIfWriteInComputed = (context: string): void => {
-    if (DEV && debugConfigFlags & WARN_ON_WRITE_IN_COMPUTED && currentComputing && !(currentComputing[flagsSymbol] & Flag.EFFECT)) {
+    if (DEV && debugConfigFlags & WARN_ON_WRITE_IN_COMPUTED && currentComputing && !(currentComputing.$_flags & Flag.EFFECT)) {
         console.warn(
             `[@slimlib/store] Writing to ${context} inside a computed is not recommended. The computed will not automatically re-run when this value changes, which may lead to stale values.`
         );
@@ -85,7 +84,7 @@ export const registerEffect: () => object | undefined = DEV
           // Capture stack trace at effect creation for better debugging
           // Remove the first few lines (Error + registerEffect call) to get to the actual effect() call
           const relevantStack = String(new Error().stack).split('\n').slice(3).join('\n');
-          effectRegistry?.register(token, relevantStack, token);
+          effectRegistry!.register(token, relevantStack, token);
           return token;
       }
     : () => undefined;

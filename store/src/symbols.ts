@@ -1,29 +1,11 @@
+// Symbols for objects that ARE exposed to users
+// These must remain symbols to avoid leaking internal implementation details
 export const [
     unwrap,
-    sources,
-    dependencies,
-    flagsSymbol,
-    skippedDeps,
-    lastGlobalVersionSymbol,
-    getterSymbol,
-    equalsSymbol,
-    valueSymbol,
     propertyDepsSymbol,
     trackSymbol,
     childrenSymbol,
-    versionSymbol,
-    depsVersionSymbol,
-] = Array.from({ length: 14 }, () => Symbol()) as [
-    symbol,
-    symbol,
-    symbol,
-    symbol,
-    symbol,
-    symbol,
-    symbol,
-    symbol,
-    symbol,
-    symbol,
+] = Array.from({ length: 4 }, () => Symbol()) as [
     symbol,
     symbol,
     symbol,
