@@ -318,7 +318,7 @@ export const checkComputedSources = (sourcesArray: SourceEntry[], skipStateCheck
         }
         // Access source to trigger its recomputation if needed
         try {
-            computedRead.call(sourceNode as ReactiveNode);
+            computedRead(sourceNode as ReactiveNode);
         } catch {
             // Error counts as changed - caller will recompute and may handle differently
             tracked = prevTracked;

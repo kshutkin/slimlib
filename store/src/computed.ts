@@ -7,10 +7,7 @@ import type { Computed } from './types';
 /**
  * Read function for computed nodes
  */
-export function computedRead<T>(this: ReactiveNode): T {
-    // biome-ignore lint/complexity/noUselessThisAlias: optimization
-    const self = this as InternalComputed<T>;
-
+export function computedRead<T>(self: ReactiveNode): T {
     // ===== PULL PHASE: Register this computed as a dependency of the current consumer =====
     // Track if someone is reading us
     if (tracked && currentComputing) {
@@ -210,7 +207,7 @@ export function computedRead<T>(this: ReactiveNode): T {
  * Creates a computed value that automatically tracks dependencies and caches results
  */
 export const computed = <T>(getter: () => T, equals: (a: T, b: T) => boolean = Object.is): Computed<T> =>
-    (computedRead as unknown as (this: InternalComputed<T>) => T).bind({
+    (computedRead as unknown as (this: InternalComputed<T>) => T).bind(undefined, {
         $_sources: [],
         $_deps: new Set(),
         $_flags: Flag.DIRTY,
