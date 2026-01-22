@@ -38,6 +38,16 @@ export let currentComputing: ReactiveNode | null = null;
 export let tracked = true;
 
 /**
+ * Set the tracked state for dependency tracking (internal use only)
+ * Returns the previous tracked state for restoration
+ */
+export const setTracked = (value: boolean): boolean => {
+    const prev = tracked;
+    tracked = value;
+    return prev;
+};
+
+/**
  * Add an effect to the batched set
  * PUSH PHASE: Part of effect scheduling during dirty propagation
  * Caller must check Flag.NEEDS_WORK before calling to avoid duplicates

@@ -1,7 +1,7 @@
-import { checkComputedSources, clearSources, currentComputing, globalVersion, makeLive, runWithTracking, tracked } from './core';
+import { checkComputedSources, clearSources, currentComputing, globalVersion, makeLive, runWithTracking, setTracked, tracked } from './core';
 import { cycleMessage } from './debug';
 import { Flag } from './flags';
-import type { DepsSet, ReactiveNode, SourceEntry } from './internal-types';
+import type { DepsSet, ReactiveNode } from './internal-types';
 import type { Computed } from './types';
 
 /**
@@ -70,14 +70,14 @@ export function computedRead<T>(self: ReactiveNode): T {
         // ===== PULL PHASE: Poll sources for non-live computeds =====
         // Non-live nodes poll instead of receiving push notifications
         if (!(flags & Flag.IS_LIVE)) {
-            let stateSourceChanged = false;
+            let sourceChanged = false;
 
             // Fast path: if no state/signal sources, skip the polling loop entirely
             // and just verify computed sources
             if (flags & Flag.HAS_STATE_SOURCE) {
-                // Has state sources - must poll each one
-                let computedSourcesToCheck: SourceEntry[] | null = null;
-
+                // Has state sources - must poll each one, check computed sources inline
+                // Disable tracking while polling computed sources to avoid unnecessary dependency tracking
+                const prevTracked = setTracked(false);
                 for (const source of sourcesArray) {
                     if (!source.$_node) {
                         // State source - check if deps version changed
@@ -95,17 +95,29 @@ export function computedRead<T>(self: ReactiveNode): T {
                                 }
                             }
                             // Value actually changed - mark DIRTY and skip remaining
-                            stateSourceChanged = true;
+                            sourceChanged = true;
                             break;
                         }
                     } else {
-                        // Collect computed sources for verification (avoids second iteration)
-                        // biome-ignore lint/suspicious/noAssignInExpressions: optimization
-                        (computedSourcesToCheck ||= []).push(source);
+                        // Computed source - check inline to avoid temporary array allocation
+                        const sourceNode = source.$_node;
+                        try {
+                            computedRead(sourceNode);
+                        } catch {
+                            // Error counts as changed
+                            sourceChanged = true;
+                            break;
+                        }
+                        if (source.$_version !== sourceNode.$_version) {
+                            sourceChanged = true;
+                            source.$_version = sourceNode.$_version;
+                            break; // EXIT EARLY - don't process remaining sources
+                        }
                     }
                 }
+                setTracked(prevTracked);
 
-                if (stateSourceChanged || (computedSourcesToCheck && checkComputedSources(computedSourcesToCheck, true))) {
+                if (sourceChanged) {
                     // Source changed or threw - mark DIRTY and proceed to recompute
                     self.$_flags = flags |= Flag.DIRTY;
                     break checkCache;

@@ -51,7 +51,6 @@ export type InternalComputed<T> = (() => T) & {
     $_value?: T;
     $_getter?: () => T;
     $_equals?: (a: T, b: T) => boolean;
-    $_id?: number;
 };
 
 /**
