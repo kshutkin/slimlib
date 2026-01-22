@@ -27,7 +27,7 @@ let flushScheduled = false;
  */
 export let globalVersion = 0;
 
-export let batched: Set<ReactiveNode> = new Set();
+export const batched: Set<ReactiveNode> = new Set();
 
 let lastAddedId = 0;
 
