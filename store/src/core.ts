@@ -141,7 +141,7 @@ export const flushEffects = (): void => {
     if (needsSort) {
         nodes.sort((a, b) => (a.$_id as number) - (b.$_id as number));
     }
-    batched = new Set();
+    batched.clear();
     lastAddedId = 0;
     needsSort = false;
     safeForEach(nodes);

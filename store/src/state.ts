@@ -95,9 +95,9 @@ export function state<T extends object>(object: T = {} as T): T {
                     // Check cache first to avoid creating new function on every access
                     let cached = methodCache.get(p);
                     if (!cached) {
+                        // Capture method reference at cache time to avoid re-reading on each call
+                        const method = propValue as (...args: unknown[]) => unknown;
                         cached = (...args: unknown[]) => {
-                            // Re-read the method in case it changed
-                            const method = (target as Record<string | symbol, unknown>)[p] as (...args: unknown[]) => unknown;
                             // Unwrap in-place - args is already a new array from rest params
                             for (let i = 0; i < args.length; ++i) {
                                 args[i] = unwrapValue(args[i]);
