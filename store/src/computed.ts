@@ -150,7 +150,7 @@ export function computedRead<T>(self: ReactiveNode): T {
     // ===== PULL PHASE: Recompute value by pulling from sources =====
     // Recompute if dirty or check (sources actually changed)
     if (flags & Flag.NEEDS_WORK) {
-        const wasDirty = (flags & Flag.DIRTY) !== 0;
+        const wasDirty = flags & Flag.DIRTY;
 
         runWithTracking(self, () => {
             try {

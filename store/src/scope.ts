@@ -24,7 +24,7 @@ export const scope = (callback?: ScopeCallback, parent: Scope | undefined | null
     };
 
     const ctx = ((cb?: ScopeCallback) => {
-        if (cb === undefined) {
+        if (!cb) {
             // Dispose - return early if already disposed (idempotent)
             if (disposed) {
                 return;
