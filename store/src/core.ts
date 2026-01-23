@@ -224,26 +224,28 @@ export const trackStateDependency = <T>(
  */
 export const markNeedsCheck = (node: ReactiveNode): void => {
     const flags = node.$_flags;
-    if ((flags & Flag.COMPUTING_EFFECT) === Flag.COMPUTING_EFFECT) {
-        if (!(flags & Flag.DIRTY)) {
+    // Fast path: skip if already computing, dirty, or marked CHECK
+    // SKIP_NOTIFY = COMPUTING | DIRTY | CHECK (bits 0, 1, 2)
+    if (flags & Flag.SKIP_NOTIFY) {
+        // Exception: computing effect that's not dirty yet needs to be marked dirty
+        // Uses combined mask: (flags & 13) === 12 means COMPUTING + EFFECT set, DIRTY not set
+        if ((flags & Flag.COMPUTING_EFFECT_DIRTY) === Flag.COMPUTING_EFFECT) {
             node.$_flags = flags | Flag.DIRTY;
             batchedAdd(node);
             scheduleFlush();
         }
-    } else if (!(flags & Flag.SKIP_NOTIFY)) {
-        // SKIP_NOTIFY includes CHECK, so nodes already marked CHECK
-        // won't enter this block - preventing redundant graph traversal
-        // in deep graphs with shared ancestors
-        node.$_flags = flags | Flag.CHECK;
-        if (flags & Flag.EFFECT) {
-            batchedAdd(node);
-            scheduleFlush();
-        }
-        const deps = node.$_deps;
-        if (deps) {
-            for (const dep of deps) {
-                markNeedsCheck(dep);
-            }
+        return;
+    }
+    // Not skipped: set CHECK and propagate to dependents
+    node.$_flags = flags | Flag.CHECK;
+    if (flags & Flag.EFFECT) {
+        batchedAdd(node);
+        scheduleFlush();
+    }
+    const deps = node.$_deps;
+    if (deps) {
+        for (const dep of deps) {
+            markNeedsCheck(dep);
         }
     }
 };

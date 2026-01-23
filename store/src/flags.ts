@@ -40,6 +40,11 @@ export const enum Flag {
     // PUSH PHASE: Detect if effect is currently computing (for special handling)
     COMPUTING_EFFECT = COMPUTING | EFFECT, // 12 - computing effect
 
+    // PUSH PHASE: Mask for checking if a computing effect needs to be marked dirty
+    // Used to optimize: (flags & COMPUTING_EFFECT) === COMPUTING_EFFECT && !(flags & DIRTY)
+    // Into single check: (flags & COMPUTING_EFFECT_DIRTY) === COMPUTING_EFFECT
+    COMPUTING_EFFECT_DIRTY = COMPUTING | EFFECT | DIRTY, // 13 - computing effect with dirty check
+
     // PULL PHASE: For checking if only CHECK is set (not DIRTY or EFFECT)
     CHECK_ONLY = CHECK | DIRTY | EFFECT, // 11 - for checking if only CHECK is set
 
