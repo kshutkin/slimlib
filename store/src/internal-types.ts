@@ -6,19 +6,34 @@
  * Extended Set type with deps version tracking for non-live polling
  * Used for monkey-patching $_depsVersion onto Set instances
  */
-export type DepsSet<T> = Set<T> & { $_depsVersion?: number };
+export type DepsSet<T> = Set<T> & { $_version?: number };
 
 /**
- * Source entry for tracking dependencies
+ * Source entry for state/signal dependencies
+ * State sources use $_depsVersion, $_getter, and $_storedValue for change detection
  */
-export type SourceEntry<T = unknown> = {
+export type StateSourceEntry<T = unknown> = {
     $_dependents: DepsSet<ReactiveNode>;
-    $_node: ReactiveNode | undefined;
+    $_node: undefined;
     $_version: number;
-    $_depsVersion: number;
-    $_getter?: () => T;
-    $_storedValue?: T;
+    $_getter: () => T;
+    $_storedValue: T;
 };
+
+/**
+ * Source entry for computed dependencies
+ * Computed sources use $_version for change detection
+ */
+export type ComputedSourceEntry = {
+    $_dependents: Set<ReactiveNode>;
+    $_node: ReactiveNode;
+    $_version: number;
+};
+
+/**
+ * Union type for all source entries
+ */
+export type SourceEntry<T = unknown> = StateSourceEntry<T> | ComputedSourceEntry;
 
 /**
  * Base type for reactive nodes (computed and effect)
@@ -60,8 +75,7 @@ export type InternalEffect = (() => void) & {
     $_sources: SourceEntry[];
     $_flags: number;
     $_skipped: number;
-    $_version: number;
-    $_id?: number;
+    $_id: number;
 };
 
 /**

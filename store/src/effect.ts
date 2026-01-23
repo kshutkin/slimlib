@@ -73,7 +73,6 @@ export const effect = (callback: () => void | EffectCleanup): (() => void) => {
     eff.$_sources = [];
     eff.$_flags = Flag.DIRTY | Flag.EFFECT;
     eff.$_skipped = 0;
-    eff.$_version = 0;
     // biome-ignore lint/suspicious/noAssignInExpressions: optimization
     const effectId = eff.$_id = effectCreationCounter++;
 

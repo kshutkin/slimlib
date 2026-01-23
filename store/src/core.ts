@@ -17,7 +17,7 @@ import { safeForEach } from './debug';
 import { Flag } from './flags';
 import { scheduler } from './globals';
 import { unwrap } from './symbols';
-import type { DepsSet, ReactiveNode, SourceEntry } from './internal-types';
+import type { ComputedSourceEntry, DepsSet, ReactiveNode, SourceEntry, StateSourceEntry } from './internal-types';
 
 let flushScheduled = false;
 
@@ -192,12 +192,10 @@ export const trackStateDependency = <T>(
         // Track deps version, value getter, and last seen value for polling
         sourcesArray.push({
             $_dependents: deps,
-            $_node: undefined,
-            $_version: 0,
-            $_depsVersion: (deps as DepsSet<ReactiveNode>).$_depsVersion || 0,
+            $_version: (deps as DepsSet<ReactiveNode>).$_version || 0,
             $_getter: valueGetter,
             $_storedValue: cachedValue,
-        });
+        } as StateSourceEntry<T>);
 
         // Mark that this node has state/signal sources (for polling optimization)
         (currentComputing as ReactiveNode).$_flags |= Flag.HAS_STATE_SOURCE;
@@ -208,8 +206,8 @@ export const trackStateDependency = <T>(
         }
     } else {
         // Same state source - update depsVersion, getter, and storedValue for accurate polling
-        const entry = sourcesArray[skipIndex];
-        entry.$_depsVersion = (deps as DepsSet<ReactiveNode>).$_depsVersion || 0;
+        const entry = sourcesArray[skipIndex] as StateSourceEntry<T>;
+        entry.$_version = (deps as DepsSet<ReactiveNode>).$_version || 0;
         entry.$_getter = valueGetter;
         entry.$_storedValue = cachedValue;
         // Re-set Flag.HAS_STATE_SOURCE (may have been cleared by runWithTracking)
@@ -257,7 +255,7 @@ export const markNeedsCheck = (node: ReactiveNode): void => {
 export const markDependents = (deps: DepsSet<ReactiveNode>): void => {
     ++globalVersion;
     // Increment deps version for non-live computed polling
-    (deps as DepsSet<ReactiveNode>).$_depsVersion = ((deps as DepsSet<ReactiveNode>).$_depsVersion || 0) + 1;
+    (deps as DepsSet<ReactiveNode>).$_version = ((deps as DepsSet<ReactiveNode>).$_version || 0) + 1;
     for (const dep of deps) {
         markNeedsCheck(dep);
     }
@@ -322,10 +320,10 @@ export const untracked = <T>(callback: () => T): T => {
  * Check if any computed sources have changed or errored.
  * Used by CHECK path optimization in computed and effect.
  * PULL PHASE: Verifies if sources actually changed before recomputing (equality cutoff)
- * 
+ *
  * Note: Callers must check HAS_STATE_SOURCE flag before calling this function.
  * This function assumes all sources are computed (have $_node).
- * 
+ *
  * @param sourcesArray - The sources to check (must all be computed sources)
  * @returns true if sources changed, false if unchanged
  */
@@ -344,7 +342,7 @@ export const checkComputedSources = (sourcesArray: SourceEntry[]): boolean => {
         }
         // Check if source version changed (meaning its value changed)
         // Early exit - runWithTracking will update all versions during recomputation
-        if (sourceEntry.$_version !== (sourceNode as ReactiveNode).$_version) {
+        if ((sourceEntry as ComputedSourceEntry).$_version !== (sourceNode as ReactiveNode).$_version) {
             tracked = prevTracked;
             return true;
         }

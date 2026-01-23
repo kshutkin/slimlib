@@ -27,9 +27,6 @@ export function computedRead<T>(self: ReactiveNode): T {
                 $_dependents: deps as DepsSet<ReactiveNode>,
                 $_node: self,
                 $_version: 0,
-                $_depsVersion: 0,
-                $_getter: undefined,
-                $_storedValue: undefined,
             });
 
             // Only register with source if we're live
@@ -77,8 +74,8 @@ export function computedRead<T>(self: ReactiveNode): T {
             for (const source of sourcesArray) {
                 if (!source.$_node) {
                     // State source - check if deps version changed
-                    const currentDepsVersion = (source.$_dependents as DepsSet<ReactiveNode>).$_depsVersion || 0;
-                    if (source.$_depsVersion !== currentDepsVersion) {
+                    const currentDepsVersion = (source.$_dependents as DepsSet<ReactiveNode>).$_version || 0;
+                    if (source.$_version !== currentDepsVersion) {
                         // Deps version changed, check if actual value reverted (primitives only)
                         const storedValue = source.$_storedValue;
                         const storedType = typeof storedValue;
@@ -86,7 +83,7 @@ export function computedRead<T>(self: ReactiveNode): T {
                             const currentValue = source.$_getter();
                             if (Object.is(currentValue, storedValue)) {
                                 // Value reverted - update depsVersion and continue checking
-                                source.$_depsVersion = currentDepsVersion;
+                                source.$_version = currentDepsVersion;
                                 continue;
                             }
                         }
