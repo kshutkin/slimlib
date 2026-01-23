@@ -50,6 +50,8 @@ export function state<T extends object>(object: T = {} as T): T {
                     (target as Record<string | symbol, unknown>)[p] = realValue;
                     // PUSH: Propagate dirty flags to dependents
                     notifyPropertyDependents(target, p);
+                    // Clear method cache entry if it was a method
+                    methodCache.delete(p);
                 }
                 return true;
             },
