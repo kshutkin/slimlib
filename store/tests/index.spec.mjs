@@ -1026,6 +1026,40 @@ describe('store', () => {
                 });
             });
 
+            describe('method cache invalidation', () => {
+                it('replacing a method via set invalidates the cached wrapper', async () => {
+                    // This test covers line 54: methodCache.delete(p)
+                    // When a method is replaced, the old cached wrapper must be invalidated
+                    let callCount1 = 0;
+                    let callCount2 = 0;
+                
+                    const method1 = () => {
+                        callCount1++;
+                        return 'method1';
+                    };
+                    const method2 = () => {
+                        callCount2++;
+                        return 'method2';
+                    };
+                
+                    const store = state({ func: method1 });
+                
+                    // First call - caches the wrapper for method1
+                    expect(store.func()).toBe('method1');
+                    expect(callCount1).toBe(1);
+                    expect(callCount2).toBe(0);
+                
+                    // Replace the method
+                    store.func = method2;
+                
+                    // Second call - should use method2, not the cached method1 wrapper
+                    // If methodCache.delete(p) is not called, this would still call method1
+                    expect(store.func()).toBe('method2');
+                    expect(callCount1).toBe(1); // method1 should NOT be called again
+                    expect(callCount2).toBe(1); // method2 should be called
+                });
+            });
+
             describe('function proxying triggers notification', () => {
                 it('calling function through proxy triggers notification', async () => {
                     const subscriber = vi.fn();
