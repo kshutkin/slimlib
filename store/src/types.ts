@@ -21,7 +21,7 @@ export type ScopeCallback = (onDispose: OnDisposeCallback) => void;
  * Function type for creating or disposing a scope
  * When called with a callback, extends the scope; when called without arguments, disposes the scope
  */
-export type ScopeFunction = ((callback: ScopeCallback) => Scope) & (() => undefined);
+export type ScopeFunction = ((callback: ScopeCallback) => Scope) & (() => void);
 
 /**
  * A reactive scope for managing effect lifecycles

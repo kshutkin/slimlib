@@ -27,16 +27,14 @@ export function computedRead<T>(self: ReactiveNode): T {
                 $_dependents: deps as DepsSet<ReactiveNode>,
                 $_node: self,
                 $_version: 0,
-                $_depsVersion: 0,
-                $_getter: undefined,
-                $_storedValue: undefined,
+                $_depsVersion: 0
             });
 
             // Only register with source if we're live
-            if (currentComputing.$_flags & Flag.IS_LIVE) {
+            if (currentComputing.$_flags & Flag.LIVE_EFFECT) {
                 (deps as DepsSet<ReactiveNode>).add(currentComputing);
                 // If source computed is not live, make it live
-                if (!(self.$_flags & Flag.IS_LIVE)) {
+                if (!(self.$_flags & Flag.LIVE_EFFECT)) {
                     makeLive(self);
                 }
             }
@@ -69,7 +67,7 @@ export function computedRead<T>(self: ReactiveNode): T {
 
         // ===== PULL PHASE: Poll sources for non-live computeds =====
         // Non-live nodes poll instead of receiving push notifications
-        if (!(flags & Flag.IS_LIVE)) {
+        if (!(flags & Flag.LIVE_EFFECT)) {
             let sourceChanged = false;
 
             // Disable tracking while polling sources to avoid unnecessary dependency tracking

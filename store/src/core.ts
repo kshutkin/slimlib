@@ -87,7 +87,7 @@ export const makeLive = (node: ReactiveNode): void => {
     node.$_flags |= Flag.LIVE;
     for (const { $_dependents, $_node: sourceNode } of node.$_sources) {
         $_dependents.add(node);
-        if (sourceNode && !(sourceNode.$_flags & Flag.IS_LIVE)) {
+        if (sourceNode && !(sourceNode.$_flags & Flag.LIVE_EFFECT)) {
             makeLive(sourceNode);
         }
     }
@@ -103,7 +103,7 @@ export const makeNonLive = (node: ReactiveNode): void => {
     for (const { $_dependents, $_node: sourceNode } of node.$_sources) {
         $_dependents.delete(node);
         // Check: has Flag.LIVE but not Flag.EFFECT (effects never become non-live)
-        if (sourceNode && (sourceNode.$_flags & Flag.IS_LIVE) === Flag.LIVE && !(sourceNode.$_deps as Set<ReactiveNode>).size) {
+        if (sourceNode && (sourceNode.$_flags & Flag.LIVE_EFFECT) === Flag.LIVE && !(sourceNode.$_deps as Set<ReactiveNode>).size) {
             makeNonLive(sourceNode);
         }
     }
@@ -115,7 +115,7 @@ export const makeNonLive = (node: ReactiveNode): void => {
  */
 export const clearSources = (node: ReactiveNode, fromIndex = 0): void => {
     const sourcesArray = node.$_sources;
-    const isLive = node.$_flags & Flag.IS_LIVE;
+    const isLive = node.$_flags & Flag.LIVE_EFFECT;
 
     for (let i = fromIndex; i < sourcesArray.length; i++) {
         const { $_dependents, $_node: sourceNode } = sourcesArray[i] as SourceEntry;
@@ -130,7 +130,7 @@ export const clearSources = (node: ReactiveNode, fromIndex = 0): void => {
             // Always remove from deps to prevent stale notifications
             $_dependents.delete(node);
             // If source is a computed and we're live, check if it became non-live
-            if (isLive && sourceNode && (sourceNode.$_flags & Flag.IS_LIVE) === Flag.LIVE && !(sourceNode.$_deps as Set<ReactiveNode>).size) {
+            if (isLive && sourceNode && (sourceNode.$_flags & Flag.LIVE_EFFECT) === Flag.LIVE && !(sourceNode.$_deps as Set<ReactiveNode>).size) {
                 makeNonLive(sourceNode);
             }
         }
@@ -203,7 +203,7 @@ export const trackStateDependency = <T>(
         (currentComputing as ReactiveNode).$_flags |= Flag.HAS_STATE_SOURCE;
 
         // Only register with source if we're live
-        if ((currentComputing as ReactiveNode).$_flags & Flag.IS_LIVE) {
+        if ((currentComputing as ReactiveNode).$_flags & Flag.LIVE_EFFECT) {
             deps.add(currentComputing as ReactiveNode);
         }
     } else {

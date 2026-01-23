@@ -44,7 +44,7 @@ export const enum Flag {
     CHECK_ONLY = CHECK | DIRTY | EFFECT, // 11 - for checking if only CHECK is set
 
     // PUSH PHASE: Determines if node participates in push notifications
-    IS_LIVE = EFFECT | LIVE, // 72 - either an effect or live computed
+    LIVE_EFFECT = EFFECT | LIVE, // 72 - either an effect or live computed
 
     // PUSH PHASE: Skip notification when node is already computing or marked for work
     SKIP_NOTIFY = COMPUTING | NEEDS_WORK, // 7 - already processing
