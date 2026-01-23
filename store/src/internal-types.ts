@@ -13,7 +13,7 @@ export type DepsSet<T> = Set<T> & { $_version?: number };
  * State sources use $_depsVersion, $_getter, and $_storedValue for change detection
  */
 export type StateSourceEntry<T = unknown> = {
-    $_dependents: DepsSet<ReactiveNode>;
+    $_dependents: Set<ReactiveNode>;
     $_node: undefined;
     $_version: number;
     $_getter: () => T;
@@ -39,33 +39,22 @@ export type SourceEntry<T = unknown> = StateSourceEntry<T> | ComputedSourceEntry
  * Base type for reactive nodes (computed and effect)
  * Uses $_ prefixed properties for minification
  */
-export type ReactiveNode = (() => void) & {
-    $_sources: SourceEntry[];
-    $_flags: number;
-    $_skipped: number;
-    $_version: number;
-    $_deps?: Set<ReactiveNode>;
-    $_lastGlobalVersion?: number;
-    $_value?: unknown;
-    $_getter?: () => unknown;
-    $_equals?: (a: unknown, b: unknown) => boolean;
-    $_id?: number;
-};
+export type ReactiveNode = InternalComputed<unknown> & InternalEffect;
 
 /**
  * Internal computed type with all implementation properties
  * Mirrors the original Computed type - used internally for full property access
  */
-export type InternalComputed<T> = (() => T) & {
+export type InternalComputed<T> = {
     $_sources: SourceEntry[];
     $_deps: Set<ReactiveNode>;
     $_flags: number;
     $_skipped: number;
     $_version: number;
-    $_lastGlobalVersion?: number;
-    $_value?: T;
-    $_getter?: () => T;
-    $_equals?: (a: T, b: T) => boolean;
+    $_lastGlobalVersion: number;
+    $_value: T;
+    $_getter: () => T;
+    $_equals: (a: T, b: T) => boolean;
 };
 
 /**

@@ -74,7 +74,7 @@ export const effect = (callback: () => void | EffectCleanup): (() => void) => {
     eff.$_flags = Flag.DIRTY | Flag.EFFECT;
     eff.$_skipped = 0;
     // biome-ignore lint/suspicious/noAssignInExpressions: optimization
-    const effectId = eff.$_id = effectCreationCounter++;
+    const effectId = eff.$_id = ++effectCreationCounter;
 
     const dispose = (): void => {
         // Mark as disposed to prevent running if still in batched queue

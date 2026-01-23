@@ -25,7 +25,7 @@ let flushScheduled = false;
  * Global version counter - increments on every signal/state write
  * Used for fast-path: if globalVersion hasn't changed since last read, skip all checks
  */
-export let globalVersion = 0;
+export let globalVersion = 1;
 
 export const batched: Set<ReactiveNode> = new Set();
 

@@ -206,6 +206,8 @@ export const computed = <T>(getter: () => T, equals: (a: T, b: T) => boolean = O
         $_flags: Flag.DIRTY,
         $_skipped: 0,
         $_version: 0,
+        $_value: undefined,
+        $_lastGlobalVersion: 0,
         $_getter: getter,
         $_equals: equals,
     } as unknown as ReactiveNode) as Computed<T>;
