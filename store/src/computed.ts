@@ -27,7 +27,9 @@ export function computedRead<T>(self: ReactiveNode): T {
                 $_dependents: deps as DepsSet<ReactiveNode>,
                 $_node: self,
                 $_version: 0,
-                $_depsVersion: 0
+                $_depsVersion: 0,
+                $_getter: undefined,
+                $_storedValue: undefined,
             });
 
             // Only register with source if we're live
@@ -130,23 +132,18 @@ export function computedRead<T>(self: ReactiveNode): T {
     // Non-live computeds already verified above during polling
     // Note: Check for Flag.HAS_VALUE OR Flag.HAS_ERROR since cached errors should also use this path
     // Note: Using Flag.NEEDS_WORK instead of Flag.CHECK_ONLY since computeds never have Flag.EFFECT
-    if ((flags & Flag.NEEDS_WORK) === Flag.CHECK && hasCached) {
-        const result = checkComputedSources(sourcesArray);
-        // If null, can't verify (has state sources or empty) - keep CHECK flag
-        if (result !== null) {
-            if (result) {
-                // Sources changed or errored - mark DIRTY and let getter run
-                // (getter may handle error differently, e.g. try/catch with fallback)
-                self.$_flags = flags = (flags & ~Flag.CHECK) | Flag.DIRTY;
-            } else {
-                // Sources unchanged, clear CHECK flag and return cached value
-                self.$_flags = flags & ~Flag.CHECK;
-                self.$_lastGlobalVersion = globalVersion;
-                if (flags & Flag.HAS_ERROR) {
-                    throw self.$_value;
-                }
-                return self.$_value as T;
+    if ((flags & Flag.CHECK_PURE_MASK) === Flag.CHECK && hasCached) {
+        if (checkComputedSources(sourcesArray)) {
+            // Sources changed or errored - mark DIRTY and let getter run
+            self.$_flags = flags = (flags & ~Flag.CHECK) | Flag.DIRTY;
+        } else {
+            // Sources unchanged, clear CHECK flag and return cached value
+            self.$_flags = flags & ~Flag.CHECK;
+            self.$_lastGlobalVersion = globalVersion;
+            if (flags & Flag.HAS_ERROR) {
+                throw self.$_value;
             }
+            return self.$_value as T;
         }
     }
 

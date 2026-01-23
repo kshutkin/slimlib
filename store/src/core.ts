@@ -320,17 +320,18 @@ export const untracked = <T>(callback: () => T): T => {
  * Check if any computed sources have changed or errored.
  * Used by CHECK path optimization in computed and effect.
  * PULL PHASE: Verifies if sources actually changed before recomputing (equality cutoff)
+ * 
+ * Note: Callers must check HAS_STATE_SOURCE flag before calling this function.
+ * This function assumes all sources are computed (have $_node).
+ * 
+ * @param sourcesArray - The sources to check (must all be computed sources)
+ * @returns true if sources changed, false if unchanged
  */
-export const checkComputedSources = (sourcesArray: SourceEntry[]): boolean | null => {
+export const checkComputedSources = (sourcesArray: SourceEntry[]): boolean => {
     const prevTracked = tracked;
     tracked = false;
     for (const sourceEntry of sourcesArray) {
         const sourceNode = sourceEntry.$_node;
-        // Check for state source (no node property) - can't verify, bail out
-        if (!sourceNode) {
-            tracked = prevTracked;
-            return null;
-        }
         // Access source to trigger its recomputation if needed
         try {
             computedRead(sourceNode as ReactiveNode);

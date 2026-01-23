@@ -48,4 +48,9 @@ export const enum Flag {
 
     // PUSH PHASE: Skip notification when node is already computing or marked for work
     SKIP_NOTIFY = COMPUTING | NEEDS_WORK, // 7 - already processing
+
+    // PULL PHASE: Combined mask for checking CHECK-only without state sources
+    // Used to optimize: (flags & NEEDS_WORK) === CHECK && !(flags & HAS_STATE_SOURCE)
+    // Into single check: (flags & CHECK_PURE_MASK) === CHECK
+    CHECK_PURE_MASK = NEEDS_WORK | HAS_STATE_SOURCE, // 131 - mask for pure CHECK verification
 }
