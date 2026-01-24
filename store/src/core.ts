@@ -87,7 +87,7 @@ export const makeLive = (node: ReactiveNode): void => {
     node.$_flags |= Flag.LIVE;
     for (const { $_dependents, $_node: sourceNode } of node.$_sources) {
         $_dependents.add(node);
-        if (sourceNode && !(sourceNode.$_flags & Flag.LIVE_EFFECT)) {
+        if (sourceNode && !(sourceNode.$_flags & (Flag.EFFECT | Flag.LIVE))) {
             makeLive(sourceNode);
         }
     }
@@ -103,7 +103,7 @@ export const makeNonLive = (node: ReactiveNode): void => {
     for (const { $_dependents, $_node: sourceNode } of node.$_sources) {
         $_dependents.delete(node);
         // Check: has Flag.LIVE but not Flag.EFFECT (effects never become non-live)
-        if (sourceNode && (sourceNode.$_flags & Flag.LIVE_EFFECT) === Flag.LIVE && !(sourceNode.$_deps as Set<ReactiveNode>).size) {
+        if (sourceNode && (sourceNode.$_flags & (Flag.EFFECT | Flag.LIVE)) === Flag.LIVE && !(sourceNode.$_deps as Set<ReactiveNode>).size) {
             makeNonLive(sourceNode);
         }
     }
@@ -115,7 +115,7 @@ export const makeNonLive = (node: ReactiveNode): void => {
  */
 export const clearSources = (node: ReactiveNode, fromIndex = 0): void => {
     const sourcesArray = node.$_sources;
-    const isLive = node.$_flags & Flag.LIVE_EFFECT;
+    const isLive = node.$_flags & (Flag.EFFECT | Flag.LIVE);
 
     for (let i = fromIndex; i < sourcesArray.length; i++) {
         const { $_dependents, $_node: sourceNode } = sourcesArray[i] as SourceEntry;
@@ -130,7 +130,7 @@ export const clearSources = (node: ReactiveNode, fromIndex = 0): void => {
             // Always remove from deps to prevent stale notifications
             $_dependents.delete(node);
             // If source is a computed and we're live, check if it became non-live
-            if (isLive && sourceNode && (sourceNode.$_flags & Flag.LIVE_EFFECT) === Flag.LIVE && !(sourceNode.$_deps as Set<ReactiveNode>).size) {
+            if (isLive && sourceNode && (sourceNode.$_flags & (Flag.EFFECT | Flag.LIVE)) === Flag.LIVE && !(sourceNode.$_deps as Set<ReactiveNode>).size) {
                 makeNonLive(sourceNode);
             }
         }
@@ -201,7 +201,7 @@ export const trackStateDependency = <T>(
         (currentComputing as ReactiveNode).$_flags |= Flag.HAS_STATE_SOURCE;
 
         // Only register with source if we're live
-        if ((currentComputing as ReactiveNode).$_flags & Flag.LIVE_EFFECT) {
+        if ((currentComputing as ReactiveNode).$_flags & (Flag.EFFECT | Flag.LIVE)) {
             deps.add(currentComputing as ReactiveNode);
         }
     } else {
@@ -223,11 +223,11 @@ export const trackStateDependency = <T>(
 export const markNeedsCheck = (node: ReactiveNode): void => {
     const flags = node.$_flags;
     // Fast path: skip if already computing, dirty, or marked CHECK
-    // SKIP_NOTIFY = COMPUTING | DIRTY | CHECK (bits 0, 1, 2)
-    if (flags & Flag.SKIP_NOTIFY) {
+    // (COMPUTING | DIRTY | CHECK) (bits 0, 1, 2)
+    if (flags & (Flag.COMPUTING | Flag.DIRTY | Flag.CHECK)) {
         // Exception: computing effect that's not dirty yet needs to be marked dirty
         // Uses combined mask: (flags & 13) === 12 means COMPUTING + EFFECT set, DIRTY not set
-        if ((flags & Flag.COMPUTING_EFFECT_DIRTY) === Flag.COMPUTING_EFFECT) {
+        if ((flags & (Flag.COMPUTING | Flag.EFFECT | Flag.DIRTY)) === (Flag.COMPUTING | Flag.EFFECT)) {
             node.$_flags = flags | Flag.DIRTY;
             batchedAdd(node);
             scheduleFlush();
@@ -267,10 +267,10 @@ export const markDependents = (deps: DepsSet<ReactiveNode>): void => {
  * PULL PHASE: Core of pull - executes computation while tracking dependencies
  */
 export const runWithTracking = <T>(node: ReactiveNode, getter: () => T): T => {
-    // Clear Flag.NEEDS_WORK and Flag.HAS_STATE_SOURCE (will be recalculated during tracking)
+    // Clear (DIRTY | CHECK) and HAS_STATE_SOURCE (will be recalculated during tracking)
     // Note: Even when called from checkComputedSources (which sets tracked=false), this works
     // because runWithTracking sets tracked=true, so trackDependency will re-set the flag
-    node.$_flags = (node.$_flags & ~(Flag.NEEDS_WORK | Flag.HAS_STATE_SOURCE)) | Flag.COMPUTING;
+    node.$_flags = (node.$_flags & ~(Flag.DIRTY | Flag.CHECK | Flag.HAS_STATE_SOURCE)) | Flag.COMPUTING;
     node.$_skipped = 0;
 
     const prev = currentComputing;

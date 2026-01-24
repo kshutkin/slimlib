@@ -30,10 +30,10 @@ export function computedRead<T>(self: ReactiveNode): T {
             });
 
             // Only register with source if we're live
-            if (currentComputing.$_flags & Flag.LIVE_EFFECT) {
+            if (currentComputing.$_flags & (Flag.EFFECT | Flag.LIVE)) {
                 (deps as DepsSet<ReactiveNode>).add(currentComputing);
                 // If source computed is not live, make it live
-                if (!(self.$_flags & Flag.LIVE_EFFECT)) {
+                if (!(self.$_flags & (Flag.EFFECT | Flag.LIVE))) {
                     makeLive(self);
                 }
             }
@@ -55,7 +55,7 @@ export function computedRead<T>(self: ReactiveNode): T {
     const hasCached = flags & (Flag.HAS_VALUE | Flag.HAS_ERROR);
 
     // biome-ignore lint/suspicious/noConfusingLabels: expected
-    checkCache: if (!(flags & Flag.NEEDS_WORK) && hasCached) {
+    checkCache: if (!(flags & (Flag.DIRTY | Flag.CHECK)) && hasCached) {
         // Fast-path: nothing has changed globally since last read
         if (self.$_lastGlobalVersion === globalVersion) {
             if (flags & Flag.HAS_ERROR) {
@@ -66,7 +66,7 @@ export function computedRead<T>(self: ReactiveNode): T {
 
         // ===== PULL PHASE: Poll sources for non-live computeds =====
         // Non-live nodes poll instead of receiving push notifications
-        if (!(flags & Flag.LIVE_EFFECT)) {
+        if (!(flags & (Flag.EFFECT | Flag.LIVE))) {
             let sourceChanged = false;
 
             // Disable tracking while polling sources to avoid unnecessary dependency tracking
@@ -128,8 +128,7 @@ export function computedRead<T>(self: ReactiveNode): T {
     // Live computeds receive CHECK via push - verify sources before recomputing
     // Non-live computeds already verified above during polling
     // Note: Check for Flag.HAS_VALUE OR Flag.HAS_ERROR since cached errors should also use this path
-    // Note: Using Flag.NEEDS_WORK instead of Flag.CHECK_ONLY since computeds never have Flag.EFFECT
-    if ((flags & Flag.CHECK_PURE_MASK) === Flag.CHECK && hasCached) {
+    if ((flags & (Flag.DIRTY | Flag.CHECK | Flag.HAS_STATE_SOURCE)) === Flag.CHECK && hasCached) {
         if (checkComputedSources(sourcesArray)) {
             // Sources changed or errored - mark DIRTY and let getter run
             self.$_flags = flags = (flags & ~Flag.CHECK) | Flag.DIRTY;
@@ -146,7 +145,7 @@ export function computedRead<T>(self: ReactiveNode): T {
 
     // ===== PULL PHASE: Recompute value by pulling from sources =====
     // Recompute if dirty or check (sources actually changed)
-    if (flags & Flag.NEEDS_WORK) {
+    if (flags & (Flag.DIRTY | Flag.CHECK)) {
         const wasDirty = flags & Flag.DIRTY;
 
         runWithTracking(self, () => {
@@ -165,7 +164,7 @@ export function computedRead<T>(self: ReactiveNode): T {
                     // When value changes during recomputation, upgrade dependent CHECK flags to DIRTY
                     for (const dep of self.$_deps as Set<ReactiveNode>) {
                         const depFlags = dep.$_flags;
-                        if ((depFlags & Flag.SKIP_NOTIFY) === Flag.CHECK) {
+                        if ((depFlags & (Flag.COMPUTING | Flag.DIRTY | Flag.CHECK)) === Flag.CHECK) {
                             dep.$_flags = depFlags | Flag.DIRTY;
                         }
                     }

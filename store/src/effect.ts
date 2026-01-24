@@ -45,7 +45,7 @@ export const effect = (callback: () => void | EffectCleanup): (() => void) => {
         // ----------------------------------------------------------------
         // Bail-out optimization: if only CHECK flag is set (not DIRTY),
         // verify that computed sources actually changed before running
-        if ((flags & Flag.CHECK_PURE_MASK) === Flag.CHECK) {
+        if ((flags & (Flag.DIRTY | Flag.CHECK | Flag.HAS_STATE_SOURCE)) === Flag.CHECK) {
             // PULL: Read computed sources to check if they changed
             // If false, sources didn't change - clear CHECK flag and skip
             // If true, sources changed or errored - proceed to run
