@@ -34,7 +34,7 @@ let lastAddedId = 0;
 let needsSort = false;
 
 // Computation tracking state
-export let currentComputing: ReactiveNode | null = null;
+export let currentComputing: ReactiveNode | undefined;
 export let tracked = true;
 
 /**

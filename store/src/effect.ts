@@ -10,7 +10,7 @@ import type { EffectCleanup } from './types';
  * Effect creation counter - increments on every effect creation
  * Used to maintain effect execution order by creation time
  */
-let effectCreationCounter = 1;
+let effectCreationCounter = 0;
 
 /**
  * Creates a reactive effect that runs when dependencies change
