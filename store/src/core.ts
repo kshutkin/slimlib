@@ -76,7 +76,12 @@ export const batchedAddNew = (node: ReactiveNode, effectId: number): void => {
  * Unwraps a proxied value to get the underlying object
  * (Utility - not specific to push/pull phases)
  */
-export const unwrapValue = <T>(value: T): T => (value != null && (value as unknown as Record<symbol, unknown>)[unwrap] as T) || value;
+export const unwrapValue = <T>(value: T): T =>
+    (value != null &&
+        typeof value !== "number" &&
+        !Number.isNaN(value) &&
+        (value as unknown as Record<symbol, unknown>)[unwrap] as T) ||
+    value;
 
 /**
  * Make a computed live - register it with all its sources
