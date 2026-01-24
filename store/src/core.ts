@@ -77,11 +77,8 @@ export const batchedAddNew = (node: ReactiveNode, effectId: number): void => {
  * (Utility - not specific to push/pull phases)
  */
 export const unwrapValue = <T>(value: T): T =>
-    (value != null &&
-        typeof value !== "number" &&
-        !Number.isNaN(value) &&
-        (value as unknown as Record<symbol, unknown>)[unwrap] as T) ||
-    value;
+    ((value !== null && (typeof value === "object" || typeof value === "function") && (value as unknown as Record<symbol, unknown>)[unwrap] as T) ||
+        value);
 
 /**
  * Make a computed live - register it with all its sources
