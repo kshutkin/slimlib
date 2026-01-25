@@ -774,6 +774,7 @@ For truly zero-cost production builds (complete code elimination), ensure your b
 
 - Mixing proxied values and values from an underlying object can fail for equality checks
 - Effects run on microtask by default, not synchronously (use `flushEffects()` for immediate execution)
+- Effects are not removed until the next flush if they already scheduled but disposed
 
 ## Similar Projects
 
