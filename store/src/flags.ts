@@ -32,4 +32,7 @@ export const enum Flag {
 
     // PULL PHASE: Has at least one state/signal source (requires polling, can't skip loop)
     HAS_STATE_SOURCE = 1 << 7, // 128 - has state/signal dependency
+
+    // PUSH PHASE: Set when an effect is scheduled for batch execution
+    BATCHED = 1 << 8, // 256 - effect is in batch queue
 }

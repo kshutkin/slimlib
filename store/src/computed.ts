@@ -27,6 +27,8 @@ export function computedRead<T>(self: ReactiveNode): T {
                 $_dependents: deps as DepsSet<ReactiveNode>,
                 $_node: self,
                 $_version: 0,
+                $_getter: undefined,
+                $_storedValue: undefined,
             });
 
             // Only register with source if we're live
@@ -198,8 +200,8 @@ export function computedRead<T>(self: ReactiveNode): T {
 /**
  * Creates a computed value that automatically tracks dependencies and caches results
  */
-export const computed = <T>(getter: () => T, equals: (a: T, b: T) => boolean = Object.is): Computed<T> =>
-    (computedRead as (self: ReactiveNode) => T).bind(undefined, {
+export const computed = <T>(getter: () => T, equals: (a: T, b: T) => boolean = Object.is): Computed<T> => {
+    const node = {
         $_sources: [],
         $_deps: new Set(),
         $_flags: Flag.DIRTY,
@@ -209,4 +211,7 @@ export const computed = <T>(getter: () => T, equals: (a: T, b: T) => boolean = O
         $_lastGlobalVersion: 0,
         $_getter: getter,
         $_equals: equals,
-    } as unknown as ReactiveNode) as Computed<T>;
+    } as unknown as ReactiveNode;
+
+    return () => computedRead(node);
+};

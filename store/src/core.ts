@@ -13,7 +13,6 @@
  */
 
 import { computedRead } from './computed';
-import { safeForEach } from './debug';
 import { Flag } from './flags';
 import { scheduler } from './globals';
 import { unwrap } from './symbols';
@@ -27,7 +26,7 @@ let flushScheduled = false;
  */
 export let globalVersion = 1;
 
-export const batched: Set<ReactiveNode> = new Set();
+export const batched: ReactiveNode[] = [];
 
 let lastAddedId = 0;
 
@@ -53,13 +52,17 @@ export const setTracked = (value: boolean): boolean => {
  * Caller must check Flag.NEEDS_WORK before calling to avoid duplicates
  */
 export const batchedAdd = (node: ReactiveNode): void => {
+    // Check if already batched to avoid duplicates
+    if (node.$_flags & Flag.BATCHED) return;
+
+    node.$_flags |= Flag.BATCHED;
     const nodeId = node.$_id as number;
     // Track if we're adding out of order
     if (nodeId < lastAddedId) {
         needsSort = true;
     }
     lastAddedId = nodeId;
-    batched.add(node);
+    batched.push(node);
 };
 
 /**
@@ -69,7 +72,7 @@ export const batchedAdd = (node: ReactiveNode): void => {
  */
 export const batchedAddNew = (node: ReactiveNode, effectId: number): void => {
     lastAddedId = effectId;
-    batched.add(node);
+    batched.push(node);
 };
 
 /**
@@ -149,14 +152,27 @@ export const clearSources = (node: ReactiveNode, fromIndex = 0): void => {
 export const flushEffects = (): void => {
     flushScheduled = false;
     // Collect nodes, only sort if effects were added out of order
-    const nodes: ReactiveNode[] = [...batched];
+    // Use a copy of the array for execution to allow re-scheduling
+    const nodes = batched.slice();
+    batched.length = 0;
+
     if (needsSort) {
         nodes.sort((a, b) => (a.$_id as number) - (b.$_id as number));
     }
-    batched.clear();
+
     lastAddedId = 0;
     needsSort = false;
-    safeForEach(nodes);
+
+    // Clear BATCHED flag before execution so effects can be re-scheduled if needed
+    for (const node of nodes) {
+        node.$_flags &= ~Flag.BATCHED;
+
+        try {
+            (node as unknown as () => void)();
+        } catch (e) {
+            console.error(e);
+        }
+    }
 };
 
 /**
@@ -194,6 +210,7 @@ export const trackStateDependency = <T>(
         // Track deps version, value getter, and last seen value for polling
         sourcesArray.push({
             $_dependents: deps,
+            $_node: undefined,
             $_version: (deps as DepsSet<ReactiveNode>).$_version || 0,
             $_getter: valueGetter,
             $_storedValue: cachedValue,

@@ -1,4 +1,4 @@
-import { batched, batchedAddNew, checkComputedSources, clearSources, runWithTracking, scheduleFlush } from './core';
+import { batchedAddNew, checkComputedSources, clearSources, runWithTracking, scheduleFlush } from './core';
 import { cycleMessage, registerEffect, unregisterEffect, warnIfNoActiveScope } from './debug';
 import { Flag } from './flags';
 import { activeScope } from './globals';
@@ -71,7 +71,7 @@ export const effect = (callback: () => void | EffectCleanup): (() => void) => {
 
     // Initialize properties
     eff.$_sources = [];
-    eff.$_flags = Flag.DIRTY | Flag.EFFECT;
+    eff.$_flags = Flag.DIRTY | Flag.EFFECT | Flag.BATCHED;
     eff.$_skipped = 0;
     // biome-ignore lint/suspicious/noAssignInExpressions: optimization
     const effectId = eff.$_id = ++effectCreationCounter;
@@ -85,7 +85,6 @@ export const effect = (callback: () => void | EffectCleanup): (() => void) => {
             cleanup();
         }
         clearSources(eff as unknown as ReactiveNode);
-        batched.delete(eff as unknown as ReactiveNode);
     };
 
     // Track to appropriate scope

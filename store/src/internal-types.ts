@@ -9,31 +9,19 @@
 export type DepsSet<T> = Set<T> & { $_version?: number };
 
 /**
- * Source entry for state/signal dependencies
- * State sources use $_depsVersion, $_getter, and $_storedValue for change detection
+ * Source entry for dependencies (unified for monomorphism)
+ * Properties are initialized for both types to ensure consistent hidden class
  */
-export type StateSourceEntry<T = unknown> = {
+export type SourceEntry<T = unknown> = {
     $_dependents: Set<ReactiveNode>;
-    $_node: undefined;
+    $_node: ReactiveNode | undefined;
     $_version: number;
-    $_getter: () => T;
-    $_storedValue: T;
+    $_getter: (() => T) | undefined;
+    $_storedValue: T | undefined;
 };
 
-/**
- * Source entry for computed dependencies
- * Computed sources use $_version for change detection
- */
-export type ComputedSourceEntry = {
-    $_dependents: Set<ReactiveNode>;
-    $_node: ReactiveNode;
-    $_version: number;
-};
-
-/**
- * Union type for all source entries
- */
-export type SourceEntry<T = unknown> = StateSourceEntry<T> | ComputedSourceEntry;
+export type StateSourceEntry<T = unknown> = SourceEntry<T>;
+export type ComputedSourceEntry = SourceEntry;
 
 /**
  * Base type for reactive nodes (computed and effect)
