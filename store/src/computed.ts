@@ -33,7 +33,7 @@ export function computedRead<T>(self: ReactiveNode): T {
             if (currentComputing.$_flags & (Flag.EFFECT | Flag.LIVE)) {
                 (deps as DepsSet<ReactiveNode>).add(currentComputing);
                 // If source computed is not live, make it live
-                if (!(self.$_flags & (Flag.EFFECT | Flag.LIVE))) {
+                if (!(self.$_flags & Flag.LIVE)) {
                     makeLive(self);
                 }
             }
@@ -66,7 +66,7 @@ export function computedRead<T>(self: ReactiveNode): T {
 
         // ===== PULL PHASE: Poll sources for non-live computeds =====
         // Non-live nodes poll instead of receiving push notifications
-        if (!(flags & (Flag.EFFECT | Flag.LIVE))) {
+        if (!(flags & Flag.LIVE)) {
             let sourceChanged = false;
 
             // Disable tracking while polling sources to avoid unnecessary dependency tracking
