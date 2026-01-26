@@ -107,7 +107,7 @@ export const makeNonLive = (node: ReactiveNode): void => {
         const { $_dependents, $_node: sourceNode } = node.$_sources[i] as SourceEntry;
         $_dependents.delete(node);
         // Check: has Flag.LIVE but not Flag.EFFECT (effects never become non-live)
-        if (sourceNode && (sourceNode.$_flags & (Flag.EFFECT | Flag.LIVE)) === Flag.LIVE && !(sourceNode.$_deps as Set<ReactiveNode>).size) {
+        if (sourceNode && (sourceNode.$_flags & (Flag.EFFECT | Flag.LIVE)) === Flag.LIVE && (sourceNode.$_deps as Set<ReactiveNode>).size === 0) {
             makeNonLive(sourceNode);
         }
     }
@@ -135,7 +135,7 @@ export const clearSources = (node: ReactiveNode, fromIndex = 0): void => {
             // Always remove from deps to prevent stale notifications
             $_dependents.delete(node);
             // If source is a computed and we're live, check if it became non-live
-            if (isLive && sourceNode && (sourceNode.$_flags & (Flag.EFFECT | Flag.LIVE)) === Flag.LIVE && !(sourceNode.$_deps as Set<ReactiveNode>).size) {
+            if (isLive && sourceNode && (sourceNode.$_flags & (Flag.EFFECT | Flag.LIVE)) === Flag.LIVE && (sourceNode.$_deps as Set<ReactiveNode>).size === 0) {
                 makeNonLive(sourceNode);
             }
         }
