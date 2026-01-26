@@ -36,7 +36,7 @@ export const effect = (callback: () => void | EffectCleanup): (() => void) => {
 
         // Cycle detection: if this node is already being computed, we have a cycle
         const flags = eff.$_flags;
-        if (flags & Flag.COMPUTING) {
+        if ((flags & Flag.COMPUTING) !== 0) {
             throw new Error(cycleMessage);
         }
 
@@ -71,7 +71,7 @@ export const effect = (callback: () => void | EffectCleanup): (() => void) => {
 
     // Initialize properties
     eff.$_sources = [];
-    eff.$_flags = Flag.DIRTY | Flag.EFFECT | Flag.BATCHED;
+    eff.$_flags = Flag.DIRTY | Flag.EFFECT;
     eff.$_skipped = 0;
     // biome-ignore lint/suspicious/noAssignInExpressions: optimization
     const effectId = eff.$_id = ++effectCreationCounter;

@@ -5,7 +5,8 @@ export const [
     propertyDepsSymbol,
     trackSymbol,
     childrenSymbol,
-] = Array.from({ length: 4 }, () => Symbol()) as [
+// biome-ignore lint/suspicious/noSparseArray: fine
+] = Array.from([,,,,], Symbol) as [
     symbol,
     symbol,
     symbol,

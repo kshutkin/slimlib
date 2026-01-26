@@ -35,10 +35,11 @@ export const debugConfig = (flags: number): void => {
 /**
  * Safely call each function in an iterable, logging any errors to console
  */
-export const safeForEach = (fns: Iterable<() => void>): void => {
-    for (const fn of fns) {
+export const safeForEach = (fns: Array<() => void>): void => {
+    for (let i = 0, len = fns.length; i < len; ++i) {
+        const fn = fns[i] as () => void;
         try {
-            fn();
+            fn?.();
         } catch (e) {
             console.error(e);
         }
@@ -50,7 +51,12 @@ export const safeForEach = (fns: Iterable<() => void>): void => {
  * Only runs in DEV mode and when configured
  */
 export const warnIfWriteInComputed = (context: string): void => {
-    if (DEV && debugConfigFlags & WARN_ON_WRITE_IN_COMPUTED && currentComputing && !(currentComputing.$_flags & Flag.EFFECT)) {
+    if (
+        DEV &&
+        (debugConfigFlags & WARN_ON_WRITE_IN_COMPUTED) !== 0 &&
+        currentComputing &&
+        (currentComputing.$_flags & Flag.EFFECT) === 0
+    ) {
         console.warn(
             `[@slimlib/store] Writing to ${context} inside a computed is not recommended. The computed will not automatically re-run when this value changes, which may lead to stale values.`
         );
@@ -64,7 +70,7 @@ export const warnIfWriteInComputed = (context: string): void => {
 const effectRegistry: FinalizationRegistry<string> | null = DEV
     ? new FinalizationRegistry(
           (stackTrace: string) => {
-              if (!(debugConfigFlags & SUPPRESS_EFFECT_GC_WARNING)) {
+              if ((debugConfigFlags & SUPPRESS_EFFECT_GC_WARNING) === 0) {
                   console.warn(
                       `[@slimlib/store] Effect was garbage collected without being disposed. This may indicate a memory leak. Effects should be disposed by calling the returned dispose function or by using a scope that is properly disposed.\n\nEffect was created at:\n${stackTrace}`
                   );
@@ -105,7 +111,7 @@ export const unregisterEffect: (token: object | undefined) => void = DEV
  */
 export const warnIfNoActiveScope: (activeScope: Scope | undefined) => void = DEV
     ? (activeScope: Scope | undefined) => {
-          if (debugConfigFlags & WARN_ON_UNTRACKED_EFFECT && !activeScope) {
+          if ((debugConfigFlags & WARN_ON_UNTRACKED_EFFECT) !== 0 && !activeScope) {
               console.warn(
                   `[@slimlib/store] Effect created without an active scope. Consider using scope() or setActiveScope() to track effects for proper lifecycle management.`
               );

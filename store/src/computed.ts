@@ -1,7 +1,7 @@
 import { checkComputedSources, clearSources, currentComputing, globalVersion, makeLive, runWithTracking, setTracked, tracked } from './core';
 import { cycleMessage } from './debug';
 import { Flag } from './flags';
-import type { DepsSet, ReactiveNode } from './internal-types';
+import type { DepsSet, ReactiveNode, SourceEntry } from './internal-types';
 import type { Computed } from './types';
 
 /**
@@ -32,7 +32,7 @@ export function computedRead<T>(self: ReactiveNode): T {
             });
 
             // Only register with source if we're live
-            if (currentComputing.$_flags & (Flag.EFFECT | Flag.LIVE)) {
+            if ((currentComputing.$_flags & (Flag.EFFECT | Flag.LIVE)) !== 0) {
                 (deps as DepsSet<ReactiveNode>).add(currentComputing);
                 // If source computed is not live, make it live
                 if (!(self.$_flags & Flag.LIVE)) {
@@ -48,13 +48,13 @@ export function computedRead<T>(self: ReactiveNode): T {
 
     // Cycle detection: if this computed is already being computed, we have a cycle
     // This matches TC39 Signals proposal behavior: throw an error on cyclic reads
-    if (flags & Flag.COMPUTING) {
+    if ((flags & Flag.COMPUTING) !== 0) {
         throw new Error(cycleMessage);
     }
 
     // ===== PULL PHASE: Check if cached value can be returned =====
     // Combined check: node has cached result and doesn't need work
-    const hasCached = flags & (Flag.HAS_VALUE | Flag.HAS_ERROR);
+    const hasCached = (flags & (Flag.HAS_VALUE | Flag.HAS_ERROR)) !== 0;
 
     // biome-ignore lint/suspicious/noConfusingLabels: expected
     checkCache: if (!(flags & (Flag.DIRTY | Flag.CHECK)) && hasCached) {
@@ -68,12 +68,13 @@ export function computedRead<T>(self: ReactiveNode): T {
 
         // ===== PULL PHASE: Poll sources for non-live computeds =====
         // Non-live nodes poll instead of receiving push notifications
-        if (!(flags & Flag.LIVE)) {
+        if ((flags & Flag.LIVE) === 0) {
             let sourceChanged = false;
 
             // Disable tracking while polling sources to avoid unnecessary dependency tracking
             const prevTracked = setTracked(false);
-            for (const source of sourcesArray) {
+            for (let i = 0, len = sourcesArray.length; i < len; ++i) {
+                const source = sourcesArray[i] as SourceEntry;
                 if (!source.$_node) {
                     // State source - check if deps version changed
                     const currentDepsVersion = (source.$_dependents as DepsSet<ReactiveNode>).$_version || 0;
@@ -119,7 +120,7 @@ export function computedRead<T>(self: ReactiveNode): T {
 
             // No sources changed - return cached value
             self.$_lastGlobalVersion = globalVersion;
-            if (flags & Flag.HAS_ERROR) {
+            if ((flags & Flag.HAS_ERROR) !== 0) {
                 throw self.$_value;
             }
             return self.$_value as T;
@@ -137,8 +138,9 @@ export function computedRead<T>(self: ReactiveNode): T {
         } else {
             // Sources unchanged, clear CHECK flag and return cached value
             self.$_flags = flags & ~Flag.CHECK;
+            // No sources changed - return cached value
             self.$_lastGlobalVersion = globalVersion;
-            if (flags & Flag.HAS_ERROR) {
+            if ((flags & Flag.HAS_ERROR) !== 0) {
                 throw self.$_value;
             }
             return self.$_value as T;
@@ -147,15 +149,16 @@ export function computedRead<T>(self: ReactiveNode): T {
 
     // ===== PULL PHASE: Recompute value by pulling from sources =====
     // Recompute if dirty or check (sources actually changed)
-    if (flags & (Flag.DIRTY | Flag.CHECK)) {
-        const wasDirty = flags & Flag.DIRTY;
+    if ((flags & (Flag.DIRTY | Flag.CHECK)) !== 0) {
+        const wasDirty = (flags & Flag.DIRTY) !== 0;
 
         runWithTracking(self, () => {
             try {
                 const newValue = (self.$_getter as () => T)();
 
                 // Check if value actually changed (common path: no error recovery)
-                const changed = !(flags & Flag.HAS_VALUE) || !(self.$_equals as (a: T, b: T) => boolean)(self.$_value as T, newValue);
+                const changed =
+                    (flags & Flag.HAS_VALUE) === 0 || !(self.$_equals as (a: T, b: T) => boolean)(self.$_value as T, newValue);
 
                 if (changed) {
                     self.$_value = newValue;
@@ -190,7 +193,7 @@ export function computedRead<T>(self: ReactiveNode): T {
     }
 
     // Check if we have a cached error to rethrow (stored in valueSymbol)
-    if (self.$_flags & Flag.HAS_ERROR) {
+    if ((self.$_flags & Flag.HAS_ERROR) !== 0) {
         throw self.$_value;
     }
 

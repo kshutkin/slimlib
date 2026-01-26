@@ -52,10 +52,6 @@ export const setTracked = (value: boolean): boolean => {
  * Caller must check Flag.NEEDS_WORK before calling to avoid duplicates
  */
 export const batchedAdd = (node: ReactiveNode): void => {
-    // Check if already batched to avoid duplicates
-    if (node.$_flags & Flag.BATCHED) return;
-
-    node.$_flags |= Flag.BATCHED;
     const nodeId = node.$_id as number;
     // Track if we're adding out of order
     if (nodeId < lastAddedId) {
@@ -90,9 +86,10 @@ export const unwrapValue = <T>(value: T): T =>
  */
 export const makeLive = (node: ReactiveNode): void => {
     node.$_flags |= Flag.LIVE;
-    for (const { $_dependents, $_node: sourceNode } of node.$_sources) {
+    for (let i = 0, len = node.$_sources.length; i < len; ++i) {
+        const { $_dependents, $_node: sourceNode } = node.$_sources[i] as SourceEntry;
         $_dependents.add(node);
-        if (sourceNode && !(sourceNode.$_flags & (Flag.EFFECT | Flag.LIVE))) {
+        if (sourceNode && (sourceNode.$_flags & (Flag.EFFECT | Flag.LIVE)) === 0) {
             makeLive(sourceNode);
         }
     }
@@ -105,7 +102,8 @@ export const makeLive = (node: ReactiveNode): void => {
  */
 export const makeNonLive = (node: ReactiveNode): void => {
     node.$_flags &= ~Flag.LIVE;
-    for (const { $_dependents, $_node: sourceNode } of node.$_sources) {
+    for (let i = 0, len = node.$_sources.length; i < len; ++i) {
+        const { $_dependents, $_node: sourceNode } = node.$_sources[i] as SourceEntry;
         $_dependents.delete(node);
         // Check: has Flag.LIVE but not Flag.EFFECT (effects never become non-live)
         if (sourceNode && (sourceNode.$_flags & (Flag.EFFECT | Flag.LIVE)) === Flag.LIVE && !(sourceNode.$_deps as Set<ReactiveNode>).size) {
@@ -120,9 +118,10 @@ export const makeNonLive = (node: ReactiveNode): void => {
  */
 export const clearSources = (node: ReactiveNode, fromIndex = 0): void => {
     const sourcesArray = node.$_sources;
-    const isLive = node.$_flags & (Flag.EFFECT | Flag.LIVE);
+    const isLive = (node.$_flags & (Flag.EFFECT | Flag.LIVE)) !== 0;
+    const len = sourcesArray.length;
 
-    for (let i = fromIndex; i < sourcesArray.length; i++) {
+    for (let i = fromIndex; i < len; ++i) {
         const { $_dependents, $_node: sourceNode } = sourcesArray[i] as SourceEntry;
 
         // Check if this deps is retained (exists in kept portion) - avoid removing shared deps
@@ -163,9 +162,8 @@ export const flushEffects = (): void => {
     lastAddedId = 0;
     needsSort = false;
 
-    // Clear BATCHED flag before execution so effects can be re-scheduled if needed
-    for (const node of nodes) {
-        node.$_flags &= ~Flag.BATCHED;
+    for (let i = 0, len = nodes.length; i < len; ++i) {
+        const node = nodes[i] as ReactiveNode;
 
         try {
             (node as unknown as () => void)();
@@ -220,7 +218,7 @@ export const trackStateDependency = <T>(
         (currentComputing as ReactiveNode).$_flags |= Flag.HAS_STATE_SOURCE;
 
         // Only register with source if we're live
-        if ((currentComputing as ReactiveNode).$_flags & (Flag.EFFECT | Flag.LIVE)) {
+        if (((currentComputing as ReactiveNode).$_flags & (Flag.EFFECT | Flag.LIVE)) !== 0) {
             deps.add(currentComputing as ReactiveNode);
         }
     } else {
@@ -243,7 +241,7 @@ export const markNeedsCheck = (node: ReactiveNode): void => {
     const flags = node.$_flags;
     // Fast path: skip if already computing, dirty, or marked CHECK
     // (COMPUTING | DIRTY | CHECK) (bits 0, 1, 2)
-    if (flags & (Flag.COMPUTING | Flag.DIRTY | Flag.CHECK)) {
+    if ((flags & (Flag.COMPUTING | Flag.DIRTY | Flag.CHECK)) !== 0) {
         // Exception: computing effect that's not dirty yet needs to be marked dirty
         // Uses combined mask: (flags & 13) === 12 means COMPUTING + EFFECT set, DIRTY not set
         if ((flags & (Flag.COMPUTING | Flag.EFFECT | Flag.DIRTY)) === (Flag.COMPUTING | Flag.EFFECT)) {
@@ -255,7 +253,7 @@ export const markNeedsCheck = (node: ReactiveNode): void => {
     }
     // Not skipped: set CHECK and propagate to dependents
     node.$_flags = flags | Flag.CHECK;
-    if (flags & Flag.EFFECT) {
+    if ((flags & Flag.EFFECT) !== 0) {
         batchedAdd(node);
         scheduleFlush();
     }
@@ -306,7 +304,7 @@ export const runWithTracking = <T>(node: ReactiveNode, getter: () => T): T => {
         const sourcesArray = node.$_sources;
         const skipped = node.$_skipped;
         const updateLen = Math.min(skipped, sourcesArray.length);
-        for (let i = 0; i < updateLen; i++) {
+        for (let i = 0; i < updateLen; ++i) {
             const entry = sourcesArray[i] as SourceEntry;
             if (entry.$_node) {
                 entry.$_version = entry.$_node.$_version;
@@ -349,11 +347,13 @@ export const untracked = <T>(callback: () => T): T => {
 export const checkComputedSources = (sourcesArray: SourceEntry[]): boolean => {
     const prevTracked = tracked;
     tracked = false;
-    for (const sourceEntry of sourcesArray) {
-        const sourceNode = sourceEntry.$_node;
+    const len = sourcesArray.length;
+    for (let i = 0; i < len; ++i) {
+        const sourceEntry = sourcesArray[i] as SourceEntry;
+        const sourceNode = sourceEntry.$_node as ReactiveNode;
         // Access source to trigger its recomputation if needed
         try {
-            computedRead(sourceNode as ReactiveNode);
+            computedRead(sourceNode);
         } catch {
             // Error counts as changed - caller will recompute and may handle differently
             tracked = prevTracked;
@@ -361,7 +361,7 @@ export const checkComputedSources = (sourcesArray: SourceEntry[]): boolean => {
         }
         // Check if source version changed (meaning its value changed)
         // Early exit - runWithTracking will update all versions during recomputation
-        if ((sourceEntry as ComputedSourceEntry).$_version !== (sourceNode as ReactiveNode).$_version) {
+        if ((sourceEntry as ComputedSourceEntry).$_version !== sourceNode.$_version) {
             tracked = prevTracked;
             return true;
         }
