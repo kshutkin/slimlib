@@ -17,6 +17,7 @@ import { Flag } from './flags';
 import { scheduler } from './globals';
 import { unwrap } from './symbols';
 import type { ComputedSourceEntry, DepsSet, ReactiveNode, SourceEntry, StateSourceEntry } from './internal-types';
+import { safeForEach } from './debug';
 
 let flushScheduled = false;
 
@@ -162,15 +163,7 @@ export const flushEffects = (): void => {
     lastAddedId = 0;
     needsSort = false;
 
-    for (let i = 0, len = nodes.length; i < len; ++i) {
-        const node = nodes[i] as ReactiveNode;
-
-        try {
-            (node as unknown as () => void)();
-        } catch (e) {
-            console.error(e);
-        }
-    }
+    safeForEach(nodes);
 };
 
 /**
