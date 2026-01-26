@@ -98,7 +98,7 @@ export const effect = (callback: () => void | EffectCleanup): (() => void) => {
     // Trigger first run via batched queue
     // node is already dirty
     // and effect is for sure with the latest id so we directly adding without the sort
-    batchedAddNew(eff as unknown as ReactiveNode, effectId);
+    batchedAddNew(eff, effectId);
     scheduleFlush();
 
     return dispose;

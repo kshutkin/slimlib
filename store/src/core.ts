@@ -16,7 +16,7 @@ import { computedRead } from './computed';
 import { Flag } from './flags';
 import { scheduler } from './globals';
 import { unwrap } from './symbols';
-import type { ComputedSourceEntry, DepsSet, ReactiveNode, SourceEntry, StateSourceEntry } from './internal-types';
+import type { ComputedSourceEntry, DepsSet, InternalEffect, ReactiveNode, SourceEntry, StateSourceEntry } from './internal-types';
 import { safeForEach } from './debug';
 
 let flushScheduled = false;
@@ -27,7 +27,7 @@ let flushScheduled = false;
  */
 export let globalVersion = 1;
 
-export const batched: ReactiveNode[] = [];
+export const batched: InternalEffect[] = [];
 
 let lastAddedId = 0;
 
@@ -67,7 +67,7 @@ export const batchedAdd = (node: ReactiveNode): void => {
  * Used during effect creation - new effects always have the highest ID
  * so we unconditionally update lastAddedId without checking order
  */
-export const batchedAddNew = (node: ReactiveNode, effectId: number): void => {
+export const batchedAddNew = (node: InternalEffect, effectId: number): void => {
     lastAddedId = effectId;
     batched.push(node);
 };
