@@ -1,3 +1,4 @@
+<<<<<<< Updated upstream
 import { checkComputedSources, clearSources, currentComputing, globalVersion, makeLive, runWithTracking, setTracked, tracked } from './core';
 import { cycleMessage } from './debug';
 import { Flag } from './flags';
@@ -5,12 +6,29 @@ import type { DepsSet, ReactiveNode, SourceEntry } from './internal-types';
 import type { Computed } from './types';
 
 /**
+=======
+import { checkComputedSources, currentComputing, globalVersion, runWithTracking, setTracked, tracked, trackComputedDependency } from './core';
+import { cycleMessage } from './debug';
+import { Flag } from './flags';
+import type { ReactiveNode, Subscribable } from './internal-types';
+import type { Computed } from './types';
+
+/**
+ * Check if a Subscribable is a full ReactiveNode
+ */
+const isReactiveNode = (node: Subscribable): node is ReactiveNode => {
+    return '$_flags' in node;
+};
+
+/**
+>>>>>>> Stashed changes
  * Read function for computed nodes
  */
 export function computedRead<T>(self: ReactiveNode): T {
     // ===== PULL PHASE: Register this computed as a dependency of the current consumer =====
     // Track if someone is reading us
     if (tracked && currentComputing) {
+<<<<<<< Updated upstream
         // Inline tracking for computed dependencies
         const consumerSources = currentComputing.$_sources;
         const skipIndex = currentComputing.$_skipped;
@@ -45,6 +63,12 @@ export function computedRead<T>(self: ReactiveNode): T {
 
     let flags = self.$_flags;
     const sourcesArray = self.$_sources;
+=======
+        trackComputedDependency(self);
+    }
+
+    let flags = self.$_flags;
+>>>>>>> Stashed changes
 
     // Cycle detection: if this computed is already being computed, we have a cycle
     // This matches TC39 Signals proposal behavior: throw an error on cyclic reads
@@ -73,6 +97,7 @@ export function computedRead<T>(self: ReactiveNode): T {
 
             // Disable tracking while polling sources to avoid unnecessary dependency tracking
             const prevTracked = setTracked(false);
+<<<<<<< Updated upstream
             for (let i = 0, len = sourcesArray.length; i < len; ++i) {
                 const source = sourcesArray[i] as SourceEntry;
                 if (!source.$_node) {
@@ -87,6 +112,25 @@ export function computedRead<T>(self: ReactiveNode): T {
                             if (Object.is(currentValue, storedValue)) {
                                 // Value reverted - update depsVersion and continue checking
                                 source.$_version = currentDepsVersion;
+=======
+            let linkNode = self.$_deps;
+            while (linkNode !== undefined) {
+                const dep = linkNode.$_dep;
+                
+                if (!isReactiveNode(dep)) {
+                    // State source - check if deps version changed
+                    const currentDepsVersion = dep.$_version;
+                    if (linkNode.$_version !== currentDepsVersion) {
+                        // Deps version changed, check if actual value reverted (primitives only)
+                        const storedValue = linkNode.$_storedValue;
+                        const storedType = typeof storedValue;
+                        if (linkNode.$_getter && (storedValue === null || (storedType !== 'object' && storedType !== 'function'))) {
+                            const currentValue = linkNode.$_getter();
+                            if (Object.is(currentValue, storedValue)) {
+                                // Value reverted - update version and continue checking
+                                linkNode.$_version = currentDepsVersion;
+                                linkNode = linkNode.$_nextDep;
+>>>>>>> Stashed changes
                                 continue;
                             }
                         }
@@ -96,19 +140,32 @@ export function computedRead<T>(self: ReactiveNode): T {
                     }
                 } else {
                     // Computed source - check inline to avoid temporary array allocation
+<<<<<<< Updated upstream
                     const sourceNode = source.$_node;
                     try {
                         computedRead(sourceNode);
+=======
+                    try {
+                        computedRead(dep);
+>>>>>>> Stashed changes
                     } catch {
                         // Error counts as changed
                         sourceChanged = true;
                         break;
                     }
+<<<<<<< Updated upstream
                     if (source.$_version !== sourceNode.$_version) {
+=======
+                    if (linkNode.$_version !== dep.$_version) {
+>>>>>>> Stashed changes
                         sourceChanged = true;
                         break; // EXIT EARLY - don't process remaining sources
                     }
                 }
+<<<<<<< Updated upstream
+=======
+                linkNode = linkNode.$_nextDep;
+>>>>>>> Stashed changes
             }
             setTracked(prevTracked);
 
@@ -132,7 +189,11 @@ export function computedRead<T>(self: ReactiveNode): T {
     // Non-live computeds already verified above during polling
     // Note: Check for Flag.HAS_VALUE OR Flag.HAS_ERROR since cached errors should also use this path
     if ((flags & (Flag.DIRTY | Flag.CHECK | Flag.HAS_STATE_SOURCE)) === Flag.CHECK && hasCached) {
+<<<<<<< Updated upstream
         if (checkComputedSources(sourcesArray)) {
+=======
+        if (checkComputedSources(self)) {
+>>>>>>> Stashed changes
             // Sources changed or errored - mark DIRTY and let getter run
             self.$_flags = flags = (flags & ~Flag.CHECK) | Flag.DIRTY;
         } else {
@@ -167,11 +228,21 @@ export function computedRead<T>(self: ReactiveNode): T {
                     self.$_flags = (self.$_flags | Flag.HAS_VALUE) & ~Flag.HAS_ERROR;
                     // ===== PUSH PHASE (during pull): Mark CHECK-only dependents as DIRTY =====
                     // When value changes during recomputation, upgrade dependent CHECK flags to DIRTY
+<<<<<<< Updated upstream
                     for (const dep of self.$_deps as Set<ReactiveNode>) {
                         const depFlags = dep.$_flags;
                         if ((depFlags & (Flag.COMPUTING | Flag.DIRTY | Flag.CHECK)) === Flag.CHECK) {
                             dep.$_flags = depFlags | Flag.DIRTY;
                         }
+=======
+                    let link = self.$_subs;
+                    while (link !== undefined) {
+                        const depFlags = link.$_sub.$_flags;
+                        if ((depFlags & (Flag.COMPUTING | Flag.DIRTY | Flag.CHECK)) === Flag.CHECK) {
+                            link.$_sub.$_flags = depFlags | Flag.DIRTY;
+                        }
+                        link = link.$_nextSub;
+>>>>>>> Stashed changes
                     }
                 } else if (wasDirty) {
                     self.$_flags |= Flag.HAS_VALUE;
@@ -182,7 +253,11 @@ export function computedRead<T>(self: ReactiveNode): T {
             } catch (e) {
                 // Per TC39 Signals proposal: cache the error and mark as clean with error flag
                 // The error will be rethrown on subsequent reads until a dependency changes
+<<<<<<< Updated upstream
                 // Reuse valueSymbol for error storage since a computed can't have both value and error
+=======
+                // Reuse value for error storage since a computed can't have both value and error
+>>>>>>> Stashed changes
                 // Increment version since the result changed (to error)
                 self.$_version++;
                 self.$_value = e as T;
@@ -192,7 +267,11 @@ export function computedRead<T>(self: ReactiveNode): T {
         });
     }
 
+<<<<<<< Updated upstream
     // Check if we have a cached error to rethrow (stored in valueSymbol)
+=======
+    // Check if we have a cached error to rethrow (stored in value)
+>>>>>>> Stashed changes
     if ((self.$_flags & Flag.HAS_ERROR) !== 0) {
         throw self.$_value;
     }
@@ -204,6 +283,7 @@ export function computedRead<T>(self: ReactiveNode): T {
  * Creates a computed value that automatically tracks dependencies and caches results
  */
 export const computed = <T>(getter: () => T, equals: (a: T, b: T) => boolean = Object.is): Computed<T> => {
+<<<<<<< Updated upstream
     const node = {
         $_sources: [],
         $_deps: new Set(),
@@ -218,3 +298,20 @@ export const computed = <T>(getter: () => T, equals: (a: T, b: T) => boolean = O
 
     return () => computedRead(node);
 };
+=======
+    const node: ReactiveNode = {
+        $_deps: undefined,
+        $_depsTail: undefined,
+        $_subs: undefined,
+        $_subsTail: undefined,
+        $_flags: Flag.DIRTY,
+        $_version: 0,
+        $_value: undefined,
+        $_lastGlobalVersion: 0,
+        $_getter: getter as () => unknown,
+        $_equals: equals as (a: unknown, b: unknown) => boolean,
+    };
+
+    return () => computedRead(node);
+};
+>>>>>>> Stashed changes

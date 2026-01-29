@@ -32,4 +32,8 @@ export const enum Flag {
 
     // PULL PHASE: Has at least one state/signal source (requires polling, can't skip loop)
     HAS_STATE_SOURCE = 1 << 7, // 128 - has state/signal dependency
+<<<<<<< Updated upstream
 }
+=======
+}
+>>>>>>> Stashed changes
