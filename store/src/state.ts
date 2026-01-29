@@ -101,7 +101,7 @@ export function state<T extends object>(object: T = {} as T): T {
                         const method = propValue as (...args: unknown[]) => unknown;
                         cached = (...args: unknown[]) => {
                             // Unwrap in-place - args is already a new array from rest params
-                            for (let i = 0; i < args.length; ++i) {
+                            for (let i = 0, len = args.length; i < len; ++i) {
                                 args[i] = unwrapValue(args[i]);
                             }
                             const result = method.apply(target, args);

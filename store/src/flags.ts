@@ -32,4 +32,7 @@ export const enum Flag {
 
     // PULL PHASE: Has at least one state/signal source (requires polling, can't skip loop)
     HAS_STATE_SOURCE = 1 << 7, // 128 - has state/signal dependency
+
+    // PULL PHASE: Has at least one computed source (requires version update loop)
+    HAS_COMPUTED_SOURCE = 1 << 8, // 256 - has computed dependency
 }

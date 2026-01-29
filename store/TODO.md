@@ -5,3 +5,16 @@
 - scopes - no hidden variables (is it possible?)
 - effect - no mixing function + properties
 - DepsSet - no attaching property on native Set
+
+
+# Link
+
+type Link = {
+  source: ReactiveNode;
+  consumer: ReactiveNode;
+  prevSource: Link | undefined;  // consumer's source list
+  nextSource: Link | undefined;
+  prevSub: Link | undefined;     // source's subscriber list
+  nextSub: Link | undefined;
+  version: number;
+}

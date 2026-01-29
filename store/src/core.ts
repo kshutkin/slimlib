@@ -191,10 +191,11 @@ export const trackStateDependency = <T>(
 
     const sourcesArray = (currentComputing as ReactiveNode).$_sources;
     const skipIndex = (currentComputing as ReactiveNode).$_skipped;
+    const existing = sourcesArray[skipIndex];
 
-    if (sourcesArray[skipIndex]?.$_dependents !== deps) {
+    if (!existing || existing.$_dependents !== deps) {
         // Different dependency - clear old ones from this point and rebuild
-        if (skipIndex < sourcesArray.length) {
+        if (existing) {
             clearSources(currentComputing as ReactiveNode, skipIndex);
         }
 
@@ -277,10 +278,10 @@ export const markDependents = (deps: DepsSet<ReactiveNode>): void => {
  * PULL PHASE: Core of pull - executes computation while tracking dependencies
  */
 export const runWithTracking = <T>(node: ReactiveNode, getter: () => T): T => {
-    // Clear (DIRTY | CHECK) and HAS_STATE_SOURCE (will be recalculated during tracking)
+    // Clear (DIRTY | CHECK) and source flags (will be recalculated during tracking)
     // Note: Even when called from checkComputedSources (which sets tracked=false), this works
     // because runWithTracking sets tracked=true, so trackDependency will re-set the flag
-    node.$_flags = (node.$_flags & ~(Flag.DIRTY | Flag.CHECK | Flag.HAS_STATE_SOURCE)) | Flag.COMPUTING;
+    node.$_flags = (node.$_flags & ~(Flag.DIRTY | Flag.CHECK | Flag.HAS_STATE_SOURCE | Flag.HAS_COMPUTED_SOURCE)) | Flag.COMPUTING;
     node.$_skipped = 0;
 
     const prev = currentComputing;
@@ -296,16 +297,19 @@ export const runWithTracking = <T>(node: ReactiveNode, getter: () => T): T => {
         node.$_flags &= ~Flag.COMPUTING;
         const sourcesArray = node.$_sources;
         const skipped = node.$_skipped;
-        const updateLen = Math.min(skipped, sourcesArray.length);
-        for (let i = 0; i < updateLen; ++i) {
-            const entry = sourcesArray[i] as SourceEntry;
-            if (entry.$_node !== undefined) {
-                entry.$_version = entry.$_node.$_version;
+        const nSources = sourcesArray.length;
+        // Only update versions if there are computed sources (state sources update inline)
+        if ((node.$_flags & Flag.HAS_COMPUTED_SOURCE) !== 0) {
+            const updateLen = Math.min(skipped, nSources);
+            for (let i = 0; i < updateLen; ++i) {
+                const entry = sourcesArray[i] as SourceEntry;
+                if (entry.$_node !== undefined) {
+                    entry.$_version = entry.$_node.$_version;
+                }
             }
-            // Note: state source dv and sv are updated when trackDependency is called during recomputation
         }
         // Clean up any excess sources that weren't reused
-        if (sourcesArray.length > skipped) {
+        if (nSources > skipped) {
             clearSources(node, skipped);
         }
     }

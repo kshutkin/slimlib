@@ -15,10 +15,11 @@ export function computedRead<T>(self: ReactiveNode): T {
         const consumerSources = currentComputing.$_sources;
         const skipIndex = currentComputing.$_skipped;
         const deps = self.$_deps;
+        const existing = consumerSources[skipIndex];
 
-        if (consumerSources[skipIndex]?.$_dependents !== deps) {
+        if (existing === undefined || existing.$_dependents !== deps) {
             // Different dependency - clear old ones from this point and rebuild
-            if (skipIndex < consumerSources.length) {
+            if (existing !== undefined) {
                 clearSources(currentComputing, skipIndex);
             }
 
@@ -40,6 +41,8 @@ export function computedRead<T>(self: ReactiveNode): T {
                 }
             }
         }
+        // Mark that this node has computed sources (for version update loop optimization)
+        currentComputing.$_flags |= Flag.HAS_COMPUTED_SOURCE;
         ++currentComputing.$_skipped;
     }
 
