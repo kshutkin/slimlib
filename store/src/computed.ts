@@ -75,7 +75,8 @@ export function computedRead<T>(self: ReactiveNode): T {
             const prevTracked = setTracked(false);
             for (let i = 0, len = sourcesArray.length; i < len; ++i) {
                 const source = sourcesArray[i] as SourceEntry;
-                if (!source.$_node) {
+                const sourceNode = source.$_node;  // Extract once at loop start
+                if (sourceNode === undefined) {
                     // State source - check if deps version changed
                     const currentDepsVersion = (source.$_dependents as DepsSet<ReactiveNode>).$_version || 0;
                     if (source.$_version !== currentDepsVersion) {
@@ -95,8 +96,7 @@ export function computedRead<T>(self: ReactiveNode): T {
                         break;
                     }
                 } else {
-                    // Computed source - check inline to avoid temporary array allocation
-                    const sourceNode = source.$_node;
+                    // Computed source - use sourceNode directly (already extracted above)
                     try {
                         computedRead(sourceNode);
                     } catch {
