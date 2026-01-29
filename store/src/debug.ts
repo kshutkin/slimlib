@@ -1,21 +1,9 @@
 import { DEV } from 'esm-env';
 
-<<<<<<< Updated upstream:store/src/debug.ts
-import { currentComputing } from './core';
-import { Flag } from './flags';
-import type { Scope } from './types';
-=======
-<<<<<<< Updated upstream:store/src/debug.js
-import { currentComputing } from './computed.js';
-import { FLAG_EFFECT } from './flags.js';
-import { flagsSymbol } from './symbols.js';
-=======
 import { currentComputing } from './core';
 import { Flag } from './flags';
 import type { EffectNode } from './internal-types';
 import type { Scope } from './types';
->>>>>>> Stashed changes:store/src/debug.ts
->>>>>>> Stashed changes:store/src/debug.js
 
 /**
  * Debug configuration flag: Warn when writing to signals/state inside a computed
@@ -46,18 +34,6 @@ export const debugConfig = (flags: number): void => {
 };
 
 /**
-<<<<<<< Updated upstream:store/src/debug.js
- * Safely call each function in an iterable, logging any errors to console
- */
-export const safeForEach = (fns: Array<() => void>): void => {
-    for (let i = 0, len = fns.length; i < len; ++i) {
-        const fn = fns[i] as () => void;
-        try {
-<<<<<<< Updated upstream:store/src/debug.ts
-            fn?.();
-=======
-            fn();
-=======
  * Safely call each effect's fn function, logging any errors to console
  */
 export const safeForEach = (effects: Array<EffectNode>): void => {
@@ -65,8 +41,6 @@ export const safeForEach = (effects: Array<EffectNode>): void => {
         const effect = effects[i];
         try {
             effect?.$_fn?.();
->>>>>>> Stashed changes:store/src/debug.ts
->>>>>>> Stashed changes:store/src/debug.js
         } catch (e) {
             console.error(e);
         }

@@ -1,26 +1,7 @@
-<<<<<<< Updated upstream:store/src/state.ts
-import { currentComputing, markDependents, trackStateDependency, tracked, unwrapValue } from './core';
-import { warnIfWriteInComputed } from './debug';
-import { propertyDepsSymbol, unwrap } from './symbols';
-import type { DepsSet, ReactiveNode } from './internal-types';
-=======
-<<<<<<< Updated upstream:store/src/state.js
-import { currentComputing, tracked } from './computed.js';
-import { markDependents, trackDependency, unwrapValue } from './core.js';
-import { warnIfWriteInComputed } from './debug.js';
-import { propertyDepsSymbol, unwrap } from './symbols.js';
-
-/**
- * @template T
- * @typedef {import('./index.js').Computed<T>} Computed
- */
-=======
 import { currentComputing, markDependents, trackStateDependency, tracked, unwrapValue } from './core';
 import { warnIfWriteInComputed } from './debug';
 import { propertyDepsSymbol, unwrap } from './symbols';
 import type { Subscribable } from './internal-types';
->>>>>>> Stashed changes:store/src/state.ts
->>>>>>> Stashed changes:store/src/state.js
 
 /**
  * Creates a store without an initial object
@@ -43,24 +24,12 @@ export function state<T extends object>(object: T = {} as T): T {
      * PUSH PHASE: Notify all dependents that a property changed
      * This propagates dirty/check flags to all live consumers
      */
-<<<<<<< Updated upstream:store/src/state.ts
-    const notifyPropertyDependents = (target: object, property: string | symbol): void => {
-        const propsMap = (target as Record<symbol, unknown>)[propertyDepsSymbol] as Map<string | symbol, DepsSet<ReactiveNode>> | undefined;
-=======
-<<<<<<< Updated upstream:store/src/state.js
-    const notifyPropertyDependents = (target, property) => {
-        const propsMap = /** @type {Map<string | symbol, Set<Computed<any>>> | undefined} */ (
-            /** @type {any} */ (target)[propertyDepsSymbol]
-        );
-=======
     const notifyPropertyDependents = (target: object, property: string | symbol): void => {
         const propsMap = (target as Record<symbol, unknown>)[propertyDepsSymbol] as Map<string | symbol, Subscribable> | undefined;
->>>>>>> Stashed changes:store/src/state.ts
->>>>>>> Stashed changes:store/src/state.js
         if (!propsMap) return;
         const deps = propsMap.get(property);
         if (deps) {
-            markDependents(deps as DepsSet<ReactiveNode>);
+            markDependents(deps);
         }
     };
 
@@ -95,17 +64,7 @@ export function state<T extends object>(object: T = {} as T): T {
                 // PULL: Track dependency if we're inside an effect/computed
                 if (tracked && currentComputing) {
                     // Get or create the Map for this target (stored as non-enumerable property)
-<<<<<<< Updated upstream:store/src/state.ts
-                    let propsMap = (target as Record<symbol, unknown>)[propertyDepsSymbol] as Map<string | symbol, DepsSet<ReactiveNode>> | undefined;
-=======
-<<<<<<< Updated upstream:store/src/state.js
-                    let propsMap = /** @type {Map<string | symbol, Set<Computed<any>>> | undefined} */ (
-                        /** @type {any} */ (target)[propertyDepsSymbol]
-                    );
-=======
                     let propsMap = (target as Record<symbol, unknown>)[propertyDepsSymbol] as Map<string | symbol, Subscribable> | undefined;
->>>>>>> Stashed changes:store/src/state.ts
->>>>>>> Stashed changes:store/src/state.js
                     if (!propsMap) {
                         propsMap = new Map();
                         Object.defineProperty(target, propertyDepsSymbol, { value: propsMap });
@@ -115,20 +74,6 @@ export function state<T extends object>(object: T = {} as T): T {
                     let deps = propsMap.get(p);
 
                     if (!deps) {
-<<<<<<< Updated upstream:store/src/state.js
-                        // biome-ignore lint/suspicious/noAssignInExpressions: optimization
-                        propsMap.set(p, (deps = new Set() as DepsSet<ReactiveNode>));
-                    }
-
-<<<<<<< Updated upstream:store/src/state.ts
-                    // PULL: Bidirectional linking with optimization
-                    // Pass value getter for polling optimization (value revert detection)
-                    // Capture target and property for later value retrieval
-                    trackStateDependency(deps as DepsSet<ReactiveNode>, () => (target as Record<string | symbol, unknown>)[p], propValue);
-=======
-                    // Bidirectional linking with optimization
-                    trackDependency(deps);
-=======
                         deps = {
                             $_subs: undefined,
                             $_subsTail: undefined,
@@ -141,8 +86,6 @@ export function state<T extends object>(object: T = {} as T): T {
                     // Pass value getter for polling optimization (value revert detection)
                     // Capture target and property for later value retrieval
                     trackStateDependency(deps, () => (target as Record<string | symbol, unknown>)[p], propValue);
->>>>>>> Stashed changes:store/src/state.ts
->>>>>>> Stashed changes:store/src/state.js
                 }
 
                 // Fast path for primitives (most common case)
@@ -170,17 +113,7 @@ export function state<T extends object>(object: T = {} as T): T {
                             // Only notify if we're NOT currently inside an effect/computed execution
                             // to avoid infinite loops when reading during effect
                             if (!currentComputing) {
-<<<<<<< Updated upstream:store/src/state.ts
-                                const propsMap = (target as Record<symbol, unknown>)[propertyDepsSymbol] as Map<string | symbol, DepsSet<ReactiveNode>> | undefined;
-=======
-<<<<<<< Updated upstream:store/src/state.js
-                                const propsMap = /** @type {Map<string | symbol, Set<Computed<any>>> | undefined} */ (
-                                    /** @type {any} */ (target)[propertyDepsSymbol]
-                                );
-=======
                                 const propsMap = (target as Record<symbol, unknown>)[propertyDepsSymbol] as Map<string | symbol, Subscribable> | undefined;
->>>>>>> Stashed changes:store/src/state.ts
->>>>>>> Stashed changes:store/src/state.js
                                 if (!propsMap) return result;
                                 for (const deps of propsMap.values()) {
                                     // PUSH: Propagate dirty flags to all property dependents

@@ -3,11 +3,7 @@ import { cycleMessage, registerEffect, unregisterEffect, warnIfNoActiveScope } f
 import { Flag } from './flags';
 import { activeScope } from './globals';
 import { trackSymbol } from './symbols';
-<<<<<<< Updated upstream
-import type { InternalEffect, ReactiveNode } from './internal-types';
-=======
 import type { EffectNode, ReactiveNode } from './internal-types';
->>>>>>> Stashed changes
 import type { EffectCleanup } from './types';
 
 /**
@@ -31,56 +27,6 @@ export const effect = (callback: () => void | EffectCleanup): (() => void) => {
     // Warn if effect is created without an active scope (only in DEV mode when enabled)
     warnIfNoActiveScope(activeScope);
 
-<<<<<<< Updated upstream
-    // Create callable that invokes effectRun with itself as `this`
-    const eff = (() => {
-        // Skip if effect was disposed (may still be in batched queue from before disposal)
-        if (disposed) {
-            return;
-        }
-
-        // Cycle detection: if this node is already being computed, we have a cycle
-        const flags = eff.$_flags;
-        if ((flags & Flag.COMPUTING) !== 0) {
-            throw new Error(cycleMessage);
-        }
-
-        // ----------------------------------------------------------------
-        // PULL PHASE: Verify if sources actually changed before running
-        // ----------------------------------------------------------------
-        // Bail-out optimization: if only CHECK flag is set (not DIRTY),
-        // verify that computed sources actually changed before running
-        if ((flags & (Flag.DIRTY | Flag.CHECK | Flag.HAS_STATE_SOURCE)) === Flag.CHECK) {
-            // PULL: Read computed sources to check if they changed
-            // If false, sources didn't change - clear CHECK flag and skip
-            // If true, sources changed or errored - proceed to run
-            if (!checkComputedSources(eff.$_sources)) {
-                eff.$_flags = flags & ~Flag.CHECK;
-                return;
-            }
-        }
-
-        // ----------------------------------------------------------------
-        // PULL PHASE: Execute effect and track dependencies
-        // ----------------------------------------------------------------
-        runWithTracking(eff as unknown as ReactiveNode, () => {
-            // Run previous cleanup if it exists
-            if (typeof cleanup === 'function') {
-                cleanup();
-            }
-            // Run the callback and store new cleanup
-            // (callback will PULL values from signals/state/computed)
-            cleanup = callback();
-        });
-    }) as InternalEffect;
-
-    // Initialize properties
-    eff.$_sources = [];
-    eff.$_flags = Flag.DIRTY | Flag.EFFECT;
-    eff.$_skipped = 0;
-    // biome-ignore lint/suspicious/noAssignInExpressions: optimization
-    const effectId = eff.$_id = ++effectCreationCounter;
-=======
     // Create effect node
     const eff: EffectNode = {
         $_deps: undefined,
@@ -135,7 +81,6 @@ export const effect = (callback: () => void | EffectCleanup): (() => void) => {
             });
         },
     };
->>>>>>> Stashed changes
 
     const dispose = (): void => {
         // Mark as disposed to prevent running if still in batched queue
@@ -159,16 +104,8 @@ export const effect = (callback: () => void | EffectCleanup): (() => void) => {
     // Trigger first run via batched queue
     // node is already dirty
     // and effect is for sure with the latest id so we directly adding without the sort
-<<<<<<< Updated upstream
-    batchedAddNew(eff, effectId);
-    scheduleFlush();
-
-    return dispose;
-};
-=======
     batchedAddNew(eff, eff.$_id);
     scheduleFlush();
 
     return dispose;
 };
->>>>>>> Stashed changes

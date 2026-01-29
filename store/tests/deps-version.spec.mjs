@@ -353,13 +353,13 @@ describe('$_version proof', () => {
                 const propsMap = rawStore[propertyDepsSymbol];
                 const deps = propsMap.get('value');
 
-                // Initially $_version should be 0 or undefined (treated as 0)
+                // Initially version should be 0 or undefined (treated as 0)
                 const initialVersion = deps.$_version || 0;
 
                 // Change the value
                 store.value = 2;
 
-                // $_version should have incremented
+                // version should have incremented
                 expect(deps.$_version).toBe(initialVersion + 1);
 
                 // Change again
@@ -421,7 +421,7 @@ describe('$_version proof', () => {
             // Set to same value - should NOT trigger markDependents
             store.value = 1;
 
-            // $_version should NOT have changed
+            // version should NOT have changed
             expect(deps.$_version || 0).toBe(initialVersion);
 
             // Now actually change it

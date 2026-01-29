@@ -1,15 +1,4 @@
 /**
-<<<<<<< Updated upstream
- * Core reactive system implementation using push/pull algorithm:
- *
- * PUSH PHASE: When a source value changes (signal/state write):
- *   - Increment globalVersion
- *   - Eagerly propagate CHECK flags to all dependents
- *   - Schedule effects for execution
- *
- * PULL PHASE: When a computed/effect is read:
- *   - Check if recomputation is needed (via flags and source versions)
-=======
  * Core reactive system implementation using push/pull algorithm with Link-based dependency tracking.
  *
  * Inspired by alien-signals, this implementation uses a Link object that participates
@@ -24,7 +13,6 @@
  *
  * PULL PHASE: When a computed/effect is read:
  *   - Check if recomputation is needed (via flags and link versions)
->>>>>>> Stashed changes
  *   - Lazily recompute by pulling values from sources
  *   - Update cached value and version
  */
@@ -33,11 +21,7 @@ import { computedRead } from './computed';
 import { Flag } from './flags';
 import { scheduler } from './globals';
 import { unwrap } from './symbols';
-<<<<<<< Updated upstream
-import type { ComputedSourceEntry, DepsSet, InternalEffect, ReactiveNode, SourceEntry, StateSourceEntry } from './internal-types';
-=======
 import type { EffectNode, Link, ReactiveNode, Subscribable } from './internal-types';
->>>>>>> Stashed changes
 import { safeForEach } from './debug';
 
 let flushScheduled = false;
@@ -48,11 +32,7 @@ let flushScheduled = false;
  */
 export let globalVersion = 1;
 
-<<<<<<< Updated upstream
-export const batched: InternalEffect[] = [];
-=======
 export const batched: EffectNode[] = [];
->>>>>>> Stashed changes
 
 let lastAddedId = 0;
 
@@ -77,13 +57,8 @@ export const setTracked = (value: boolean): boolean => {
  * PUSH PHASE: Part of effect scheduling during dirty propagation
  * Caller must check Flag.NEEDS_WORK before calling to avoid duplicates
  */
-<<<<<<< Updated upstream
-export const batchedAdd = (node: ReactiveNode): void => {
-    const nodeId = node.$_id as number;
-=======
 export const batchedAdd = (node: EffectNode): void => {
     const nodeId = node.$_id;
->>>>>>> Stashed changes
     // Track if we're adding out of order
     if (nodeId < lastAddedId) {
         needsSort = true;
@@ -97,11 +72,7 @@ export const batchedAdd = (node: EffectNode): void => {
  * Used during effect creation - new effects always have the highest ID
  * so we unconditionally update lastAddedId without checking order
  */
-<<<<<<< Updated upstream
-export const batchedAddNew = (node: InternalEffect, effectId: number): void => {
-=======
 export const batchedAddNew = (node: EffectNode, effectId: number): void => {
->>>>>>> Stashed changes
     lastAddedId = effectId;
     batched.push(node);
 };
@@ -115,20 +86,6 @@ export const unwrapValue = <T>(value: T): T =>
         value);
 
 /**
-<<<<<<< Updated upstream
- * Make a computed live - register it with all its sources
- * Called when a live consumer starts reading this computed
- * PUSH PHASE: Enables push notifications to flow through this node
- */
-export const makeLive = (node: ReactiveNode): void => {
-    node.$_flags |= Flag.LIVE;
-    for (let i = 0, len = node.$_sources.length; i < len; ++i) {
-        const { $_dependents, $_node: sourceNode } = node.$_sources[i] as SourceEntry;
-        $_dependents.add(node);
-        if (sourceNode && (sourceNode.$_flags & (Flag.EFFECT | Flag.LIVE)) === 0) {
-            makeLive(sourceNode);
-        }
-=======
  * Link a dependency to a subscriber.
  * Creates a new Link or reuses an existing one if possible.
  * The Link participates in the sub's deps list, and optionally in the dep's subs list (for live subscribers).
@@ -209,57 +166,10 @@ export const link = (dep: Subscribable, sub: ReactiveNode, version: number, gett
     // Mark if this is a state source (has getter)
     if (getter !== undefined) {
         sub.$_flags |= Flag.HAS_STATE_SOURCE;
->>>>>>> Stashed changes
     }
 };
 
 /**
-<<<<<<< Updated upstream
- * Make a computed non-live - unregister it from all its sources
- * Called when all live consumers stop depending on this computed
- * PUSH PHASE: Disables push notifications through this node
- */
-export const makeNonLive = (node: ReactiveNode): void => {
-    node.$_flags &= ~Flag.LIVE;
-    for (let i = 0, len = node.$_sources.length; i < len; ++i) {
-        const { $_dependents, $_node: sourceNode } = node.$_sources[i] as SourceEntry;
-        $_dependents.delete(node);
-        // Check: has Flag.LIVE but not Flag.EFFECT (effects never become non-live)
-        if (sourceNode && (sourceNode.$_flags & (Flag.EFFECT | Flag.LIVE)) === Flag.LIVE && (sourceNode.$_deps as Set<ReactiveNode>).size === 0) {
-            makeNonLive(sourceNode);
-        }
-    }
-};
-
-/**
- * Clear sources for a node starting from a specific index
- * PULL PHASE: Cleanup during dependency tracking when sources change
- */
-export const clearSources = (node: ReactiveNode, fromIndex = 0): void => {
-    const sourcesArray = node.$_sources;
-    const isLive = (node.$_flags & (Flag.EFFECT | Flag.LIVE)) !== 0;
-    const len = sourcesArray.length;
-
-    for (let i = fromIndex; i < len; ++i) {
-        const { $_dependents, $_node: sourceNode } = sourcesArray[i] as SourceEntry;
-
-        // Check if this deps is retained (exists in kept portion) - avoid removing shared deps
-        let retained = false;
-        for (let j = 0; j < fromIndex && !retained; j++) {
-            retained = (sourcesArray[j] as SourceEntry).$_dependents === $_dependents;
-        }
-
-        if (!retained) {
-            // Always remove from deps to prevent stale notifications
-            $_dependents.delete(node);
-            // If source is a computed and we're live, check if it became non-live
-            if (isLive && sourceNode && (sourceNode.$_flags & (Flag.EFFECT | Flag.LIVE)) === Flag.LIVE && (sourceNode.$_deps as Set<ReactiveNode>).size === 0) {
-                makeNonLive(sourceNode);
-            }
-        }
-    }
-    sourcesArray.length = fromIndex;
-=======
  * Unlink a Link from both the deps and subs lists.
  * Returns the next link in the deps list for iteration.
  *
@@ -379,7 +289,6 @@ export const clearSources = (node: ReactiveNode, fromLink: Link | undefined = no
     while (link !== undefined) {
         link = unlink(link, node);
     }
->>>>>>> Stashed changes
 };
 
 /**
@@ -396,11 +305,7 @@ export const flushEffects = (): void => {
     batched.length = 0;
 
     if (needsSort) {
-<<<<<<< Updated upstream
-        nodes.sort((a, b) => (a.$_id as number) - (b.$_id as number));
-=======
         nodes.sort((a, b) => a.$_id - b.$_id);
->>>>>>> Stashed changes
     }
 
     lastAddedId = 0;
@@ -421,62 +326,15 @@ export const scheduleFlush = (): void => {
 };
 
 /**
-<<<<<<< Updated upstream
- * Track a state/signal dependency between currentComputing and a deps Set
- * Uses liveness tracking - only live consumers register with sources
- * PULL PHASE: Records dependencies during computation for future invalidation
- */
-export const trackStateDependency = <T>(
-    deps: DepsSet<ReactiveNode>,
-=======
  * Track a state/signal dependency between currentComputing and a Subscribable.
  * PULL PHASE: Records dependencies during computation for future invalidation.
  */
 export const trackStateDependency = <T>(
     deps: Subscribable,
->>>>>>> Stashed changes
     valueGetter: () => T,
     cachedValue: T
 ): void => {
     // Callers guarantee tracked && currentComputing are true
-<<<<<<< Updated upstream
-
-    const sourcesArray = (currentComputing as ReactiveNode).$_sources;
-    const skipIndex = (currentComputing as ReactiveNode).$_skipped;
-
-    if (sourcesArray[skipIndex]?.$_dependents !== deps) {
-        // Different dependency - clear old ones from this point and rebuild
-        if (skipIndex < sourcesArray.length) {
-            clearSources(currentComputing as ReactiveNode, skipIndex);
-        }
-
-        // Track deps version, value getter, and last seen value for polling
-        sourcesArray.push({
-            $_dependents: deps,
-            $_node: undefined,
-            $_version: (deps as DepsSet<ReactiveNode>).$_version || 0,
-            $_getter: valueGetter,
-            $_storedValue: cachedValue,
-        } as StateSourceEntry<T>);
-
-        // Mark that this node has state/signal sources (for polling optimization)
-        (currentComputing as ReactiveNode).$_flags |= Flag.HAS_STATE_SOURCE;
-
-        // Only register with source if we're live
-        if (((currentComputing as ReactiveNode).$_flags & (Flag.EFFECT | Flag.LIVE)) !== 0) {
-            deps.add(currentComputing as ReactiveNode);
-        }
-    } else {
-        // Same state source - update depsVersion, getter, and storedValue for accurate polling
-        const entry = sourcesArray[skipIndex] as StateSourceEntry<T>;
-        entry.$_version = (deps as DepsSet<ReactiveNode>).$_version || 0;
-        entry.$_getter = valueGetter;
-        entry.$_storedValue = cachedValue;
-        // Re-set Flag.HAS_STATE_SOURCE (may have been cleared by runWithTracking)
-        (currentComputing as ReactiveNode).$_flags |= Flag.HAS_STATE_SOURCE;
-    }
-    ++(currentComputing as ReactiveNode).$_skipped;
-=======
     const sub = currentComputing as ReactiveNode;
     const isLive = (sub.$_flags & (Flag.EFFECT | Flag.LIVE)) !== 0;
 
@@ -502,7 +360,6 @@ export const trackComputedDependency = (source: ReactiveNode): void => {
     if (isLive && (source.$_flags & (Flag.EFFECT | Flag.LIVE)) === 0) {
         makeLive(source);
     }
->>>>>>> Stashed changes
 };
 
 /**
@@ -512,21 +369,11 @@ export const trackComputedDependency = (source: ReactiveNode): void => {
 export const markNeedsCheck = (node: ReactiveNode): void => {
     const flags = node.$_flags;
     // Fast path: skip if already computing, dirty, or marked CHECK
-<<<<<<< Updated upstream
-    // (COMPUTING | DIRTY | CHECK) (bits 0, 1, 2)
-    if ((flags & (Flag.COMPUTING | Flag.DIRTY | Flag.CHECK)) !== 0) {
-        // Exception: computing effect that's not dirty yet needs to be marked dirty
-        // Uses combined mask: (flags & 13) === 12 means COMPUTING + EFFECT set, DIRTY not set
-        if ((flags & (Flag.COMPUTING | Flag.EFFECT | Flag.DIRTY)) === (Flag.COMPUTING | Flag.EFFECT)) {
-            node.$_flags = flags | Flag.DIRTY;
-            batchedAdd(node);
-=======
     if ((flags & (Flag.COMPUTING | Flag.DIRTY | Flag.CHECK)) !== 0) {
         // Exception: computing effect that's not dirty yet needs to be marked dirty
         if ((flags & (Flag.COMPUTING | Flag.EFFECT | Flag.DIRTY)) === (Flag.COMPUTING | Flag.EFFECT)) {
             node.$_flags = flags | Flag.DIRTY;
             batchedAdd(node as EffectNode);
->>>>>>> Stashed changes
             scheduleFlush();
         }
         return;
@@ -534,16 +381,6 @@ export const markNeedsCheck = (node: ReactiveNode): void => {
     // Not skipped: set CHECK and propagate to dependents
     node.$_flags = flags | Flag.CHECK;
     if ((flags & Flag.EFFECT) !== 0) {
-<<<<<<< Updated upstream
-        batchedAdd(node);
-        scheduleFlush();
-    }
-    const deps = node.$_deps;
-    if (deps) {
-        for (const dep of deps) {
-            markNeedsCheck(dep);
-        }
-=======
         batchedAdd(node as EffectNode);
         scheduleFlush();
     }
@@ -553,22 +390,10 @@ export const markNeedsCheck = (node: ReactiveNode): void => {
     while (link !== undefined) {
         markNeedsCheck(link.$_sub);
         link = link.$_nextSub;
->>>>>>> Stashed changes
     }
 };
 
 /**
-<<<<<<< Updated upstream
- * Mark all dependents in a Set as needing check
- * PUSH PHASE: Entry point for push propagation when a source value changes
- */
-export const markDependents = (deps: DepsSet<ReactiveNode>): void => {
-    ++globalVersion;
-    // Increment deps version for non-live computed polling
-    (deps as DepsSet<ReactiveNode>).$_version = ((deps as DepsSet<ReactiveNode>).$_version || 0) + 1;
-    for (const dep of deps) {
-        markNeedsCheck(dep);
-=======
  * Mark all dependents in a Subscribable as needing check
  * PUSH PHASE: Entry point for push propagation when a source value changes
  */
@@ -582,23 +407,10 @@ export const markDependents = (deps: Subscribable): void => {
     while (link !== undefined) {
         markNeedsCheck(link.$_sub);
         link = link.$_nextSub;
->>>>>>> Stashed changes
     }
 };
 
 /**
-<<<<<<< Updated upstream
- * Run a getter function with dependency tracking
- * Handles cycle detection, context setup, and source cleanup
- * PULL PHASE: Core of pull - executes computation while tracking dependencies
- */
-export const runWithTracking = <T>(node: ReactiveNode, getter: () => T): T => {
-    // Clear (DIRTY | CHECK) and HAS_STATE_SOURCE (will be recalculated during tracking)
-    // Note: Even when called from checkComputedSources (which sets tracked=false), this works
-    // because runWithTracking sets tracked=true, so trackDependency will re-set the flag
-    node.$_flags = (node.$_flags & ~(Flag.DIRTY | Flag.CHECK | Flag.HAS_STATE_SOURCE)) | Flag.COMPUTING;
-    node.$_skipped = 0;
-=======
  * Run a getter function with dependency tracking.
  * Handles cycle detection, context setup, and source cleanup.
  * PULL PHASE: Core of pull - executes computation while tracking dependencies.
@@ -609,7 +421,6 @@ export const runWithTracking = <T>(node: ReactiveNode, getter: () => T): T => {
 
     // Reset tail to walk through existing links
     node.$_depsTail = undefined;
->>>>>>> Stashed changes
 
     const prev = currentComputing;
     const prevTracked = tracked;
@@ -622,21 +433,6 @@ export const runWithTracking = <T>(node: ReactiveNode, getter: () => T): T => {
         currentComputing = prev;
         tracked = prevTracked;
         node.$_flags &= ~Flag.COMPUTING;
-<<<<<<< Updated upstream
-        const sourcesArray = node.$_sources;
-        const skipped = node.$_skipped;
-        const updateLen = Math.min(skipped, sourcesArray.length);
-        for (let i = 0; i < updateLen; ++i) {
-            const entry = sourcesArray[i] as SourceEntry;
-            if (entry.$_node) {
-                entry.$_version = entry.$_node.$_version;
-            }
-            // Note: state source dv and sv are updated when trackDependency is called during recomputation
-        }
-        // Clean up any excess sources that weren't reused
-        if (sourcesArray.length > skipped) {
-            clearSources(node, skipped);
-=======
 
         // Update versions for reused links and clean up excess
         // Note: depsTail may have been modified during getter() execution via link()
@@ -668,7 +464,6 @@ export const runWithTracking = <T>(node: ReactiveNode, getter: () => T): T => {
             // No dependencies were tracked, clear all
             clearSources(node, node.$_deps);
             node.$_deps = undefined;
->>>>>>> Stashed changes
         }
     }
 };
@@ -693,24 +488,6 @@ export const untracked = <T>(callback: () => T): T => {
  * Used by CHECK path optimization in computed and effect.
  * PULL PHASE: Verifies if sources actually changed before recomputing (equality cutoff)
  *
-<<<<<<< Updated upstream
- * Note: Callers must check HAS_STATE_SOURCE flag before calling this function.
- * This function assumes all sources are computed (have $_node).
- *
- * @param sourcesArray - The sources to check (must all be computed sources)
- * @returns true if sources changed, false if unchanged
- */
-export const checkComputedSources = (sourcesArray: SourceEntry[]): boolean => {
-    const prevTracked = tracked;
-    tracked = false;
-    const len = sourcesArray.length;
-    for (let i = 0; i < len; ++i) {
-        const sourceEntry = sourcesArray[i] as SourceEntry;
-        const sourceNode = sourceEntry.$_node as ReactiveNode;
-        // Access source to trigger its recomputation if needed
-        try {
-            computedRead(sourceNode);
-=======
  * @param node - The node whose sources to check
  * @returns true if sources changed, false if unchanged
  */
@@ -726,24 +503,12 @@ export const checkComputedSources = (node: ReactiveNode): boolean => {
         // Access source to trigger its recomputation if needed
         try {
             computedRead(dep);
->>>>>>> Stashed changes
         } catch {
             // Error counts as changed - caller will recompute and may handle differently
             tracked = prevTracked;
             return true;
         }
         // Check if source version changed (meaning its value changed)
-<<<<<<< Updated upstream
-        // Early exit - runWithTracking will update all versions during recomputation
-        if ((sourceEntry as ComputedSourceEntry).$_version !== sourceNode.$_version) {
-            tracked = prevTracked;
-            return true;
-        }
-    }
-    tracked = prevTracked;
-    return false;
-};
-=======
         if (link.$_version !== dep.$_version) {
             tracked = prevTracked;
             return true;
@@ -753,4 +518,3 @@ export const checkComputedSources = (node: ReactiveNode): boolean => {
     tracked = prevTracked;
     return false;
 };
->>>>>>> Stashed changes

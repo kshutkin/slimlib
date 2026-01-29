@@ -1,7 +1,3 @@
-<<<<<<< Updated upstream
-import { safeForEach } from './debug';
-=======
->>>>>>> Stashed changes
 import { activeScope, setActiveScope } from './globals';
 import { childrenSymbol, trackSymbol } from './symbols';
 import type { OnDisposeCallback, Scope, ScopeCallback } from './types';
@@ -37,16 +33,6 @@ export const scope = (callback?: ScopeCallback, parent: Scope | undefined | null
             disposed = true;
 
             // Dispose children first (depth-first)
-<<<<<<< Updated upstream
-            safeForEach(children);
-
-            // Stop all effects
-            safeForEach(effects);
-            effects.length = 0;
-
-            // Run cleanup handlers
-            safeForEach(cleanups);
-=======
             for (const child of children) {
                 if (child) {
                     try {
@@ -75,7 +61,6 @@ export const scope = (callback?: ScopeCallback, parent: Scope | undefined | null
                     console.error(e);
                 }
             }
->>>>>>> Stashed changes
 
             // Remove from parent
             if (parent) {
