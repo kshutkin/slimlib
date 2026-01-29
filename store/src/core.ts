@@ -90,7 +90,7 @@ export const makeLive = (node: ReactiveNode): void => {
     for (let i = 0, len = node.$_sources.length; i < len; ++i) {
         const { $_dependents, $_node: sourceNode } = node.$_sources[i] as SourceEntry;
         $_dependents.add(node);
-        if (sourceNode && (sourceNode.$_flags & (Flag.EFFECT | Flag.LIVE)) === 0) {
+        if (sourceNode !== undefined && (sourceNode.$_flags & (Flag.EFFECT | Flag.LIVE)) === 0) {
             makeLive(sourceNode);
         }
     }
@@ -107,7 +107,7 @@ export const makeNonLive = (node: ReactiveNode): void => {
         const { $_dependents, $_node: sourceNode } = node.$_sources[i] as SourceEntry;
         $_dependents.delete(node);
         // Check: has Flag.LIVE but not Flag.EFFECT (effects never become non-live)
-        if (sourceNode && (sourceNode.$_flags & (Flag.EFFECT | Flag.LIVE)) === Flag.LIVE && (sourceNode.$_deps as Set<ReactiveNode>).size === 0) {
+        if (sourceNode !== undefined && (sourceNode.$_flags & (Flag.EFFECT | Flag.LIVE)) === Flag.LIVE && (sourceNode.$_deps as Set<ReactiveNode>).size === 0) {
             makeNonLive(sourceNode);
         }
     }
@@ -135,7 +135,7 @@ export const clearSources = (node: ReactiveNode, fromIndex = 0): void => {
             // Always remove from deps to prevent stale notifications
             $_dependents.delete(node);
             // If source is a computed and we're live, check if it became non-live
-            if (isLive && sourceNode && (sourceNode.$_flags & (Flag.EFFECT | Flag.LIVE)) === Flag.LIVE && (sourceNode.$_deps as Set<ReactiveNode>).size === 0) {
+            if (isLive && sourceNode !== undefined && (sourceNode.$_flags & (Flag.EFFECT | Flag.LIVE)) === Flag.LIVE && (sourceNode.$_deps as Set<ReactiveNode>).size === 0) {
                 makeNonLive(sourceNode);
             }
         }
@@ -299,7 +299,7 @@ export const runWithTracking = <T>(node: ReactiveNode, getter: () => T): T => {
         const updateLen = Math.min(skipped, sourcesArray.length);
         for (let i = 0; i < updateLen; ++i) {
             const entry = sourcesArray[i] as SourceEntry;
-            if (entry.$_node) {
+            if (entry.$_node !== undefined) {
                 entry.$_version = entry.$_node.$_version;
             }
             // Note: state source dv and sv are updated when trackDependency is called during recomputation
