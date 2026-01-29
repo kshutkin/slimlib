@@ -38,7 +38,7 @@ export function state<T extends object>(object: T = {} as T): T {
             return proxiesCache.get(object) as U;
         }
 
-        const methodCache = new Map<string | symbol, (...args: unknown[]) => unknown>();
+        let methodCache: Map<string | symbol, (...args: unknown[]) => unknown> | undefined;
 
         const proxy = new Proxy(object, {
             // PUSH PHASE: Setting a property notifies all dependents
@@ -51,7 +51,7 @@ export function state<T extends object>(object: T = {} as T): T {
                     // PUSH: Propagate dirty flags to dependents
                     notifyPropertyDependents(target, p);
                     // Clear method cache entry if it was a method
-                    methodCache.delete(p);
+                    methodCache?.delete(p);
                 }
                 return true;
             },
@@ -95,6 +95,9 @@ export function state<T extends object>(object: T = {} as T): T {
                 // Functions are wrapped to trigger PUSH after mutation
                 if (propertyType === 'function') {
                     // Check cache first to avoid creating new function on every access
+                    if (!methodCache) {
+                        methodCache = new Map<string | symbol, (...args: unknown[]) => unknown>();
+                    }
                     let cached = methodCache.get(p);
                     if (!cached) {
                         // Capture method reference at cache time to avoid re-reading on each call
@@ -144,7 +147,7 @@ export function state<T extends object>(object: T = {} as T): T {
                     // PUSH: Propagate dirty flags to dependents
                     notifyPropertyDependents(target, p);
                     // Clear method cache entry if it was a method
-                    methodCache.delete(p);
+                    methodCache?.delete(p);
                 }
                 return result;
             },
