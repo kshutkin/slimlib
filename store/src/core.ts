@@ -254,29 +254,46 @@ const unwatched = (node: ReactiveNode): void => {
  * PUSH PHASE: Enables push notifications to flow through this node.
  */
 export const makeLive = (node: ReactiveNode): void => {
+    // Iterative propagation using an explicit stack to avoid
+    // call stack overhead and stack overflow on deep dependency chains
+    let stack: Link[] | undefined;
+
     node.$_flags |= Flag.LIVE;
+    let linkNode: Link | undefined = node.$_deps;
 
-    // Traverse deps list and register with each source's subs list
-    let linkNode = node.$_deps;
-    while (linkNode !== undefined) {
-        const dep = linkNode.$_dep;
+    for (;;) {
+        while (linkNode !== undefined) {
+            const dep = linkNode.$_dep;
 
-        // Register this link in the dependency's subs list
-        // Links were created without subs registration when non-live, so $_prevSub is always undefined
-        const prevSub = dep.$_subsTail;
-        linkNode.$_prevSub = prevSub;
-        dep.$_subsTail = linkNode;
-        if (prevSub !== undefined) {
-            prevSub.$_nextSub = linkNode;
-        } else {
-            dep.$_subs = linkNode;
+            // Register this link in the dependency's subs list
+            // Links were created without subs registration when non-live, so $_prevSub is always undefined
+            const prevSub = dep.$_subsTail;
+            linkNode.$_prevSub = prevSub;
+            dep.$_subsTail = linkNode;
+            if (prevSub !== undefined) {
+                prevSub.$_nextSub = linkNode;
+            } else {
+                dep.$_subs = linkNode;
+            }
+
+            // If source is a computed that's not yet live, make it live
+            if (isReactiveNode(dep) && (dep.$_flags & (Flag.EFFECT | Flag.LIVE)) === 0) {
+                // Save remaining deps on stack (if any), then dive into dep
+                const nextLink = linkNode.$_nextDep;
+                if (nextLink !== undefined) {
+                    if (stack === undefined) stack = [];
+                    stack.push(nextLink);
+                }
+                dep.$_flags |= Flag.LIVE;
+                linkNode = dep.$_deps;
+            } else {
+                linkNode = linkNode.$_nextDep;
+            }
         }
 
-        // If source is a computed that's not yet live, make it live
-        if (isReactiveNode(dep) && (dep.$_flags & (Flag.EFFECT | Flag.LIVE)) === 0) {
-            makeLive(dep);
-        }
-        linkNode = linkNode.$_nextDep;
+        // Pop next work item from stack
+        if (stack === undefined || stack.length === 0) break;
+        linkNode = stack.pop();
     }
 };
 

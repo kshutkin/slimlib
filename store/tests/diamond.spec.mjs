@@ -308,6 +308,102 @@ describe('diamond problem', () => {
         expect(effectB).toBe(15);
         expect(effectC).toBe(25);
     });
+
+    it('makeLive propagates through pre-read diamond (multiple non-live computed deps)', async () => {
+        /**
+         * This tests the iterative stack in makeLive:
+         * When a computed with multiple non-live computed deps
+         * is made live, the stack is used to remember remaining deps.
+         *
+         *      A (store)
+         *     / \
+         *    B   C (computed, non-live)
+         *     \ /
+         *      D (computed, non-live, pre-read)
+         *      |
+         *      E (effect, created after D is read)
+         */
+        const store = state({ a: 1 });
+        const b = computed(() => store.a + 1);
+        const c = computed(() => store.a + 2);
+        const d = computed(() => b() + c());
+
+        // Pre-read d to populate its deps [b, c] while all are non-live
+        expect(d()).toBe(5); // b=2, c=3
+
+        // Now subscribe via effect — this triggers makeLive(d)
+        // which must iterate d's deps [b, c], both non-live computeds
+        let runCount = 0;
+        let result;
+
+        effect(() => {
+            runCount++;
+            result = d();
+        });
+
+        await flushAll();
+        expect(runCount).toBe(1);
+        expect(result).toBe(5);
+
+        // Verify reactivity works after makeLive propagation
+        store.a = 10;
+        await flushAll();
+        expect(runCount).toBe(2);
+        expect(result).toBe(23); // b=11, c=12
+    });
+
+    it('makeLive propagates through nested diamond (multi-level fan-out)', async () => {
+        /**
+         * Tests the makeLive stack when it already exists (nested fan-out).
+         * The stack is pushed at two levels, exercising the branch where
+         * stack !== undefined on the second push.
+         *
+         *      A (store)
+         *     / \
+         *    B   C (computed, non-live)
+         *     \ /
+         *      D (computed, non-live) — fan-out level 1
+         *      |
+         *      X (computed, non-live, depends on A)
+         *     / \
+         *    D   X  ← deps of E
+         *      E (computed, non-live, pre-read) — fan-out level 2
+         *      |
+         *      F (effect)
+         */
+        const store = state({ a: 1 });
+        const b = computed(() => store.a + 1);
+        const c = computed(() => store.a + 2);
+        const d = computed(() => b() + c()); // deps: [b, c]
+        const x = computed(() => store.a * 10);
+        const e = computed(() => d() + x()); // deps: [d, x]
+
+        // Pre-read e to populate deps all the way down while non-live
+        expect(e()).toBe(15); // d = (1+1)+(1+2) = 5, x = 10
+
+        // Now subscribe via effect — makeLive(e) iterates e's deps [d, x]:
+        //   d is non-live computed, push x-link → stack = [x-link], dive into d
+        //   d's deps [b, c]: b is non-live computed, push c-link → stack = [x-link, c-link]
+        //   (stack already existed here — exercises the branch)
+        let runCount = 0;
+        let result;
+
+        effect(() => {
+            runCount++;
+            result = e();
+        });
+
+        await flushAll();
+        expect(runCount).toBe(1);
+        expect(result).toBe(15);
+
+        // Verify full reactivity chain works
+        store.a = 5;
+        await flushAll();
+        expect(runCount).toBe(2);
+        // d = (5+1)+(5+2) = 13, x = 50
+        expect(result).toBe(63);
+    });
 });
 
 describe('diamond problem with signals', () => {
@@ -604,5 +700,101 @@ describe('diamond problem with signals', () => {
         // Both should be updated correctly
         expect(effectB).toBe(15);
         expect(effectC).toBe(25);
+    });
+
+    it('makeLive propagates through pre-read diamond (multiple non-live computed deps)', async () => {
+        /**
+         * This tests the iterative stack in makeLive:
+         * When a computed with multiple non-live computed deps
+         * is made live, the stack is used to remember remaining deps.
+         *
+         *      A (signal)
+         *     / \
+         *    B   C (computed, non-live)
+         *     \ /
+         *      D (computed, non-live, pre-read)
+         *      |
+         *      E (effect, created after D is read)
+         */
+        const a = signal(1);
+        const b = computed(() => a() + 1);
+        const c = computed(() => a() + 2);
+        const d = computed(() => b() + c());
+
+        // Pre-read d to populate its deps [b, c] while all are non-live
+        expect(d()).toBe(5); // b=2, c=3
+
+        // Now subscribe via effect — this triggers makeLive(d)
+        // which must iterate d's deps [b, c], both non-live computeds
+        let runCount = 0;
+        let result;
+
+        effect(() => {
+            runCount++;
+            result = d();
+        });
+
+        await flushAll();
+        expect(runCount).toBe(1);
+        expect(result).toBe(5);
+
+        // Verify reactivity works after makeLive propagation
+        a.set(10);
+        await flushAll();
+        expect(runCount).toBe(2);
+        expect(result).toBe(23); // b=11, c=12
+    });
+
+    it('makeLive propagates through nested diamond (multi-level fan-out)', async () => {
+        /**
+         * Tests the makeLive stack when it already exists (nested fan-out).
+         * The stack is pushed at two levels, exercising the branch where
+         * stack !== undefined on the second push.
+         *
+         *      A (signal)
+         *     / \
+         *    B   C (computed, non-live)
+         *     \ /
+         *      D (computed, non-live) — fan-out level 1
+         *      |
+         *      X (computed, non-live, depends on A)
+         *     / \
+         *    D   X  ← deps of E
+         *      E (computed, non-live, pre-read) — fan-out level 2
+         *      |
+         *      F (effect)
+         */
+        const a = signal(1);
+        const b = computed(() => a() + 1);
+        const c = computed(() => a() + 2);
+        const d = computed(() => b() + c()); // deps: [b, c]
+        const x = computed(() => a() * 10);
+        const e = computed(() => d() + x()); // deps: [d, x]
+
+        // Pre-read e to populate deps all the way down while non-live
+        expect(e()).toBe(15); // d = (1+1)+(1+2) = 5, x = 10
+
+        // Now subscribe via effect — makeLive(e) iterates e's deps [d, x]:
+        //   d is non-live computed, push x-link → stack = [x-link], dive into d
+        //   d's deps [b, c]: b is non-live computed, push c-link → stack = [x-link, c-link]
+        //   (stack already existed here — exercises the branch)
+        let runCount = 0;
+        let result;
+
+        effect(() => {
+            runCount++;
+            result = e();
+        });
+
+        await flushAll();
+        expect(runCount).toBe(1);
+        expect(result).toBe(15);
+
+        // Verify full reactivity chain works
+        a.set(5);
+        await flushAll();
+        expect(runCount).toBe(2);
+        // d = (5+1)+(5+2) = 13, x = 50
+        expect(result).toBe(63);
     });
 });
