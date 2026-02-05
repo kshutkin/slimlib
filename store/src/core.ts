@@ -21,7 +21,7 @@ import { computedRead } from './computed';
 import { Flag } from './flags';
 import { scheduler } from './globals';
 import { unwrap } from './symbols';
-import type { EffectNode, Link, ReactiveNode, Subscribable } from './internal-types';
+import type { Link, ReactiveNode, Subscribable } from './internal-types';
 import { safeForEach } from './debug';
 
 let flushScheduled = false;
@@ -32,7 +32,7 @@ let flushScheduled = false;
  */
 export let globalVersion = 1;
 
-export const batched: EffectNode[] = [];
+export const batched: ReactiveNode[] = [];
 
 let lastAddedId = 0;
 
@@ -57,7 +57,7 @@ export const setTracked = (value: boolean): boolean => {
  * PUSH PHASE: Part of effect scheduling during dirty propagation
  * Caller must check Flag.NEEDS_WORK before calling to avoid duplicates
  */
-export const batchedAdd = (node: EffectNode): void => {
+export const batchedAdd = (node: ReactiveNode): void => {
     const nodeId = node.$_id;
     // Track if we're adding out of order
     if (nodeId < lastAddedId) {
@@ -72,7 +72,7 @@ export const batchedAdd = (node: EffectNode): void => {
  * Used during effect creation - new effects always have the highest ID
  * so we unconditionally update lastAddedId without checking order
  */
-export const batchedAddNew = (node: EffectNode, effectId: number): void => {
+export const batchedAddNew = (node: ReactiveNode, effectId: number): void => {
     lastAddedId = effectId;
     batched.push(node);
 };
@@ -379,7 +379,7 @@ export const markNeedsCheck = (node: ReactiveNode): void => {
             // Exception: computing effect that's not dirty yet needs to be marked dirty
             if ((flags & (Flag.COMPUTING | Flag.EFFECT | Flag.DIRTY)) === (Flag.COMPUTING | Flag.EFFECT)) {
                 current.$_flags = flags | Flag.DIRTY;
-                batchedAdd(current as EffectNode);
+                batchedAdd(current);
                 scheduleFlush();
             }
             // Pop next from stack
@@ -389,7 +389,7 @@ export const markNeedsCheck = (node: ReactiveNode): void => {
         // Not skipped: set CHECK and propagate to dependents
         current.$_flags = flags | Flag.CHECK;
         if ((flags & Flag.EFFECT) !== 0) {
-            batchedAdd(current as EffectNode);
+            batchedAdd(current);
             scheduleFlush();
         }
 

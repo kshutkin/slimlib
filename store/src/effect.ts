@@ -3,7 +3,7 @@ import { cycleMessage, registerEffect, unregisterEffect, warnIfNoActiveScope } f
 import { Flag } from './flags';
 import { activeScope } from './globals';
 import { trackSymbol } from './symbols';
-import type { EffectNode, ReactiveNode } from './internal-types';
+import type { ReactiveNode } from './internal-types';
 import type { EffectCleanup } from './types';
 
 /**
@@ -27,8 +27,8 @@ export const effect = (callback: () => void | EffectCleanup): (() => void) => {
     // Warn if effect is created without an active scope (only in DEV mode when enabled)
     warnIfNoActiveScope(activeScope);
 
-    // Create effect node
-    const eff: EffectNode = {
+    // Create effect node (same shape as computed nodes for V8 hidden class consistency)
+    const eff: ReactiveNode = {
         $_deps: undefined,
         $_depsTail: undefined,
         $_subs: undefined,
@@ -61,7 +61,7 @@ export const effect = (callback: () => void | EffectCleanup): (() => void) => {
                 // PULL: Read computed sources to check if they changed
                 // If false, sources didn't change - clear CHECK flag and skip
                 // If true, sources changed or errored - proceed to run
-                if (!checkComputedSources(eff as unknown as ReactiveNode)) {
+                if (!checkComputedSources(eff)) {
                     eff.$_flags = flags & ~Flag.CHECK;
                     return;
                 }
@@ -70,7 +70,7 @@ export const effect = (callback: () => void | EffectCleanup): (() => void) => {
             // ----------------------------------------------------------------
             // PULL PHASE: Execute effect and track dependencies
             // ----------------------------------------------------------------
-            runWithTracking(eff as unknown as ReactiveNode, () => {
+            runWithTracking(eff, () => {
                 // Run previous cleanup if it exists
                 if (typeof cleanup === 'function') {
                     cleanup();
@@ -90,7 +90,7 @@ export const effect = (callback: () => void | EffectCleanup): (() => void) => {
         if (typeof cleanup === 'function') {
             cleanup();
         }
-        clearSources(eff as unknown as ReactiveNode);
+        clearSources(eff);
     };
 
     // Track to appropriate scope

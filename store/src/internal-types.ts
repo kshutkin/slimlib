@@ -52,7 +52,9 @@ export interface Subscribable {
 }
 
 /**
- * Base type for reactive nodes (computed and effect)
+ * Base type for reactive nodes (computed and effect).
+ * Both computed and effect nodes share the same shape (property set and order)
+ * to ensure V8 assigns them the same hidden class, avoiding "wrong map" deoptimizations.
  */
 export interface ReactiveNode extends Subscribable {
     /** Head of the dependencies linked list (sources this node depends on) */
@@ -69,15 +71,9 @@ export interface ReactiveNode extends Subscribable {
     $_getter: (() => unknown) | undefined;
     /** Equality function for computed nodes */
     $_equals: ((a: unknown, b: unknown) => boolean) | undefined;
-}
-
-/**
- * Internal effect type with all implementation properties
- */
-export interface EffectNode extends ReactiveNode {
-    /** Effect ID for ordering */
+    /** Effect ID for ordering (0 for computed nodes) */
     $_id: number;
-    /** Effect callback function */
+    /** Effect callback function (undefined for computed nodes) */
     $_fn: (() => void) | undefined;
 }
 

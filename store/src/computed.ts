@@ -197,6 +197,8 @@ export const computed = <T>(getter: () => T, equals: (a: T, b: T) => boolean = O
         $_lastGlobalVersion: 0,
         $_getter: getter as () => unknown,
         $_equals: equals as (a: unknown, b: unknown) => boolean,
+        $_id: 0,
+        $_fn: undefined,
     };
 
     return () => computedRead(node);

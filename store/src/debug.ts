@@ -2,7 +2,7 @@ import { DEV } from 'esm-env';
 
 import { currentComputing } from './core';
 import { Flag } from './flags';
-import type { EffectNode } from './internal-types';
+import type { ReactiveNode } from './internal-types';
 import type { Scope } from './types';
 
 /**
@@ -36,7 +36,7 @@ export const debugConfig = (flags: number): void => {
 /**
  * Safely call each effect's fn function, logging any errors to console
  */
-export const safeForEach = (effects: Array<EffectNode>): void => {
+export const safeForEach = (effects: Array<ReactiveNode>): void => {
     for (let i = 0, len = effects.length; i < len; ++i) {
         const effect = effects[i];
         try {
