@@ -72,6 +72,16 @@ function manglePropertiesPlugin() {
                             handledPositions.add(node.property.start);
                         }
                     }
+                    // String literal containing a $_ prefixed name (e.g. '$_flags' in node)
+                    else if (node.type === 'Literal' && typeof node.value === 'string' && shouldMangle(node.value)) {
+                        if (!handledPositions.has(node.start)) {
+                            // Preserve the original quote style
+                            const raw = code.slice(node.start, node.end);
+                            const quote = raw[0];
+                            magicString.overwrite(node.start, node.end, quote + getMangled(node.value) + quote);
+                            handledPositions.add(node.start);
+                        }
+                    }
                     // Identifier used as variable that matches a mangled property name
                     // This catches the local variable usage from shorthand destructuring
                     else if (node.type === 'Identifier' && shouldMangle(node.name)) {
