@@ -367,30 +367,49 @@ export const trackComputedDependency = (source: ReactiveNode): void => {
  * PUSH PHASE: Eagerly propagates CHECK flag up the dependency graph
  */
 export const markNeedsCheck = (node: ReactiveNode): void => {
-    const flags = node.$_flags;
-    // Fast path: skip if already computing, dirty, or marked CHECK
-    if ((flags & (Flag.COMPUTING | Flag.DIRTY | Flag.CHECK)) !== 0) {
-        // Exception: computing effect that's not dirty yet needs to be marked dirty
-        if ((flags & (Flag.COMPUTING | Flag.EFFECT | Flag.DIRTY)) === (Flag.COMPUTING | Flag.EFFECT)) {
-            node.$_flags = flags | Flag.DIRTY;
-            batchedAdd(node as EffectNode);
+    // Iterative propagation using an explicit stack to avoid
+    // call stack overhead and stack overflow on deep dependency chains
+    let stack: ReactiveNode[] | undefined;
+    let current: ReactiveNode | undefined = node;
+
+    do {
+        const flags = current.$_flags;
+        // Fast path: skip if already computing, dirty, or marked CHECK
+        if ((flags & (Flag.COMPUTING | Flag.DIRTY | Flag.CHECK)) !== 0) {
+            // Exception: computing effect that's not dirty yet needs to be marked dirty
+            if ((flags & (Flag.COMPUTING | Flag.EFFECT | Flag.DIRTY)) === (Flag.COMPUTING | Flag.EFFECT)) {
+                current.$_flags = flags | Flag.DIRTY;
+                batchedAdd(current as EffectNode);
+                scheduleFlush();
+            }
+            // Pop next from stack
+            current = stack !== undefined ? stack.pop() : undefined;
+            continue;
+        }
+        // Not skipped: set CHECK and propagate to dependents
+        current.$_flags = flags | Flag.CHECK;
+        if ((flags & Flag.EFFECT) !== 0) {
+            batchedAdd(current as EffectNode);
             scheduleFlush();
         }
-        return;
-    }
-    // Not skipped: set CHECK and propagate to dependents
-    node.$_flags = flags | Flag.CHECK;
-    if ((flags & Flag.EFFECT) !== 0) {
-        batchedAdd(node as EffectNode);
-        scheduleFlush();
-    }
 
-    // Propagate to all subscribers via subs linked list
-    let link = node.$_subs;
-    while (link !== undefined) {
-        markNeedsCheck(link.$_sub);
-        link = link.$_nextSub;
-    }
+        // Propagate to all subscribers via subs linked list
+        // First subscriber becomes next current (tail-call style), siblings go on stack
+        let link = current.$_subs;
+        if (link !== undefined) {
+            current = link.$_sub;
+            link = link.$_nextSub;
+            while (link !== undefined) {
+                if (stack === undefined) {
+                    stack = [];
+                }
+                stack.push(link.$_sub);
+                link = link.$_nextSub;
+            }
+        } else {
+            current = stack !== undefined ? stack.pop() : undefined;
+        }
+    } while (current !== undefined);
 };
 
 /**
@@ -494,27 +513,27 @@ export const untracked = <T>(callback: () => T): T => {
 export const checkComputedSources = (node: ReactiveNode): boolean => {
     const prevTracked = tracked;
     tracked = false;
+    try {
+        let link = node.$_deps;
+        while (link !== undefined) {
+            // All deps here are computed sources (HAS_STATE_SOURCE check ensures this)
+            const dep = link.$_dep as ReactiveNode;
 
-    let link = node.$_deps;
-    while (link !== undefined) {
-        // All deps here are computed sources (HAS_STATE_SOURCE check ensures this)
-        const dep = link.$_dep as ReactiveNode;
-
-        // Access source to trigger its recomputation if needed
-        try {
-            computedRead(dep);
-        } catch {
-            // Error counts as changed - caller will recompute and may handle differently
-            tracked = prevTracked;
-            return true;
+            // Access source to trigger its recomputation if needed
+            try {
+                computedRead(dep);
+            } catch {
+                // Error counts as changed - caller will recompute and may handle differently
+                return true;
+            }
+            // Check if source version changed (meaning its value changed)
+            if (link.$_version !== dep.$_version) {
+                return true;
+            }
+            link = link.$_nextDep;
         }
-        // Check if source version changed (meaning its value changed)
-        if (link.$_version !== dep.$_version) {
-            tracked = prevTracked;
-            return true;
-        }
-        link = link.$_nextDep;
+        return false;
+    } finally {
+        tracked = prevTracked;
     }
-    tracked = prevTracked;
-    return false;
 };
