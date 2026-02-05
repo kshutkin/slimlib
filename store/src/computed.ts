@@ -1,4 +1,4 @@
-import { checkComputedSources, clearSources, currentComputing, globalVersion, makeLive, runWithTracking, setTracked, tracked } from './core';
+import { checkComputedSources, clearSources, createDepsSet, currentComputing, globalVersion, makeLive, runWithTracking, setTracked, tracked } from './core';
 import { cycleMessage } from './debug';
 import { Flag } from './flags';
 import type { DepsSet, ReactiveNode, SourceEntry } from './internal-types';
@@ -81,7 +81,7 @@ export function computedRead<T>(self: ReactiveNode): T {
                 const sourceNode = source.$_node;  // Extract once at loop start
                 if (sourceNode === undefined) {
                     // State source - check if deps version changed
-                    const currentDepsVersion = (source.$_dependents as DepsSet<ReactiveNode>).$_version || 0;
+                    const currentDepsVersion = (source.$_dependents as DepsSet<ReactiveNode>).$_version as number;
                     if (source.$_version !== currentDepsVersion) {
                         // Deps version changed, check if actual value reverted (primitives only)
                         const storedValue = source.$_storedValue;
@@ -209,14 +209,16 @@ export function computedRead<T>(self: ReactiveNode): T {
 export const computed = <T>(getter: () => T, equals: (a: T, b: T) => boolean = Object.is): Computed<T> => {
     const node = {
         $_sources: [],
-        $_deps: new Set(),
+        $_deps: createDepsSet<ReactiveNode>(),
         $_flags: Flag.DIRTY,
         $_skipped: 0,
         $_version: 0,
-        $_value: undefined,
+        $_value: undefined as unknown,
         $_lastGlobalVersion: 0,
         $_getter: getter,
         $_equals: equals,
+        $_id: 0,
+        $_run: undefined,
     } as unknown as ReactiveNode;
 
     return () => computedRead(node);

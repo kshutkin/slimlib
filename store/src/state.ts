@@ -1,4 +1,4 @@
-import { currentComputing, markDependents, trackStateDependency, tracked, unwrapValue } from './core';
+import { createDepsSet, currentComputing, markDependents, trackStateDependency, tracked, unwrapValue } from './core';
 import { warnIfWriteInComputed } from './debug';
 import { propertyDepsSymbol, unwrap } from './symbols';
 import type { DepsSet, ReactiveNode } from './internal-types';
@@ -74,19 +74,16 @@ export function state<T extends object>(object: T = {} as T): T {
                     let deps = propsMap.get(p);
 
                     if (!deps) {
+                        // Create DepsSet with getter eagerly to avoid V8 field constness deopts
+                        const propertyGetter = () => (target as Record<string | symbol, unknown>)[p];
                         // biome-ignore lint/suspicious/noAssignInExpressions: optimization
-                        propsMap.set(p, (deps = new Set() as DepsSet<ReactiveNode>));
-                    }
-
-                    let getter = (deps as DepsSet<ReactiveNode>).$_getter;
-                    if (!getter) {
-                        getter = (deps as DepsSet<ReactiveNode>).$_getter = () => (target as Record<string | symbol, unknown>)[p];
+                        propsMap.set(p, (deps = createDepsSet<ReactiveNode>(propertyGetter)));
                     }
 
                     // PULL: Bidirectional linking with optimization
                     // Pass value getter for polling optimization (value revert detection)
                     // Capture target and property for later value retrieval
-                    trackStateDependency(deps as DepsSet<ReactiveNode>, getter, propValue);
+                    trackStateDependency(deps as DepsSet<ReactiveNode>, (deps as DepsSet<ReactiveNode>).$_getter as () => unknown, propValue);
                 }
 
                 // Fast path for primitives (most common case)

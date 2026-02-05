@@ -3,7 +3,7 @@ import { cycleMessage, registerEffect, unregisterEffect, warnIfNoActiveScope } f
 import { Flag } from './flags';
 import { activeScope } from './globals';
 import { trackSymbol } from './symbols';
-import type { InternalEffect, ReactiveNode } from './internal-types';
+import type { ReactiveNode } from './internal-types';
 import type { EffectCleanup } from './types';
 
 /**
@@ -27,15 +27,33 @@ export const effect = (callback: () => void | EffectCleanup): (() => void) => {
     // Warn if effect is created without an active scope (only in DEV mode when enabled)
     warnIfNoActiveScope(activeScope);
 
-    // Create callable that invokes effectRun with itself as `this`
-    const eff = (() => {
+    // Create effect node as a plain object (same shape as computed nodes)
+    // for V8 hidden class monomorphism across all ReactiveNode instances
+    const node = {
+        $_sources: [],
+        $_deps: undefined,
+        $_flags: Flag.DIRTY | Flag.EFFECT,
+        $_skipped: 0,
+        $_version: 0,
+        $_value: undefined as unknown,
+        $_lastGlobalVersion: 0,
+        $_getter: undefined,
+        $_equals: undefined,
+        $_id: ++effectCreationCounter,
+        $_run: undefined as (() => void) | undefined,
+    } as unknown as ReactiveNode;
+
+    const effectId = node.$_id;
+
+    // Effect runner function stored in $_run
+    node.$_run = () => {
         // Skip if effect was disposed (may still be in batched queue from before disposal)
         if (disposed) {
             return;
         }
 
         // Cycle detection: if this node is already being computed, we have a cycle
-        const flags = eff.$_flags;
+        const flags = node.$_flags;
         if ((flags & Flag.COMPUTING) !== 0) {
             throw new Error(cycleMessage);
         }
@@ -49,8 +67,8 @@ export const effect = (callback: () => void | EffectCleanup): (() => void) => {
             // PULL: Read computed sources to check if they changed
             // If false, sources didn't change - clear CHECK flag and skip
             // If true, sources changed or errored - proceed to run
-            if (!checkComputedSources(eff.$_sources)) {
-                eff.$_flags = flags & ~Flag.CHECK;
+            if (!checkComputedSources(node.$_sources)) {
+                node.$_flags = flags & ~Flag.CHECK;
                 return;
             }
         }
@@ -58,7 +76,7 @@ export const effect = (callback: () => void | EffectCleanup): (() => void) => {
         // ----------------------------------------------------------------
         // PULL PHASE: Execute effect and track dependencies
         // ----------------------------------------------------------------
-        runWithTracking(eff as unknown as ReactiveNode, () => {
+        runWithTracking(node, () => {
             // Run previous cleanup if it exists
             if (typeof cleanup === 'function') {
                 cleanup();
@@ -67,14 +85,7 @@ export const effect = (callback: () => void | EffectCleanup): (() => void) => {
             // (callback will PULL values from signals/state/computed)
             cleanup = callback();
         });
-    }) as InternalEffect;
-
-    // Initialize properties
-    eff.$_sources = [];
-    eff.$_flags = Flag.DIRTY | Flag.EFFECT;
-    eff.$_skipped = 0;
-    // biome-ignore lint/suspicious/noAssignInExpressions: optimization
-    const effectId = eff.$_id = ++effectCreationCounter;
+    };
 
     const dispose = (): void => {
         // Mark as disposed to prevent running if still in batched queue
@@ -84,7 +95,7 @@ export const effect = (callback: () => void | EffectCleanup): (() => void) => {
         if (typeof cleanup === 'function') {
             cleanup();
         }
-        clearSources(eff as unknown as ReactiveNode);
+        clearSources(node);
     };
 
     // Track to appropriate scope
@@ -98,7 +109,7 @@ export const effect = (callback: () => void | EffectCleanup): (() => void) => {
     // Trigger first run via batched queue
     // node is already dirty
     // and effect is for sure with the latest id so we directly adding without the sort
-    batchedAddNew(eff, effectId);
+    batchedAddNew(node, effectId);
     scheduleFlush();
 
     return dispose;

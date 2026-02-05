@@ -16,8 +16,22 @@ import { computedRead } from './computed';
 import { Flag } from './flags';
 import { scheduler } from './globals';
 import { unwrap } from './symbols';
-import type { ComputedSourceEntry, DepsSet, InternalEffect, ReactiveNode, SourceEntry, StateSourceEntry } from './internal-types';
-import { safeForEach } from './debug';
+import type { ComputedSourceEntry, DepsSet, ReactiveNode, SourceEntry, StateSourceEntry } from './internal-types';
+
+/**
+ * Create a DepsSet (Set with $_version and $_getter) with all properties
+ * initialized upfront to avoid V8 hidden class transitions and field
+ * constness changes when these properties are later assigned.
+ *
+ * @param getter - Optional value getter for polling optimization.
+ *   Pass eagerly to avoid V8 "dependent field type constness changed" deopts.
+ */
+export const createDepsSet = <T>(getter?: () => unknown): DepsSet<T> => {
+    const s = new Set() as DepsSet<T>;
+    s.$_version = 0;
+    s.$_getter = getter;
+    return s;
+};
 
 let flushScheduled = false;
 
@@ -27,7 +41,7 @@ let flushScheduled = false;
  */
 export let globalVersion = 1;
 
-export const batched: InternalEffect[] = [];
+export const batched: ReactiveNode[] = [];
 
 let lastAddedId = 0;
 
@@ -53,7 +67,7 @@ export const setTracked = (value: boolean): boolean => {
  * Caller must check Flag.NEEDS_WORK before calling to avoid duplicates
  */
 export const batchedAdd = (node: ReactiveNode): void => {
-    const nodeId = node.$_id as number;
+    const nodeId = node.$_id;
     // Track if we're adding out of order
     if (nodeId < lastAddedId) {
         needsSort = true;
@@ -67,7 +81,7 @@ export const batchedAdd = (node: ReactiveNode): void => {
  * Used during effect creation - new effects always have the highest ID
  * so we unconditionally update lastAddedId without checking order
  */
-export const batchedAddNew = (node: InternalEffect, effectId: number): void => {
+export const batchedAddNew = (node: ReactiveNode, effectId: number): void => {
     lastAddedId = effectId;
     batched.push(node);
 };
@@ -157,13 +171,22 @@ export const flushEffects = (): void => {
     batched.length = 0;
 
     if (needsSort) {
-        nodes.sort((a, b) => (a.$_id as number) - (b.$_id as number));
+        nodes.sort((a, b) => a.$_id - b.$_id);
     }
 
     lastAddedId = 0;
     needsSort = false;
 
-    safeForEach(nodes);
+    // Call $_run on each node instead of calling nodes directly as functions
+    // This enables effect nodes to be plain objects (same hidden class as computed)
+    for (let i = 0, len = nodes.length; i < len; ++i) {
+        const node = nodes[i] as ReactiveNode;
+        try {
+            node.$_run?.();
+        } catch (e) {
+            console.error(e);
+        }
+    }
 };
 
 /**
@@ -203,7 +226,7 @@ export const trackStateDependency = <T>(
         sourcesArray.push({
             $_dependents: deps,
             $_node: undefined,
-            $_version: (deps as DepsSet<ReactiveNode>).$_version || 0,
+            $_version: (deps as DepsSet<ReactiveNode>).$_version as number,
             $_getter: valueGetter,
             $_storedValue: cachedValue,
         } as StateSourceEntry<T>);
@@ -218,7 +241,7 @@ export const trackStateDependency = <T>(
     } else {
         // Same state source - update depsVersion, getter, and storedValue for accurate polling
         const entry = sourcesArray[skipIndex] as StateSourceEntry<T>;
-        entry.$_version = (deps as DepsSet<ReactiveNode>).$_version || 0;
+        entry.$_version = (deps as DepsSet<ReactiveNode>).$_version as number;
         entry.$_getter = valueGetter;
         entry.$_storedValue = cachedValue;
         // Re-set Flag.HAS_STATE_SOURCE (may have been cleared by runWithTracking)
@@ -266,7 +289,7 @@ export const markNeedsCheck = (node: ReactiveNode): void => {
 export const markDependents = (deps: DepsSet<ReactiveNode>): void => {
     ++globalVersion;
     // Increment deps version for non-live computed polling
-    (deps as DepsSet<ReactiveNode>).$_version = ((deps as DepsSet<ReactiveNode>).$_version || 0) + 1;
+    (deps as DepsSet<ReactiveNode>).$_version = ((deps as DepsSet<ReactiveNode>).$_version as number) + 1;
     for (const dep of deps) {
         markNeedsCheck(dep);
     }
