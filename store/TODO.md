@@ -1,19 +1,7 @@
 # remaining optimizations
-- optimize object shape if it is even possible because it deoptimizes the runWithTracking
+
 - should effect remove itself from batched? make a hole and remove disposed (we save on each run a bit)
+- same for a scope
 - nodes that participate in deps / sources as in linked lists + data part?
 - scopes - no hidden variables (is it possible?)
 - DepsSet - no attaching property on native Set
-
-
-# Link
-
-type Link = {
-  source: ReactiveNode;
-  consumer: ReactiveNode;
-  prevSource: Link | undefined;  // consumer's source list
-  nextSource: Link | undefined;
-  prevSub: Link | undefined;     // source's subscriber list
-  nextSub: Link | undefined;
-  version: number;
-}
