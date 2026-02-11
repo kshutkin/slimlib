@@ -64,7 +64,7 @@ export type ReactiveNode = {
  */
 export type InternalComputed<T> = {
     $_sources: SourceEntry[];
-    $_deps: Set<ReactiveNode> | undefined;
+    $_deps: Set<ReactiveNode>;
     $_flags: number;
     $_skipped: number;
     $_version: number;
@@ -89,7 +89,7 @@ export type InternalComputed<T> = {
  */
 export type InternalEffect = {
     $_sources: SourceEntry[];
-    $_deps: Set<ReactiveNode> | undefined;
+    $_deps: Set<ReactiveNode>;
     $_flags: number;
     $_skipped: number;
     $_version: number;
