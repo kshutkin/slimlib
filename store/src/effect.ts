@@ -1,4 +1,4 @@
-import { batchedAddNew, checkComputedSources, clearSources, runWithTracking, scheduleFlush } from './core';
+import { batchedAddNew, checkComputedSources, clearSources, createDepsSet, runWithTracking, scheduleFlush } from './core';
 import { cycleMessage, registerEffect, unregisterEffect, warnIfNoActiveScope } from './debug';
 import { Flag } from './flags';
 import { activeScope } from './globals';
@@ -25,28 +25,14 @@ export const effect = (callback: () => void | EffectCleanup): (() => void) => {
     // Warn if effect is created without an active scope (only in DEV mode when enabled)
     warnIfNoActiveScope(activeScope);
 
-    // Create effect node as a plain object (same shape as computed nodes)
-    // for V8 hidden class monomorphism across all ReactiveNode instances
-    //
-    // $_value: stores cleanup function returned by the effect callback
-    // $_stamp: creation order counter for effect scheduling
-    // $_fn: the effect runner function (set below)
-    const node = {
-        $_sources: [],
-        $_deps: undefined,
-        $_flags: Flag.DIRTY | Flag.EFFECT,
-        $_skipped: 0,
-        $_version: 0,
-        $_value: undefined as unknown,
-        $_stamp: ++effectCreationCounter,
-        $_fn: undefined as (() => void) | undefined,
-        $_equals: undefined,
-    } as unknown as ReactiveNode;
+    // Declare node first so the runner closure can capture it.
+    // The variable will be assigned before the runner is ever called.
+    let node: ReactiveNode;
 
-    const effectId = node.$_stamp;
-
-    // Effect runner function stored in $_fn
-    node.$_fn = () => {
+    // Define the runner function BEFORE creating the node so that $_fn
+    // is a function from the start (Fix #1: avoids hidden class transition
+    // from undefined → function on the $_fn field).
+    const runner = () => {
         // Skip if effect was disposed (may still be in batched queue from before disposal)
         if (disposed) {
             return;
@@ -86,6 +72,28 @@ export const effect = (callback: () => void | EffectCleanup): (() => void) => {
             node.$_value = callback();
         });
     };
+
+    // Create effect node as a plain object with IDENTICAL initial field types
+    // as computed nodes to ensure V8 hidden class monomorphism (Fix #2):
+    //   $_deps:   createDepsSet() (Set object, same as computed — never used for effects)
+    //   $_fn:     runner (function, same as computed's getter)
+    //   $_equals: Object.is (function, same as computed's equality comparator)
+    //
+    // $_value: stores cleanup function returned by the effect callback
+    // $_stamp: creation order counter for effect scheduling
+    node = {
+        $_sources: [],
+        $_deps: createDepsSet<ReactiveNode>(),
+        $_flags: Flag.DIRTY | Flag.EFFECT,
+        $_skipped: 0,
+        $_version: 0,
+        $_value: undefined as unknown,
+        $_stamp: ++effectCreationCounter,
+        $_fn: runner,
+        $_equals: Object.is,
+    } as unknown as ReactiveNode;
+
+    const effectId = node.$_stamp;
 
     const dispose = (): void => {
         // Mark as disposed to prevent running if still in batched queue

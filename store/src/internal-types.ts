@@ -37,13 +37,13 @@ export type ComputedSourceEntry = SourceEntry;
  *   $_value  — Computed: cached value or thrown error. Effect: cleanup function.
  *   $_stamp  — Computed: last seen globalVersion (fast-path cache). Effect: creation order (scheduling).
  *   $_fn     — Computed: getter function. Effect: runner function.
- *   $_equals — Computed: equality comparator. Effect: undefined (unused).
- *   $_deps   — Computed: set of dependent consumers. Effect: undefined (unused).
+ *   $_equals — Computed: equality comparator. Effect: Object.is (unused, for hidden class monomorphism).
+ *   $_deps   — Computed: set of dependent consumers. Effect: empty DepsSet (unused, for hidden class monomorphism).
  *   $_version — Computed: value change counter. Effect: 0 (unused).
  */
 export type ReactiveNode = {
     $_sources: SourceEntry[];
-    $_deps: Set<ReactiveNode> | undefined;
+    $_deps: Set<ReactiveNode>;
     $_flags: number;
     $_skipped: number;
     $_version: number;
@@ -78,10 +78,14 @@ export type InternalComputed<T> = {
  * Internal effect type with all implementation properties
  * Plain object with same hidden class shape as computed nodes.
  *
+ * IMPORTANT: All fields must be initialized with the same VALUE TYPES as
+ * computed nodes to ensure V8 hidden class monomorphism:
+ *   $_deps:   createDepsSet() (Set object, same as computed — unused for effects)
+ *   $_fn:     runner function (function, same as computed's getter)
+ *   $_equals: Object.is (function, same as computed's equality comparator — unused for effects)
+ *
  * $_value: cleanup function returned by the effect callback
  * $_stamp: creation order counter for effect scheduling
- * $_fn: the effect runner function (contains tracking + callback execution)
- * $_equals: unused (always undefined, exists for shape consistency)
  */
 export type InternalEffect = {
     $_sources: SourceEntry[];

@@ -16,22 +16,63 @@ import { computedRead } from './computed';
 import { Flag } from './flags';
 import { scheduler } from './globals';
 import { unwrap } from './symbols';
-import type { ComputedSourceEntry, DepsSet, ReactiveNode, SourceEntry, StateSourceEntry } from './internal-types';
+import type { DepsSet, ReactiveNode, SourceEntry } from './internal-types';
+
+/**
+ * No-op getter used as default for DepsSet.$_getter to ensure all DepsSet
+ * instances have the same field representation (function, never undefined).
+ * This avoids V8 field representation deopts when some DepsSets have a getter
+ * and others don't.
+ */
+const noopGetter = (): unknown => undefined;
 
 /**
  * Create a DepsSet (Set with $_version and $_getter) with all properties
  * initialized upfront to avoid V8 hidden class transitions and field
  * constness changes when these properties are later assigned.
  *
- * @param getter - Optional value getter for polling optimization.
+ * IMPORTANT: $_getter always defaults to a no-op function (never undefined)
+ * so that all DepsSet instances share the same V8 field representation.
+ * This prevents "dependent field representation changed" deopts.
+ *
+ * @param getter - Value getter for polling optimization.
  *   Pass eagerly to avoid V8 "dependent field type constness changed" deopts.
  */
-export const createDepsSet = <T>(getter?: () => unknown): DepsSet<T> => {
+export const createDepsSet = <T>(getter: () => unknown = noopGetter): DepsSet<T> => {
     const s = new Set() as DepsSet<T>;
     s.$_version = 0;
     s.$_getter = getter;
     return s;
 };
+
+/**
+ * Factory for creating source entries (unified allocation site).
+ *
+ * Both state and computed source entries MUST be created through this single
+ * factory to ensure they share the same V8 hidden class. Using separate
+ * object literals in different functions creates different allocation sites,
+ * causing V8 to assign different hidden classes and making all property
+ * accesses on source entries polymorphic.
+ *
+ * @param dependents - The DepsSet tracking dependents of this source
+ * @param node - The source ReactiveNode (undefined for state/signal sources)
+ * @param version - Initial version number
+ * @param getter - Value getter (undefined for computed sources)
+ * @param storedValue - Cached value (undefined for computed sources)
+ */
+export const createSourceEntry = <T>(
+    dependents: DepsSet<ReactiveNode>,
+    node: ReactiveNode | undefined,
+    version: number,
+    getter: (() => T) | undefined,
+    storedValue: T | undefined,
+): SourceEntry<T> => ({
+    $_dependents: dependents,
+    $_node: node,
+    $_version: version,
+    $_getter: getter,
+    $_storedValue: storedValue,
+});
 
 let flushScheduled = false;
 
@@ -223,13 +264,14 @@ export const trackStateDependency = <T>(
         }
 
         // Track deps version, value getter, and last seen value for polling
-        sourcesArray.push({
-            $_dependents: deps,
-            $_node: undefined,
-            $_version: (deps as DepsSet<ReactiveNode>).$_version as number,
-            $_getter: valueGetter,
-            $_storedValue: cachedValue,
-        } as StateSourceEntry<T>);
+        // Uses shared createSourceEntry factory for V8 hidden class monomorphism
+        sourcesArray.push(createSourceEntry<T>(
+            deps,
+            undefined,
+            (deps as DepsSet<ReactiveNode>).$_version as number,
+            valueGetter,
+            cachedValue,
+        ));
 
         // Mark that this node has state/signal sources (for polling optimization)
         (currentComputing as ReactiveNode).$_flags |= Flag.HAS_STATE_SOURCE;
@@ -240,7 +282,7 @@ export const trackStateDependency = <T>(
         }
     } else {
         // Same state source - update depsVersion, getter, and storedValue for accurate polling
-        const entry = sourcesArray[skipIndex] as StateSourceEntry<T>;
+        const entry = sourcesArray[skipIndex] as SourceEntry<T>;
         entry.$_version = (deps as DepsSet<ReactiveNode>).$_version as number;
         entry.$_getter = valueGetter;
         entry.$_storedValue = cachedValue;
@@ -274,11 +316,8 @@ export const markNeedsCheck = (node: ReactiveNode): void => {
         batchedAdd(node);
         scheduleFlush();
     }
-    const deps = node.$_deps;
-    if (deps) {
-        for (const dep of deps) {
-            markNeedsCheck(dep);
-        }
+    for (const dep of node.$_deps) {
+        markNeedsCheck(dep);
     }
 };
 
@@ -381,7 +420,7 @@ export const checkComputedSources = (sourcesArray: SourceEntry[]): boolean => {
         }
         // Check if source version changed (meaning its value changed)
         // Early exit - runWithTracking will update all versions during recomputation
-        if ((sourceEntry as ComputedSourceEntry).$_version !== sourceNode.$_version) {
+        if (sourceEntry.$_version !== sourceNode.$_version) {
             tracked = prevTracked;
             return true;
         }

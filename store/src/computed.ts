@@ -1,4 +1,4 @@
-import { checkComputedSources, clearSources, createDepsSet, currentComputing, globalVersion, makeLive, runWithTracking, setTracked, tracked } from './core';
+import { checkComputedSources, clearSources, createDepsSet, createSourceEntry, currentComputing, globalVersion, makeLive, runWithTracking, setTracked, tracked } from './core';
 import { cycleMessage } from './debug';
 import { Flag } from './flags';
 import type { DepsSet, ReactiveNode, SourceEntry } from './internal-types';
@@ -24,13 +24,14 @@ export function computedRead<T>(self: ReactiveNode): T {
             }
 
             // Push source entry - version will be updated after source computes
-            consumerSources.push({
-                $_dependents: deps as DepsSet<ReactiveNode>,
-                $_node: self,
-                $_version: 0,
-                $_getter: undefined,
-                $_storedValue: undefined,
-            });
+            // Uses shared createSourceEntry factory for V8 hidden class monomorphism
+            consumerSources.push(createSourceEntry(
+                deps as DepsSet<ReactiveNode>,
+                self,
+                0,
+                undefined,
+                undefined,
+            ));
 
             // Only register with source if we're live
             if ((currentComputing.$_flags & (Flag.EFFECT | Flag.LIVE)) !== 0) {
