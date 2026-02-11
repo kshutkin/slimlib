@@ -257,9 +257,9 @@ export const trackStateDependency = <T>(
     const skipIndex = (currentComputing as ReactiveNode).$_skipped;
     const existing = sourcesArray[skipIndex];
 
-    if (!existing || existing.$_dependents !== deps) {
+    if (existing === undefined || existing.$_dependents !== deps) {
         // Different dependency - clear old ones from this point and rebuild
-        if (existing) {
+        if (existing !== undefined) {
             clearSources(currentComputing as ReactiveNode, skipIndex);
         }
 
