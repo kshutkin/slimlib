@@ -142,8 +142,9 @@ export const unwrapValue = <T>(value: T): T =>
  */
 export const makeLive = (node: ReactiveNode): void => {
     node.$_flags |= Flag.LIVE;
-    for (let i = 0, len = node.$_sources.length; i < len; ++i) {
-        const { $_dependents, $_node: sourceNode } = node.$_sources[i] as SourceEntry;
+    const nodeSources = node.$_sources;
+    for (let i = 0, len = nodeSources.length; i < len; ++i) {
+        const { $_dependents, $_node: sourceNode } = nodeSources[i] as SourceEntry;
         $_dependents.add(node);
         if (sourceNode !== undefined && (sourceNode.$_flags & (Flag.EFFECT | Flag.LIVE)) === 0) {
             makeLive(sourceNode);
@@ -158,8 +159,9 @@ export const makeLive = (node: ReactiveNode): void => {
  */
 export const makeNonLive = (node: ReactiveNode): void => {
     node.$_flags &= ~Flag.LIVE;
-    for (let i = 0, len = node.$_sources.length; i < len; ++i) {
-        const { $_dependents, $_node: sourceNode } = node.$_sources[i] as SourceEntry;
+    const nodeSources = node.$_sources;
+    for (let i = 0, len = nodeSources.length; i < len; ++i) {
+        const { $_dependents, $_node: sourceNode } = nodeSources[i] as SourceEntry;
         $_dependents.delete(node);
         // Check: has Flag.LIVE but not Flag.EFFECT (effects never become non-live)
         if (sourceNode !== undefined && (sourceNode.$_flags & (Flag.EFFECT | Flag.LIVE)) === Flag.LIVE && (sourceNode.$_deps as Set<ReactiveNode>).size === 0) {
