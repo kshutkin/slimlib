@@ -166,7 +166,7 @@ export function computedRead<T>(self: ReactiveNode): T {
                 if (changed) {
                     self.$_value = newValue;
                     // Increment version to indicate value changed (for polling)
-                    self.$_version++;
+                    ++self.$_version;
                     self.$_flags = (self.$_flags | Flag.HAS_VALUE) & ~Flag.HAS_ERROR;
                     // ===== PUSH PHASE (during pull): Mark CHECK-only dependents as DIRTY =====
                     // When value changes during recomputation, upgrade dependent CHECK flags to DIRTY
@@ -187,7 +187,7 @@ export function computedRead<T>(self: ReactiveNode): T {
                 // The error will be rethrown on subsequent reads until a dependency changes
                 // Reuse valueSymbol for error storage since a computed can't have both value and error
                 // Increment version since the result changed (to error)
-                self.$_version++;
+                ++self.$_version;
                 self.$_value = e as T;
                 self.$_flags = (self.$_flags & ~Flag.HAS_VALUE) | Flag.HAS_ERROR;
                 self.$_stamp = globalVersion;

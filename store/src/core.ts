@@ -141,7 +141,7 @@ export const clearSources = (node: ReactiveNode, fromIndex = 0): void => {
 
         // Check if this deps is retained (exists in kept portion) - avoid removing shared deps
         let retained = false;
-        for (let j = 0; j < fromIndex && !retained; j++) {
+        for (let j = 0; j < fromIndex && !retained; ++j) {
             retained = (sourcesArray[j] as SourceEntry).$_dependents === $_dependents;
         }
 
