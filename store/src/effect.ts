@@ -17,8 +17,6 @@ let effectCreationCounter = 0;
  */
 // biome-ignore lint/suspicious/noConfusingVoidType: void is semantically correct here - callback may return nothing or a cleanup function
 export const effect = (callback: () => void | EffectCleanup): (() => void) => {
-    // biome-ignore lint/suspicious/noConfusingVoidType: matches callback return type
-    let cleanup: void | EffectCleanup;
     let disposed = false;
 
     // Register effect for GC tracking (only in DEV mode)
@@ -29,6 +27,10 @@ export const effect = (callback: () => void | EffectCleanup): (() => void) => {
 
     // Create effect node as a plain object (same shape as computed nodes)
     // for V8 hidden class monomorphism across all ReactiveNode instances
+    //
+    // $_value: stores cleanup function returned by the effect callback
+    // $_stamp: creation order counter for effect scheduling
+    // $_fn: the effect runner function (set below)
     const node = {
         $_sources: [],
         $_deps: undefined,
@@ -36,17 +38,15 @@ export const effect = (callback: () => void | EffectCleanup): (() => void) => {
         $_skipped: 0,
         $_version: 0,
         $_value: undefined as unknown,
-        $_lastGlobalVersion: 0,
-        $_getter: undefined,
+        $_stamp: ++effectCreationCounter,
+        $_fn: undefined as (() => void) | undefined,
         $_equals: undefined,
-        $_id: ++effectCreationCounter,
-        $_run: undefined as (() => void) | undefined,
     } as unknown as ReactiveNode;
 
-    const effectId = node.$_id;
+    const effectId = node.$_stamp;
 
-    // Effect runner function stored in $_run
-    node.$_run = () => {
+    // Effect runner function stored in $_fn
+    node.$_fn = () => {
         // Skip if effect was disposed (may still be in batched queue from before disposal)
         if (disposed) {
             return;
@@ -77,13 +77,13 @@ export const effect = (callback: () => void | EffectCleanup): (() => void) => {
         // PULL PHASE: Execute effect and track dependencies
         // ----------------------------------------------------------------
         runWithTracking(node, () => {
-            // Run previous cleanup if it exists
-            if (typeof cleanup === 'function') {
-                cleanup();
+            // Run previous cleanup if it exists (stored in $_value)
+            if (typeof node.$_value === 'function') {
+                (node.$_value as EffectCleanup)();
             }
-            // Run the callback and store new cleanup
+            // Run the callback and store new cleanup in $_value
             // (callback will PULL values from signals/state/computed)
-            cleanup = callback();
+            node.$_value = callback();
         });
     };
 
@@ -92,8 +92,9 @@ export const effect = (callback: () => void | EffectCleanup): (() => void) => {
         disposed = true;
         // Unregister from GC tracking (only in DEV mode)
         unregisterEffect(gcToken);
-        if (typeof cleanup === 'function') {
-            cleanup();
+        // Run cleanup if it exists (stored in $_value)
+        if (typeof node.$_value === 'function') {
+            (node.$_value as EffectCleanup)();
         }
         clearSources(node);
     };

@@ -31,7 +31,15 @@ export type ComputedSourceEntry = SourceEntry;
  * of these properties in the same order to ensure V8 hidden class monomorphism.
  * Property initialization order:
  *   $_sources, $_deps, $_flags, $_skipped, $_version,
- *   $_value, $_lastGlobalVersion, $_getter, $_equals, $_id, $_run
+ *   $_value, $_stamp, $_fn, $_equals
+ *
+ * Several fields serve different purposes depending on node type:
+ *   $_value  — Computed: cached value or thrown error. Effect: cleanup function.
+ *   $_stamp  — Computed: last seen globalVersion (fast-path cache). Effect: creation order (scheduling).
+ *   $_fn     — Computed: getter function. Effect: runner function.
+ *   $_equals — Computed: equality comparator. Effect: undefined (unused).
+ *   $_deps   — Computed: set of dependent consumers. Effect: undefined (unused).
+ *   $_version — Computed: value change counter. Effect: 0 (unused).
  */
 export type ReactiveNode = {
     $_sources: SourceEntry[];
@@ -40,17 +48,19 @@ export type ReactiveNode = {
     $_skipped: number;
     $_version: number;
     $_value: unknown;
-    $_lastGlobalVersion: number;
-    $_getter: (() => unknown) | undefined;
+    $_stamp: number;
+    $_fn: (() => unknown) | undefined;
     $_equals: ((a: unknown, b: unknown) => boolean) | undefined;
-    $_id: number;
-    $_run: (() => void) | undefined;
 };
 
 /**
  * Internal computed type with all implementation properties
  * Mirrors the original Computed type - used internally for full property access
- * Includes $_id and $_run for shape consistency with effects
+ *
+ * $_value: cached computed value or thrown error
+ * $_stamp: last seen globalVersion for fast-path cache validation
+ * $_fn: the getter function that computes the value
+ * $_equals: equality comparator to detect value changes
  */
 export type InternalComputed<T> = {
     $_sources: SourceEntry[];
@@ -59,17 +69,19 @@ export type InternalComputed<T> = {
     $_skipped: number;
     $_version: number;
     $_value: T;
-    $_lastGlobalVersion: number;
-    $_getter: (() => T) | undefined;
+    $_stamp: number;
+    $_fn: (() => T) | undefined;
     $_equals: ((a: T, b: T) => boolean) | undefined;
-    $_id: number;
-    $_run: (() => void) | undefined;
 };
 
 /**
  * Internal effect type with all implementation properties
- * Now a plain object (not function-based) for V8 hidden class consistency
- * with computed nodes. The $_run property holds the effect runner function.
+ * Plain object with same hidden class shape as computed nodes.
+ *
+ * $_value: cleanup function returned by the effect callback
+ * $_stamp: creation order counter for effect scheduling
+ * $_fn: the effect runner function (contains tracking + callback execution)
+ * $_equals: unused (always undefined, exists for shape consistency)
  */
 export type InternalEffect = {
     $_sources: SourceEntry[];
@@ -78,11 +90,9 @@ export type InternalEffect = {
     $_skipped: number;
     $_version: number;
     $_value: unknown;
-    $_lastGlobalVersion: number;
-    $_getter: (() => unknown) | undefined;
+    $_stamp: number;
+    $_fn: (() => void) | undefined;
     $_equals: ((a: unknown, b: unknown) => boolean) | undefined;
-    $_id: number;
-    $_run: (() => void) | undefined;
 };
 
 /**

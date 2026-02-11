@@ -67,7 +67,7 @@ export const setTracked = (value: boolean): boolean => {
  * Caller must check Flag.NEEDS_WORK before calling to avoid duplicates
  */
 export const batchedAdd = (node: ReactiveNode): void => {
-    const nodeId = node.$_id;
+    const nodeId = node.$_stamp;
     // Track if we're adding out of order
     if (nodeId < lastAddedId) {
         needsSort = true;
@@ -171,18 +171,18 @@ export const flushEffects = (): void => {
     batched.length = 0;
 
     if (needsSort) {
-        nodes.sort((a, b) => a.$_id - b.$_id);
+        nodes.sort((a, b) => a.$_stamp - b.$_stamp);
     }
 
     lastAddedId = 0;
     needsSort = false;
 
-    // Call $_run on each node instead of calling nodes directly as functions
+    // Call $_fn on each node instead of calling nodes directly as functions
     // This enables effect nodes to be plain objects (same hidden class as computed)
     for (let i = 0, len = nodes.length; i < len; ++i) {
         const node = nodes[i] as ReactiveNode;
         try {
-            node.$_run?.();
+            node.$_fn?.();
         } catch (e) {
             console.error(e);
         }
