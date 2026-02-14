@@ -141,7 +141,7 @@ export function computedRead<T>(self: ReactiveNode): T {
     if ((flags & (Flag.DIRTY | Flag.CHECK | Flag.HAS_STATE_SOURCE)) === Flag.CHECK && hasCached) {
         if (checkComputedSources(sourcesArray)) {
             // Sources changed or errored - mark DIRTY and let getter run
-            self.$_flags = flags = (flags & ~Flag.CHECK) | Flag.DIRTY;
+            flags = (flags & ~Flag.CHECK) | Flag.DIRTY;
         } else {
             // Sources unchanged, clear CHECK flag and return cached value
             self.$_flags = flags & ~Flag.CHECK;
