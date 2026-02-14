@@ -122,9 +122,10 @@ function getOutputPlugins() {
     if (isCompress) {
         plugins.push(rollupPluginTerser({
             compress: {
-                passes: 2,
+                passes: 3,
                 pure_getters: true,
                 unsafe: true,
+                comparisons: false
             },
             mangle: {
                 properties: false, // We already handle property mangling

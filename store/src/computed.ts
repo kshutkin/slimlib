@@ -77,8 +77,9 @@ export function computedRead<T>(self: ReactiveNode): T {
             let sourceChanged = false;
 
             // Disable tracking while polling sources to avoid unnecessary dependency tracking
+            const prevTracked = tracked;
             // TODO: inline after it combined to a single scope?
-            const prevTracked = setTracked(false);
+            setTracked(false);
             for (let i = 0, len = sourcesArray.length; i < len; ++i) {
                 const source = sourcesArray[i] as SourceEntry;
                 const sourceNode = source.$_node;  // Extract once at loop start

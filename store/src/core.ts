@@ -95,12 +95,9 @@ export let tracked = true;
 
 /**
  * Set the tracked state for dependency tracking (internal use only)
- * Returns the previous tracked state for restoration
  */
-export const setTracked = (value: boolean): boolean => {
-    const prev = tracked;
+export const setTracked = (value: boolean) => {
     tracked = value;
-    return prev;
 };
 
 /**
