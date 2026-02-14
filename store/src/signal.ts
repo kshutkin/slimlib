@@ -16,7 +16,7 @@ export function signal<T>(initialValue: T): Signal<T>;
  */
 export function signal<T>(initialValue?: T): Signal<T> {
     let value = initialValue as T;
-    let deps: DepsSet<ReactiveNode> | null;
+    let deps: DepsSet<ReactiveNode> | undefined;
 
     /**
      * Read the signal value and track dependency
@@ -28,7 +28,7 @@ export function signal<T>(initialValue?: T): Signal<T> {
         if (tracked && currentComputing) {
             // Pass value getter for polling optimization (value revert detection)
             // biome-ignore lint/suspicious/noAssignInExpressions: optimization
-            trackStateDependency((deps ||= createDepsSet<ReactiveNode>(read)), read, value);
+            trackStateDependency((deps ??= createDepsSet<ReactiveNode>(read)), read, value);
         }
         return value;
         // === END PULL PHASE ===
@@ -44,7 +44,9 @@ export function signal<T>(initialValue?: T): Signal<T> {
         warnIfWriteInComputed('signal');
         if (!Object.is(value, newValue)) {
             value = newValue;
-            if (deps) markDependents(deps); // Push: notify all dependents
+            if (deps !== undefined) {
+                markDependents(deps); // Push: notify all dependents
+            }
         }
         // === END PUSH PHASE ===
     };

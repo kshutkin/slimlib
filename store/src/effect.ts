@@ -1,4 +1,4 @@
-import { batchedAddNew, checkComputedSources, clearSources, createDepsSet, runWithTracking, scheduleFlush } from './core';
+import { batchedAddNew, checkComputedSources, clearSources, createDepsSet, noopGetter, runWithTracking, scheduleFlush } from './core';
 import { cycleMessage, registerEffect, unregisterEffect, warnIfNoActiveScope } from './debug';
 import { Flag } from './flags';
 import { activeScope } from './globals';
@@ -83,7 +83,7 @@ export const effect = (callback: () => void | EffectCleanup): (() => void) => {
     // $_stamp: creation order counter for effect scheduling
     node = {
         $_sources: [],
-        $_deps: createDepsSet<ReactiveNode>(),
+        $_deps: createDepsSet<ReactiveNode>(noopGetter),
         $_flags: Flag.DIRTY | Flag.EFFECT,
         $_skipped: 0,
         $_version: 0,

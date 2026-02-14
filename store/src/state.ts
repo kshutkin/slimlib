@@ -28,7 +28,7 @@ export function state<T extends object>(object: T = {} as T): T {
         const propsMap = (target as Record<symbol, unknown>)[propertyDepsSymbol] as Map<string | symbol, DepsSet<ReactiveNode>> | undefined;
         if (!propsMap) return;
         const deps = propsMap.get(property);
-        if (deps) {
+        if (deps !== undefined) {
             markDependents(deps as DepsSet<ReactiveNode>);
         }
     };
@@ -65,7 +65,7 @@ export function state<T extends object>(object: T = {} as T): T {
                 if (tracked && currentComputing) {
                     // Get or create the Map for this target (stored as non-enumerable property)
                     let propsMap = (target as Record<symbol, unknown>)[propertyDepsSymbol] as Map<string | symbol, DepsSet<ReactiveNode>> | undefined;
-                    if (!propsMap) {
+                    if (propsMap === undefined) {
                         propsMap = new Map();
                         Object.defineProperty(target, propertyDepsSymbol, { value: propsMap });
                     }
@@ -73,7 +73,7 @@ export function state<T extends object>(object: T = {} as T): T {
                     // Get or create the Set for this property
                     let deps = propsMap.get(p);
 
-                    if (!deps) {
+                    if (deps === undefined) {
                         // Create DepsSet with getter eagerly to avoid V8 field constness deopts
                         const propertyGetter = () => (target as Record<string | symbol, unknown>)[p];
                         // biome-ignore lint/suspicious/noAssignInExpressions: optimization
@@ -97,11 +97,11 @@ export function state<T extends object>(object: T = {} as T): T {
                 // Functions are wrapped to trigger PUSH after mutation
                 if (propertyType === 'function') {
                     // Check cache first to avoid creating new function on every access
-                    if (!methodCache) {
+                    if (methodCache === undefined) {
                         methodCache = new Map<string | symbol, (...args: unknown[]) => unknown>();
                     }
                     let cached = methodCache.get(p);
-                    if (!cached) {
+                    if (cached === undefined) {
                         // Capture method reference at cache time to avoid re-reading on each call
                         const method = propValue as (...args: unknown[]) => unknown;
                         cached = (...args: unknown[]) => {
@@ -113,9 +113,9 @@ export function state<T extends object>(object: T = {} as T): T {
                             // PUSH PHASE: Notify after function call (function may have mutated state)
                             // Only notify if we're NOT currently inside an effect/computed execution
                             // to avoid infinite loops when reading during effect
-                            if (!currentComputing) {
+                            if (currentComputing === undefined) {
                                 const propsMap = (target as Record<symbol, unknown>)[propertyDepsSymbol] as Map<string | symbol, DepsSet<ReactiveNode>> | undefined;
-                                if (!propsMap) return result;
+                                if (propsMap === undefined) return result;
                                 for (const deps of propsMap.values()) {
                                     // PUSH: Propagate dirty flags to all property dependents
                                     markDependents(deps);

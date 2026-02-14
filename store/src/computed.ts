@@ -1,4 +1,4 @@
-import { checkComputedSources, clearSources, createDepsSet, createSourceEntry, currentComputing, globalVersion, makeLive, runWithTracking, setTracked, tracked } from './core';
+import { checkComputedSources, clearSources, createDepsSet, createSourceEntry, currentComputing, globalVersion, makeLive, noopGetter, runWithTracking, setTracked, tracked } from './core';
 import { cycleMessage } from './debug';
 import { Flag } from './flags';
 import type { DepsSet, ReactiveNode, SourceEntry } from './internal-types';
@@ -10,16 +10,17 @@ import type { Computed } from './types';
 export function computedRead<T>(self: ReactiveNode): T {
     // ===== PULL PHASE: Register this computed as a dependency of the current consumer =====
     // Track if someone is reading us
-    if (tracked && currentComputing) {
+    if (tracked && currentComputing !== undefined) {
         // Inline tracking for computed dependencies
         const consumerSources = currentComputing.$_sources;
         const skipIndex = currentComputing.$_skipped;
         const deps = self.$_deps;
         const existing = consumerSources[skipIndex];
+        const noSource = existing === undefined;
 
-        if (existing === undefined || existing.$_dependents !== deps) {
+        if (noSource || existing.$_dependents !== deps) {
             // Different dependency - clear old ones from this point and rebuild
-            if (existing !== undefined) {
+            if (!noSource) {
                 clearSources(currentComputing, skipIndex);
             }
 
@@ -37,7 +38,7 @@ export function computedRead<T>(self: ReactiveNode): T {
             if ((currentComputing.$_flags & (Flag.EFFECT | Flag.LIVE)) !== 0) {
                 (deps as DepsSet<ReactiveNode>).add(currentComputing);
                 // If source computed is not live, make it live
-                if (!(self.$_flags & Flag.LIVE)) {
+                if ((self.$_flags & Flag.LIVE) === 0) {
                     makeLive(self);
                 }
             }
@@ -61,10 +62,10 @@ export function computedRead<T>(self: ReactiveNode): T {
     const hasCached = (flags & (Flag.HAS_VALUE | Flag.HAS_ERROR)) !== 0;
 
     // biome-ignore lint/suspicious/noConfusingLabels: expected
-    checkCache: if (!(flags & (Flag.DIRTY | Flag.CHECK)) && hasCached) {
+    checkCache: if ((flags & (Flag.DIRTY | Flag.CHECK)) === 0 && hasCached) {
         // Fast-path: nothing has changed globally since last read
         if (self.$_stamp === globalVersion) {
-            if (flags & Flag.HAS_ERROR) {
+            if ((flags & Flag.HAS_ERROR) !== 0) {
                 throw self.$_value;
             }
             return self.$_value as T;
@@ -76,6 +77,7 @@ export function computedRead<T>(self: ReactiveNode): T {
             let sourceChanged = false;
 
             // Disable tracking while polling sources to avoid unnecessary dependency tracking
+            // TODO: inline after it combined to a single scope?
             const prevTracked = setTracked(false);
             for (let i = 0, len = sourcesArray.length; i < len; ++i) {
                 const source = sourcesArray[i] as SourceEntry;
@@ -87,8 +89,8 @@ export function computedRead<T>(self: ReactiveNode): T {
                         // Deps version changed, check if actual value reverted (primitives only)
                         const storedValue = source.$_storedValue;
                         const storedType = typeof storedValue;
-                        if (source.$_getter && (storedValue === null || (storedType !== 'object' && storedType !== 'function'))) {
-                            const currentValue = source.$_getter();
+                        if (storedValue === null || (storedType !== 'object' && storedType !== 'function')) {
+                            const currentValue = (source.$_getter as () => unknown)();
                             if (Object.is(currentValue, storedValue)) {
                                 // Value reverted - update depsVersion and continue checking
                                 source.$_version = currentDepsVersion;
@@ -171,7 +173,7 @@ export function computedRead<T>(self: ReactiveNode): T {
                     self.$_flags = (self.$_flags | Flag.HAS_VALUE) & ~Flag.HAS_ERROR;
                     // ===== PUSH PHASE (during pull): Mark CHECK-only dependents as DIRTY =====
                     // When value changes during recomputation, upgrade dependent CHECK flags to DIRTY
-                    for (const dep of self.$_deps as Set<ReactiveNode>) {
+                    for (const dep of self.$_deps) {
                         const depFlags = dep.$_flags;
                         if ((depFlags & (Flag.COMPUTING | Flag.DIRTY | Flag.CHECK)) === Flag.CHECK) {
                             dep.$_flags = depFlags | Flag.DIRTY;
@@ -210,15 +212,15 @@ export function computedRead<T>(self: ReactiveNode): T {
 export const computed = <T>(getter: () => T, equals: (a: T, b: T) => boolean = Object.is): Computed<T> => {
     const node = {
         $_sources: [],
-        $_deps: createDepsSet<ReactiveNode>(),
+        $_deps: createDepsSet<ReactiveNode>(noopGetter),
         $_flags: Flag.DIRTY,
         $_skipped: 0,
         $_version: 0,
-        $_value: undefined as unknown,
+        $_value: undefined,
         $_stamp: 0,
         $_fn: getter,
         $_equals: equals,
-    } as unknown as ReactiveNode;
+    } as ReactiveNode;
 
     return () => computedRead(node);
 };

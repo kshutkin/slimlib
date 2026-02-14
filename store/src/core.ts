@@ -24,7 +24,8 @@ import type { DepsSet, ReactiveNode, SourceEntry } from './internal-types';
  * This avoids V8 field representation deopts when some DepsSets have a getter
  * and others don't.
  */
-const noopGetter = (): unknown => undefined;
+ /* v8 ignore next -- @preserve */
+export const noopGetter = (): unknown => undefined;
 
 /**
  * Create a DepsSet (Set with $_version and $_getter) with all properties
@@ -38,7 +39,7 @@ const noopGetter = (): unknown => undefined;
  * @param getter - Value getter for polling optimization.
  *   Pass eagerly to avoid V8 "dependent field type constness changed" deopts.
  */
-export const createDepsSet = <T>(getter: () => unknown = noopGetter): DepsSet<T> => {
+export const createDepsSet = <T>(getter: () => unknown): DepsSet<T> => {
     const s = new Set() as DepsSet<T>;
     s.$_version = 0;
     s.$_getter = getter;
@@ -257,10 +258,11 @@ export const trackStateDependency = <T>(
     const sourcesArray = (currentComputing as ReactiveNode).$_sources;
     const skipIndex = (currentComputing as ReactiveNode).$_skipped;
     const existing = sourcesArray[skipIndex];
+    const noSource = existing === undefined;
 
-    if (existing === undefined || existing.$_dependents !== deps) {
+    if (noSource || existing.$_dependents !== deps) {
         // Different dependency - clear old ones from this point and rebuild
-        if (existing !== undefined) {
+        if (!noSource) {
             clearSources(currentComputing as ReactiveNode, skipIndex);
         }
 
@@ -329,7 +331,7 @@ export const markNeedsCheck = (node: ReactiveNode): void => {
 export const markDependents = (deps: DepsSet<ReactiveNode>): void => {
     ++globalVersion;
     // Increment deps version for non-live computed polling
-    (deps as DepsSet<ReactiveNode>).$_version = ((deps as DepsSet<ReactiveNode>).$_version as number) + 1;
+    ++deps.$_version;
     for (const dep of deps) {
         markNeedsCheck(dep);
     }
