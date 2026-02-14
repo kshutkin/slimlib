@@ -62,7 +62,7 @@ export function state<T extends object>(object: T = {} as T): T {
                 const propValue = (target as Record<string | symbol, unknown>)[p];
 
                 // PULL: Track dependency if we're inside an effect/computed
-                if (tracked && currentComputing) {
+                if (tracked && currentComputing !== undefined) {
                     // Get or create the Map for this target (stored as non-enumerable property)
                     let propsMap = (target as Record<symbol, unknown>)[propertyDepsSymbol] as Map<string | symbol, DepsSet<ReactiveNode>> | undefined;
                     if (propsMap === undefined) {
