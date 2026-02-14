@@ -356,17 +356,19 @@ export const runWithTracking = <T>(node: ReactiveNode, getter: () => T): T => {
     } finally {
         currentComputing = prev;
         tracked = prevTracked;
-        node.$_flags &= ~Flag.COMPUTING;
+        // biome-ignore lint/suspicious/noAssignInExpressions: optimization
+        const flags = node.$_flags &= ~Flag.COMPUTING;
         const nodeSources = node.$_sources;
         const skipped = node.$_skipped;
         const nodeSourcesLength = nodeSources.length;
         // Only update versions if there are computed sources (state sources update inline)
-        if ((node.$_flags & Flag.HAS_COMPUTED_SOURCE) !== 0) {
+        if ((flags & Flag.HAS_COMPUTED_SOURCE) !== 0) {
             const updateLen = Math.min(skipped, nodeSourcesLength);
             for (let i = 0; i < updateLen; ++i) {
                 const entry = nodeSources[i] as SourceEntry;
-                if (entry.$_node !== undefined) {
-                    entry.$_version = entry.$_node.$_version;
+                const entryNode = entry.$_node;
+                if (entryNode !== undefined) {
+                    entry.$_version = entryNode.$_version;
                 }
             }
         }
