@@ -175,17 +175,16 @@ export const makeNonLive = (node: ReactiveNode): void => {
  * PULL PHASE: Cleanup during dependency tracking when sources change
  */
 export const clearSources = (node: ReactiveNode, fromIndex = 0): void => {
-    const sourcesArray = node.$_sources;
     const isLive = (node.$_flags & (Flag.EFFECT | Flag.LIVE)) !== 0;
-    const len = sourcesArray.length;
+    const nodeSources = node.$_sources;
 
-    for (let i = fromIndex; i < len; ++i) {
-        const { $_dependents, $_node: sourceNode } = sourcesArray[i] as SourceEntry;
+    for (let i = fromIndex, len = nodeSources.length; i < len; ++i) {
+        const { $_dependents, $_node: sourceNode } = nodeSources[i] as SourceEntry;
 
         // Check if this deps is retained (exists in kept portion) - avoid removing shared deps
         let retained = false;
         for (let j = 0; j < fromIndex && !retained; ++j) {
-            retained = (sourcesArray[j] as SourceEntry).$_dependents === $_dependents;
+            retained = (nodeSources[j] as SourceEntry).$_dependents === $_dependents;
         }
 
         if (!retained) {
@@ -197,7 +196,7 @@ export const clearSources = (node: ReactiveNode, fromIndex = 0): void => {
             }
         }
     }
-    sourcesArray.length = fromIndex;
+    nodeSources.length = fromIndex;
 };
 
 /**
@@ -359,21 +358,21 @@ export const runWithTracking = <T>(node: ReactiveNode, getter: () => T): T => {
         currentComputing = prev;
         tracked = prevTracked;
         node.$_flags &= ~Flag.COMPUTING;
-        const sourcesArray = node.$_sources;
+        const nodeSources = node.$_sources;
         const skipped = node.$_skipped;
-        const nSources = sourcesArray.length;
+        const nodeSourcesLength = nodeSources.length;
         // Only update versions if there are computed sources (state sources update inline)
         if ((node.$_flags & Flag.HAS_COMPUTED_SOURCE) !== 0) {
-            const updateLen = Math.min(skipped, nSources);
+            const updateLen = Math.min(skipped, nodeSourcesLength);
             for (let i = 0; i < updateLen; ++i) {
-                const entry = sourcesArray[i] as SourceEntry;
+                const entry = nodeSources[i] as SourceEntry;
                 if (entry.$_node !== undefined) {
                     entry.$_version = entry.$_node.$_version;
                 }
             }
         }
         // Clean up any excess sources that weren't reused
-        if (nSources > skipped) {
+        if (nodeSourcesLength > skipped) {
             clearSources(node, skipped);
         }
     }
