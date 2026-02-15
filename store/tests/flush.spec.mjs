@@ -360,6 +360,49 @@ describe('setScheduler', () => {
         expect(log).toContain('value:2');
     });
 
+    it('re-entrant flushEffects with sync scheduler does not corrupt the current batch', () => {
+        // Regression test: if flushEffects uses a shared mutable buffer (e.g. double-buffer swap)
+        // instead of a copy, a re-entrant call (triggered by sync scheduler) could clear the
+        // buffer the outer call is still iterating, causing remaining effects to be skipped.
+        setScheduler(callback => callback());
+
+        const store = state({ a: 0, b: 0 });
+        /** @type {string[]} */
+        const log = [];
+
+        // Effect 1: reads a, writes to b (triggers re-entrant flush via sync scheduler)
+        effect(() => {
+            const v = store.a;
+            log.push(`effect1:${v}`);
+            if (v === 1) {
+                store.b = 1; // triggers markNeedsCheck on effect2 → scheduleFlush → re-entrant flushEffects
+            }
+        });
+
+        // Effect 2: reads both a and b
+        effect(() => {
+            log.push(`effect2:a=${store.a},b=${store.b}`);
+        });
+
+        // Effect 3: reads only a — must NOT be skipped by the re-entrant flush
+        effect(() => {
+            log.push(`effect3:a=${store.a}`);
+        });
+
+        // Initial run
+        log.length = 0;
+
+        // Trigger a change — sync scheduler causes immediate flushEffects.
+        // Inside that flush, effect1 writes store.b which triggers another flushEffects.
+        // All three effects must still run for the store.a change.
+        store.a = 1;
+
+        expect(log).toContain('effect1:1');
+        expect(log).toContain('effect3:a=1');
+        // effect2 should have seen the change (possibly via the re-entrant flush or the outer one)
+        expect(log.some(entry => entry.startsWith('effect2:') && entry.includes('a=1'))).toBe(true);
+    });
+
     it('logs cycle error to console when effect modifies its own dependency with synchronous scheduler', () => {
         // With a synchronous scheduler, if an effect modifies its own dependency during execution,
         // the scheduler will immediately trigger flushEffects while the effect is still computing.
