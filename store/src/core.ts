@@ -60,13 +60,13 @@ export class DepsSet<T> extends Set<T> {
  * @param getter - Value getter (undefined for computed sources)
  * @param storedValue - Cached value (undefined for computed sources)
  */
-export const createSourceEntry = <T>(
+export const createSourceEntry = (
     dependents: DepsSet<ReactiveNode>,
     node: ReactiveNode | undefined,
     version: number,
-    getter: (() => T) | undefined,
-    storedValue: T | undefined,
-): SourceEntry<T> => ({
+    getter: undefined | (() => unknown),
+    storedValue: unknown,
+): SourceEntry => ({
     $_dependents: dependents,
     $_node: node,
     $_version: version,
@@ -264,7 +264,7 @@ export const trackStateDependency = <T>(
 
         // Track deps version, value getter, and last seen value for polling
         // Uses shared createSourceEntry factory for V8 hidden class monomorphism
-        sourcesArray.push(createSourceEntry<T>(
+        sourcesArray.push(createSourceEntry(
             deps,
             undefined,
             (deps as DepsSet<ReactiveNode>).$_version as number,
@@ -281,7 +281,7 @@ export const trackStateDependency = <T>(
         }
     } else {
         // Same state source - update depsVersion, getter, and storedValue for accurate polling
-        const entry = sourcesArray[skipIndex] as SourceEntry<T>;
+        const entry = sourcesArray[skipIndex] as SourceEntry;
         entry.$_version = (deps as DepsSet<ReactiveNode>).$_version as number;
         entry.$_getter = valueGetter;
         entry.$_storedValue = cachedValue;
@@ -429,3 +429,4 @@ export const checkComputedSources = (sourcesArray: SourceEntry[]): boolean => {
     tracked = prevTracked;
     return false;
 };
+

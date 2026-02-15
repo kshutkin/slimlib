@@ -6,12 +6,12 @@
  * Source entry for dependencies (unified for monomorphism).
  * Properties are initialized for both types to ensure consistent hidden class.
  */
-export type SourceEntry<T = unknown> = {
+export type SourceEntry = {
     $_dependents: Set<ReactiveNode>;
     $_node: ReactiveNode | undefined;
     $_version: number;
-    $_getter: (() => T) | undefined;
-    $_storedValue: T | undefined;
+    $_getter: undefined | (() => unknown);
+    $_storedValue: unknown;
 };
 
 /**
