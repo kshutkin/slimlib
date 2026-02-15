@@ -1,7 +1,7 @@
-import { checkComputedSources, clearSources, createDepsSet, createSourceEntry, currentComputing, globalVersion, makeLive, noopGetter, runWithTracking, setTracked, tracked } from './core';
+import { checkComputedSources, clearSources, DepsSet, createSourceEntry, currentComputing, globalVersion, makeLive, noopGetter, runWithTracking, setTracked, tracked } from './core';
 import { cycleMessage } from './debug';
 import { Flag } from './flags';
-import type { DepsSet, ReactiveNode, SourceEntry } from './internal-types';
+import type { ReactiveNode, SourceEntry } from './internal-types';
 import type { Computed } from './types';
 
 /**
@@ -213,7 +213,7 @@ export function computedRead<T>(self: ReactiveNode): T {
 export const computed = <T>(getter: () => T, equals: (a: T, b: T) => boolean = Object.is): Computed<T> => {
     const node = {
         $_sources: [],
-        $_deps: createDepsSet<ReactiveNode>(noopGetter),
+        $_deps: new DepsSet<ReactiveNode>(noopGetter),
         $_flags: Flag.DIRTY,
         $_skipped: 0,
         $_version: 0,

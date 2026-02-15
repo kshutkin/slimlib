@@ -1,4 +1,4 @@
-import { batchedAddNew, checkComputedSources, clearSources, createDepsSet, noopGetter, runWithTracking, scheduleFlush } from './core';
+import { batchedAddNew, checkComputedSources, clearSources, DepsSet, noopGetter, runWithTracking, scheduleFlush } from './core';
 import { cycleMessage, registerEffect, unregisterEffect, warnIfNoActiveScope } from './debug';
 import { Flag } from './flags';
 import { activeScope } from './globals';
@@ -75,7 +75,7 @@ export const effect = (callback: () => void | EffectCleanup): (() => void) => {
 
     // Create effect node as a plain object with IDENTICAL initial field types
     // as computed nodes to ensure V8 hidden class monomorphism (Fix #2):
-    //   $_deps:   createDepsSet() (Set object, same as computed — never used for effects)
+    //   $_deps:   new DepsSet() (Set object, same as computed — never used for effects)
     //   $_fn:     runner (function, same as computed's getter)
     //   $_equals: Object.is (function, same as computed's equality comparator)
     //
@@ -83,7 +83,7 @@ export const effect = (callback: () => void | EffectCleanup): (() => void) => {
     // $_stamp: creation order counter for effect scheduling
     node = {
         $_sources: [],
-        $_deps: createDepsSet<ReactiveNode>(noopGetter),
+        $_deps: new DepsSet<ReactiveNode>(noopGetter),
         $_flags: Flag.DIRTY | Flag.EFFECT,
         $_skipped: 0,
         $_version: 0,

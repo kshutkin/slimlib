@@ -1,7 +1,7 @@
-import { createDepsSet, currentComputing, markDependents, trackStateDependency, tracked, unwrapValue } from './core';
+import { DepsSet, currentComputing, markDependents, trackStateDependency, tracked, unwrapValue } from './core';
 import { warnIfWriteInComputed } from './debug';
 import { propertyDepsSymbol, unwrap } from './symbols';
-import type { DepsSet, ReactiveNode } from './internal-types';
+import type { ReactiveNode } from './internal-types';
 
 /**
  * Creates a store without an initial object
@@ -77,7 +77,7 @@ export function state<T extends object>(object: T = {} as T): T {
                         // Create DepsSet with getter eagerly to avoid V8 field constness deopts
                         const propertyGetter = () => (target as Record<string | symbol, unknown>)[p];
                         // biome-ignore lint/suspicious/noAssignInExpressions: optimization
-                        propsMap.set(p, (deps = createDepsSet<ReactiveNode>(propertyGetter)));
+                        propsMap.set(p, (deps = new DepsSet<ReactiveNode>(propertyGetter)));
                     }
 
                     // PULL: Bidirectional linking with optimization

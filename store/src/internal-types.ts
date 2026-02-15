@@ -3,12 +3,6 @@
  */
 
 /**
- * Extended Set type with deps version tracking for non-live polling.
- * Used for monkey-patching $_depsVersion onto Set instances.
- */
-export type DepsSet<T> = Set<T> & { $_version: number; $_getter: () => unknown };
-
-/**
  * Source entry for dependencies (unified for monomorphism).
  * Properties are initialized for both types to ensure consistent hidden class.
  */

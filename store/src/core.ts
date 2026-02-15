@@ -16,7 +16,7 @@ import { computedRead } from './computed';
 import { Flag } from './flags';
 import { scheduler } from './globals';
 import { unwrap } from './symbols';
-import type { DepsSet, ReactiveNode, SourceEntry } from './internal-types';
+import type { ReactiveNode, SourceEntry } from './internal-types';
 
 /**
  * No-op getter used as default for DepsSet.$_getter to ensure all DepsSet
@@ -28,23 +28,22 @@ import type { DepsSet, ReactiveNode, SourceEntry } from './internal-types';
 export const noopGetter = (): unknown => undefined;
 
 /**
- * Create a DepsSet (Set with $_version and $_getter) with all properties
- * initialized upfront to avoid V8 hidden class transitions and field
- * constness changes when these properties are later assigned.
+ * DepsSet extends Set with $_version and $_getter properties for dependency
+ * tracking. Using a class ensures all instances share the same V8 hidden class,
+ * avoiding hidden class transitions and field constness changes.
  *
  * IMPORTANT: $_getter always defaults to a no-op function (never undefined)
  * so that all DepsSet instances share the same V8 field representation.
  * This prevents "dependent field representation changed" deopts.
- *
- * @param getter - Value getter for polling optimization.
- *   Pass eagerly to avoid V8 "dependent field type constness changed" deopts.
  */
-export const createDepsSet = <T>(getter: () => unknown): DepsSet<T> => {
-    const s = new Set() as DepsSet<T>;
-    s.$_version = 0;
-    s.$_getter = getter;
-    return s;
-};
+export class DepsSet<T> extends Set<T> {
+    $_version = 0;
+    $_getter: () => unknown;
+    constructor(getter: () => unknown) {
+        super();
+        this.$_getter = getter;
+    }
+}
 
 /**
  * Factory for creating source entries (unified allocation site).
