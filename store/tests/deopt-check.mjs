@@ -1,6 +1,6 @@
 /**
  * V8 Deoptimization Check Script
- * 
+ *
  * Exercises the store implementation under V8 tracing flags to detect
  * deoptimizations, hidden class transitions, and JIT bailouts.
  *
@@ -416,6 +416,7 @@ console.log('── 17. Effect + computed interop ──');
 {
     const a = signal(0);
     const c = computed(() => a() * 2);
+    // biome-ignore lint/correctness/noUnusedVariables: used next line
     let effectVal = 0;
     const dispose = effect(() => { effectVal = c(); });
     flushEffects();
