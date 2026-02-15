@@ -39,9 +39,9 @@
         "build-compress": "BUILD_COMPRESS=true rollup -c && dts-buddy -m @slimlib/store:./src/index.ts",
         "prepack": "pkgprn",
         "deopt": "node --trace-deopt tests/deopt-check.mjs 2>&1 | grep -i deoptimiz || echo 'No deoptimizations detected!'",
+        "deopt:report": "node --trace-deopt tests/deopt-check.mjs 2>&1 | node tests/deopt-check.mjs --parse",
         "deopt:full": "node --trace-deopt --trace-opt tests/deopt-check.mjs",
-        "deopt:opt": "node --trace-opt tests/deopt-check.mjs 2>&1 | grep -i optimiz",
-        "deopt:ic": "node --trace-ic tests/deopt-check.mjs 2>&1 | head -200"
+        "deopt:opt": "node --trace-opt tests/deopt-check.mjs 2>&1 | grep -i optimiz"
     },
     "dependencies": {
         "esm-env": "^1.2.1"
