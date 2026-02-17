@@ -4,16 +4,16 @@ Reactive state management for SPAs with automatic dependency tracking.
 
 ## Why This Library
 
-- **Minimal footprint** - tiny bundle size with zero dependencies
-- **Automatic tracking** - no manual subscriptions, dependencies are tracked at runtime
-- **Fine-grained updates** - only computeds/effects that depend on changed values re-run
-- **Lazy computeds** - computed values are only calculated when read, not when dependencies change
-- **Batched updates** - multiple synchronous changes trigger a single effect execution
-- **Memory-safe** - uses liveness tracking internally, unused computeds are garbage collected automatically
-- **Dual usage** - computeds work both reactively (in effects) and imperatively (on-demand reads)
-- **Proxy-based state** - mutate objects naturally, no setters or immutable updates required
-- **Built-in support for Date, Set, Map** - call mutation methods directly and effects will re-run, no need for a wrapper
-- **TypeScript support** - full type inference
+It is mostly DX. I don't want mandatory scopes, lifetime management, explicit batches, or non-tree-shakable code in my apps, and that's what I provide.
+
+It also works really well with imperative code because the state primitive is Proxy-based (at the same time it works with native objects like Set or Map without any wrappers, a wrapper will be more optimized, but it is not required).
+
+- **Relatively small and tree shakable** - less than 5KiB minified, you pay only for what you use
+- **GC friendly** - all primitives can be garbage collected
+- **Easy batching** - by default it is batched to the next microtask, but it is configurable
+- **Relatively fast** - it is not faster than Alien signals but faster than other big frameworks (it truly depends on the scenario)
+- **Proxy-based state** - easy to understand imperative code, signal alternative is also provided
+- **Dev mode** - you get warnings when you do stupid things
 
 [Changelog](./CHANGELOG.md)
 
@@ -778,6 +778,7 @@ For truly zero-cost production builds (complete code elimination), ensure your b
 
 ## Similar Projects
 
+- [Alien Signals](https://github.com/stackblitz/alien-signals)
 - [Solid.js Signals](https://www.solidjs.com/docs/latest/api#createsignal) - similar reactive primitives
 - [Valtio](https://github.com/pmndrs/valtio) - proxy-based state management
 - [@preact/signals](https://github.com/preactjs/signals) - signals for Preact
