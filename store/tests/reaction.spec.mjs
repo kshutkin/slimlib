@@ -28,13 +28,7 @@ async function flushAll() {
  * @returns {() => void} Dispose function
  */
 function reaction(dataFn, effectFn, options = {}) {
-    const {
-        scheduler = (fn) => fn(),
-        equals = Object.is,
-        onError,
-        once = false,
-        fireImmediately = false,
-    } = options;
+    const { scheduler = fn => fn(), equals = Object.is, onError, once = false, fireImmediately = false } = options;
 
     /** @type {T | undefined} */
     let prevValue;
@@ -115,7 +109,7 @@ describe('reaction pattern', () => {
             await flushAll();
             expect(reactions).toEqual([
                 { new: 1, old: 0 },
-                { new: 2, old: 1 }
+                { new: 2, old: 1 },
             ]);
         });
 
@@ -126,7 +120,7 @@ describe('reaction pattern', () => {
 
             reaction(
                 () => store.value,
-                (val) => seen.push(val),
+                val => seen.push(val),
                 { fireImmediately: true }
             );
 
@@ -168,11 +162,11 @@ describe('reaction pattern', () => {
 
             reaction(
                 () => source.value,
-                (val) => {
+                val => {
                     if (val === 1) {
                         disposeInner = reaction(
                             () => source.value,
-                            () => { }
+                            () => {}
                         );
                     } else if (val === 2) {
                         disposeInner?.();
@@ -202,7 +196,7 @@ describe('reaction pattern', () => {
 
             reaction(
                 () => store.outer,
-                (val) => {
+                val => {
                     log.push(`outer: ${val}`);
 
                     // Dispose previous inner reaction if exists
@@ -211,7 +205,7 @@ describe('reaction pattern', () => {
                     // Create new inner reaction
                     innerDispose = reaction(
                         () => store.inner,
-                        (innerVal) => {
+                        innerVal => {
                             log.push(`inner(${val}): ${innerVal}`);
                         }
                     );
@@ -251,7 +245,7 @@ describe('reaction pattern', () => {
                     // Create a new reaction each time
                     const dispose = reaction(
                         () => store.trigger,
-                        () => { }
+                        () => {}
                     );
                     disposers.push(dispose);
 
@@ -285,7 +279,7 @@ describe('reaction pattern', () => {
 
             reaction(
                 () => store.obj,
-                (val) => reactions.push(val),
+                val => reactions.push(val),
                 { equals: (a, b) => a?.id === b?.id }
             );
 
@@ -313,10 +307,10 @@ describe('reaction pattern', () => {
                     if (store.value === 2) throw new Error('data error');
                     return store.value;
                 },
-                (val) => {
+                val => {
                     if (val === 3) throw new Error('effect error');
                 },
-                { onError: (e) => errors.push(e) }
+                { onError: e => errors.push(e) }
             );
 
             await flushAll();
@@ -365,7 +359,7 @@ describe('reaction pattern', () => {
             reaction(
                 () => store.value,
                 () => reactionCount++,
-                { scheduler: (fn) => scheduled.push(fn) }
+                { scheduler: fn => scheduled.push(fn) }
             );
 
             await flushAll();
@@ -391,7 +385,7 @@ describe('reaction pattern', () => {
 
             reaction(
                 () => sum(),
-                (val) => reactions.push(val)
+                val => reactions.push(val)
             );
 
             await flushAll();
@@ -412,8 +406,8 @@ describe('reaction pattern', () => {
             const reactions = [];
 
             reaction(
-                () => store.flag ? store.a : store.b,
-                (val) => reactions.push(val)
+                () => (store.flag ? store.a : store.b),
+                val => reactions.push(val)
             );
 
             await flushAll();
@@ -479,7 +473,7 @@ describe('reaction pattern with signals', () => {
             await flushAll();
             expect(reactions).toEqual([
                 { new: 1, old: 0 },
-                { new: 2, old: 1 }
+                { new: 2, old: 1 },
             ]);
         });
 
@@ -490,7 +484,7 @@ describe('reaction pattern with signals', () => {
 
             reaction(
                 () => value(),
-                (val) => seen.push(val),
+                val => seen.push(val),
                 { fireImmediately: true }
             );
 
@@ -532,11 +526,11 @@ describe('reaction pattern with signals', () => {
 
             reaction(
                 () => source(),
-                (val) => {
+                val => {
                     if (val === 1) {
                         disposeInner = reaction(
                             () => source(),
-                            () => { }
+                            () => {}
                         );
                     } else if (val === 2) {
                         disposeInner?.();
@@ -567,7 +561,7 @@ describe('reaction pattern with signals', () => {
 
             reaction(
                 () => outer(),
-                (val) => {
+                val => {
                     log.push(`outer: ${val}`);
 
                     // Dispose previous inner reaction if exists
@@ -576,7 +570,7 @@ describe('reaction pattern with signals', () => {
                     // Create new inner reaction
                     innerDispose = reaction(
                         () => inner(),
-                        (innerVal) => {
+                        innerVal => {
                             log.push(`inner(${val}): ${innerVal}`);
                         }
                     );
@@ -616,7 +610,7 @@ describe('reaction pattern with signals', () => {
                     // Create a new reaction each time
                     const dispose = reaction(
                         () => trigger(),
-                        () => { }
+                        () => {}
                     );
                     disposers.push(dispose);
 
@@ -650,7 +644,7 @@ describe('reaction pattern with signals', () => {
 
             reaction(
                 () => obj(),
-                (val) => reactions.push(val),
+                val => reactions.push(val),
                 { equals: (a, b) => a?.id === b?.id }
             );
 
@@ -678,10 +672,10 @@ describe('reaction pattern with signals', () => {
                     if (value() === 2) throw new Error('data error');
                     return value();
                 },
-                (val) => {
+                val => {
                     if (val === 3) throw new Error('effect error');
                 },
-                { onError: (e) => errors.push(e) }
+                { onError: e => errors.push(e) }
             );
 
             await flushAll();
@@ -730,7 +724,7 @@ describe('reaction pattern with signals', () => {
             reaction(
                 () => value(),
                 () => reactionCount++,
-                { scheduler: (fn) => scheduled.push(fn) }
+                { scheduler: fn => scheduled.push(fn) }
             );
 
             await flushAll();
@@ -757,7 +751,7 @@ describe('reaction pattern with signals', () => {
 
             reaction(
                 () => sum(),
-                (val) => reactions.push(val)
+                val => reactions.push(val)
             );
 
             await flushAll();
@@ -780,8 +774,8 @@ describe('reaction pattern with signals', () => {
             const reactions = [];
 
             reaction(
-                () => flag() ? a() : b(),
-                (val) => reactions.push(val)
+                () => (flag() ? a() : b()),
+                val => reactions.push(val)
             );
 
             await flushAll();

@@ -51,12 +51,7 @@ export const safeForEach = (fns: Array<() => void>): void => {
  * Only runs in DEV mode and when configured
  */
 export const warnIfWriteInComputed = (context: string): void => {
-    if (
-        DEV &&
-        (debugConfigFlags & WARN_ON_WRITE_IN_COMPUTED) !== 0 &&
-        currentComputing &&
-        (currentComputing.$_flags & Flag.EFFECT) === 0
-    ) {
+    if (DEV && (debugConfigFlags & WARN_ON_WRITE_IN_COMPUTED) !== 0 && currentComputing && (currentComputing.$_flags & Flag.EFFECT) === 0) {
         console.warn(
             `[@slimlib/store] Writing to ${context} inside a computed is not recommended. The computed will not automatically re-run when this value changes, which may lead to stale values.`
         );
@@ -68,15 +63,13 @@ export const warnIfWriteInComputed = (context: string): void => {
  * Only created in DEV mode.
  */
 const effectRegistry: FinalizationRegistry<string> | null = DEV
-    ? new FinalizationRegistry(
-          (stackTrace: string) => {
-              if ((debugConfigFlags & SUPPRESS_EFFECT_GC_WARNING) === 0) {
-                  console.warn(
-                      `[@slimlib/store] Effect was garbage collected without being disposed. This may indicate a memory leak. Effects should be disposed by calling the returned dispose function or by using a scope that is properly disposed.\n\nEffect was created at:\n${stackTrace}`
-                  );
-              }
+    ? new FinalizationRegistry((stackTrace: string) => {
+          if ((debugConfigFlags & SUPPRESS_EFFECT_GC_WARNING) === 0) {
+              console.warn(
+                  `[@slimlib/store] Effect was garbage collected without being disposed. This may indicate a memory leak. Effects should be disposed by calling the returned dispose function or by using a scope that is properly disposed.\n\nEffect was created at:\n${stackTrace}`
+              );
           }
-      )
+      })
     : null;
 
 /**

@@ -301,11 +301,11 @@ describe('inner effects', () => {
         const outerScope = scope();
         let innerScope;
 
-        outerScope((onDispose) => {
+        outerScope(onDispose => {
             onDispose(() => disposeOrder.push('outer'));
 
             innerScope = scope();
-            innerScope((onDispose) => {
+            innerScope(onDispose => {
                 onDispose(() => disposeOrder.push('inner'));
             });
         });

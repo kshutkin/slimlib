@@ -962,14 +962,14 @@ describe('effect', () => {
             // - After step 3: B.id > lastAddedId, so needsSort stays false
             // - Batch order is [A, C, B] but needsSort=false, so no sort happens
             // - Execution order would be A, C, B instead of A, B, C
-            signalA.set(1);  // Marks A dirty, adds via batchedAdd
+            signalA.set(1); // Marks A dirty, adds via batchedAdd
 
             // Create effect C (highest id) - if this doesn't update lastAddedId, ordering breaks
             effect(() => {
                 executionOrder.push('C');
             });
 
-            signalB.set(1);  // Marks B dirty, adds via batchedAdd
+            signalB.set(1); // Marks B dirty, adds via batchedAdd
 
             await flushAll();
 

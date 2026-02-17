@@ -1,4 +1,4 @@
-import { DepsSet, currentComputing, markDependents, trackStateDependency, tracked, unwrapValue } from './core';
+import { currentComputing, DepsSet, markDependents, tracked, trackStateDependency, unwrapValue } from './core';
 import { warnIfWriteInComputed } from './debug';
 import { propertyDepsSymbol, unwrap } from './symbols';
 import type { ReactiveNode } from './internal-types';
@@ -64,7 +64,9 @@ export function state<T extends object>(object: T = {} as T): T {
                 // PULL: Track dependency if we're inside an effect/computed
                 if (tracked && currentComputing !== undefined) {
                     // Get or create the Map for this target (stored as non-enumerable property)
-                    let propsMap = (target as Record<symbol, unknown>)[propertyDepsSymbol] as Map<string | symbol, DepsSet<ReactiveNode>> | undefined;
+                    let propsMap = (target as Record<symbol, unknown>)[propertyDepsSymbol] as
+                        | Map<string | symbol, DepsSet<ReactiveNode>>
+                        | undefined;
                     if (propsMap === undefined) {
                         propsMap = new Map();
                         Object.defineProperty(target, propertyDepsSymbol, { value: propsMap });
@@ -83,7 +85,11 @@ export function state<T extends object>(object: T = {} as T): T {
                     // PULL: Bidirectional linking with optimization
                     // Pass value getter for polling optimization (value revert detection)
                     // Capture target and property for later value retrieval
-                    trackStateDependency(deps as DepsSet<ReactiveNode>, (deps as DepsSet<ReactiveNode>).$_getter as () => unknown, propValue);
+                    trackStateDependency(
+                        deps as DepsSet<ReactiveNode>,
+                        (deps as DepsSet<ReactiveNode>).$_getter as () => unknown,
+                        propValue
+                    );
                 }
 
                 // Fast path for primitives (most common case)
@@ -114,7 +120,9 @@ export function state<T extends object>(object: T = {} as T): T {
                             // Only notify if we're NOT currently inside an effect/computed execution
                             // to avoid infinite loops when reading during effect
                             if (currentComputing === undefined) {
-                                const propsMap = (target as Record<symbol, unknown>)[propertyDepsSymbol] as Map<string | symbol, DepsSet<ReactiveNode>> | undefined;
+                                const propsMap = (target as Record<symbol, unknown>)[propertyDepsSymbol] as
+                                    | Map<string | symbol, DepsSet<ReactiveNode>>
+                                    | undefined;
                                 if (propsMap === undefined) return result;
                                 for (const deps of propsMap.values()) {
                                     // PUSH: Propagate dirty flags to all property dependents

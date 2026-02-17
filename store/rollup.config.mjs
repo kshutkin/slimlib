@@ -1,12 +1,12 @@
 import rollupPluginCommonjs from '@rollup/plugin-commonjs';
 import rollupPluginJson from '@rollup/plugin-json';
 import rollupPluginNodeResolve from '@rollup/plugin-node-resolve';
+import rollupPluginTerser from '@rollup/plugin-terser';
 import rollupExtrasPluginClean from '@rollup-extras/plugin-clean';
 import rollupExtrasPluginExternals from '@rollup-extras/plugin-externals';
-import rollupPluginTypescript2 from 'rollup-plugin-typescript2';
-import rollupPluginTerser from '@rollup/plugin-terser';
-import MagicString from 'magic-string';
 import { walk } from 'estree-walker';
+import MagicString from 'magic-string';
+import rollupPluginTypescript2 from 'rollup-plugin-typescript2';
 
 // Check if we're in compress mode (set via environment variable)
 const isCompress = process.env.BUILD_COMPRESS === 'true';
@@ -16,7 +16,7 @@ function manglePropertiesPlugin() {
     const propertyMap = new Map();
     let counter = 0;
 
-    const getMangled = (name) => {
+    const getMangled = name => {
         if (!propertyMap.has(name)) {
             // Generate short mangled names: a, b, c, ... z, aa, ab, ...
             let n = counter++;
@@ -30,7 +30,7 @@ function manglePropertiesPlugin() {
         return propertyMap.get(name);
     };
 
-    const shouldMangle = (name) => name?.startsWith('$_');
+    const shouldMangle = name => name?.startsWith('$_');
 
     return {
         name: 'mangle-properties',
@@ -38,7 +38,7 @@ function manglePropertiesPlugin() {
             const ast = this.parse(code);
             // Use the chunk's file name as the source for proper mapping
             const magicString = new MagicString(code, {
-                filename: chunk.fileName
+                filename: chunk.fileName,
             });
 
             // Track positions we've already handled to avoid duplicate overwrites
@@ -66,7 +66,12 @@ function manglePropertiesPlugin() {
                         }
                     }
                     // Member expression: obj.$_prop
-                    else if (node.type === 'MemberExpression' && !node.computed && node.property.type === 'Identifier' && shouldMangle(node.property.name)) {
+                    else if (
+                        node.type === 'MemberExpression' &&
+                        !node.computed &&
+                        node.property.type === 'Identifier' &&
+                        shouldMangle(node.property.name)
+                    ) {
                         if (!handledPositions.has(node.property.start)) {
                             magicString.overwrite(node.property.start, node.property.end, getMangled(node.property.name));
                             handledPositions.add(node.property.start);
@@ -98,7 +103,7 @@ function manglePropertiesPlugin() {
                             }
                         }
                     }
-                }
+                },
             });
 
             return {
@@ -106,34 +111,33 @@ function manglePropertiesPlugin() {
                 // Generate a proper source map for the mangled property names
                 // hires: true provides character-level mappings for accurate column positions
                 // Don't set source - Rollup will handle source map composition
-                map: magicString.generateMap({ hires: true })
+                map: magicString.generateMap({ hires: true }),
             };
-        }
+        },
     };
 }
 
 // Build output plugins based on mode
 function getOutputPlugins() {
-    const plugins = [
-        rollupExtrasPluginClean(),
-        manglePropertiesPlugin(),
-    ];
+    const plugins = [rollupExtrasPluginClean(), manglePropertiesPlugin()];
 
     if (isCompress) {
-        plugins.push(rollupPluginTerser({
-            compress: {
-                passes: 3,
-                pure_getters: true,
-                unsafe: true,
-                comparisons: false
-            },
-            mangle: {
-                properties: false, // We already handle property mangling
-            },
-            format: {
-                comments: false,
-            },
-        }));
+        plugins.push(
+            rollupPluginTerser({
+                compress: {
+                    passes: 3,
+                    pure_getters: true,
+                    unsafe: true,
+                    comparisons: false,
+                },
+                mangle: {
+                    properties: false, // We already handle property mangling
+                },
+                format: {
+                    comments: false,
+                },
+            })
+        );
     }
 
     return plugins;
@@ -141,9 +145,7 @@ function getOutputPlugins() {
 
 // Build input plugins based on mode
 function getInputPlugins() {
-    const plugins = [
-        rollupPluginJson(),
-    ];
+    const plugins = [rollupPluginJson()];
 
     // In compress mode, don't externalize dependencies (bundle everything)
     if (!isCompress) {
@@ -161,7 +163,7 @@ function getInputPlugins() {
                     declarationMap: false,
                 },
             },
-        }),
+        })
     );
 
     return plugins;

@@ -5,10 +5,5 @@ export const [
     propertyDepsSymbol,
     trackSymbol,
     childrenSymbol,
-// biome-ignore lint/suspicious/noSparseArray: fine
-] = Array.from([,,,,], Symbol) as [
-    symbol,
-    symbol,
-    symbol,
-    symbol,
-];
+    // biome-ignore lint/suspicious/noSparseArray: fine
+] = Array.from([, , , ,], Symbol) as [symbol, symbol, symbol, symbol];

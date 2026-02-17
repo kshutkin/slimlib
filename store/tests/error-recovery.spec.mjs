@@ -288,14 +288,14 @@ describe('error recovery', () => {
             const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
 
             const parent = scope();
-            parent((onDispose) => {
+            parent(onDispose => {
                 onDispose(() => {
                     order.push('parent cleanup');
                     throw new Error('parent cleanup error');
                 });
 
                 const child = scope();
-                child((onDispose) => {
+                child(onDispose => {
                     onDispose(() => {
                         order.push('child cleanup');
                     });

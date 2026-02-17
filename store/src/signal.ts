@@ -1,4 +1,4 @@
-import { DepsSet, currentComputing, markDependents, trackStateDependency, tracked } from './core';
+import { currentComputing, DepsSet, markDependents, tracked, trackStateDependency } from './core';
 import { warnIfWriteInComputed } from './debug';
 import type { ReactiveNode } from './internal-types';
 import type { Signal } from './types';

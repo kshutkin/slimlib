@@ -124,8 +124,8 @@ describe('trigger / force notification', () => {
             const store = state({
                 user: {
                     name: 'John',
-                    address: { city: 'NYC' }
-                }
+                    address: { city: 'NYC' },
+                },
             });
             let lastCity = '';
 
@@ -144,8 +144,8 @@ describe('trigger / force notification', () => {
         it('should trigger computed when nested property changes', () => {
             const store = state({
                 config: {
-                    settings: { theme: 'dark' }
-                }
+                    settings: { theme: 'dark' },
+                },
             });
             const theme = computed(() => store.config.settings.theme);
 

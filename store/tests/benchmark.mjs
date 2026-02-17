@@ -1324,7 +1324,13 @@ async function main() {
     console.log('Framework Rankings (by average rank across all benchmarks)');
     console.log('='.repeat(84));
     console.log('');
-    console.log('  Rank  Framework'.padEnd(35) + 'Avg Rank'.padStart(12) + 'Avg Time (ms)'.padStart(16) + 'Total Score'.padStart(14) + 'Tests'.padStart(10));
+    console.log(
+        '  Rank  Framework'.padEnd(35) +
+            'Avg Rank'.padStart(12) +
+            'Avg Time (ms)'.padStart(16) +
+            'Total Score'.padStart(14) +
+            'Tests'.padStart(10)
+    );
     console.log(`  ${'-'.repeat(85)}`);
 
     for (let i = 0; i < rankings.length; i++) {

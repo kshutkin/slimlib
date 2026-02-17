@@ -24,7 +24,7 @@ import type { ReactiveNode, SourceEntry } from './internal-types';
  * This avoids V8 field representation deopts when some DepsSets have a getter
  * and others don't.
  */
- /* v8 ignore next -- @preserve */
+/* v8 ignore next -- @preserve */
 export const noopGetter = (): unknown => undefined;
 
 /**
@@ -65,7 +65,7 @@ export const createSourceEntry = (
     node: ReactiveNode | undefined,
     version: number,
     getter: undefined | (() => unknown),
-    storedValue: unknown,
+    storedValue: unknown
 ): SourceEntry => ({
     $_dependents: dependents,
     $_node: node,
@@ -129,8 +129,10 @@ export const batchedAddNew = (node: ReactiveNode, effectId: number): void => {
  * (Utility - not specific to push/pull phases)
  */
 export const unwrapValue = <T>(value: T): T =>
-    ((value !== null && (typeof value === "object" || typeof value === "function") && (value as unknown as Record<symbol, unknown>)[unwrap] as T) ||
-        value);
+    (value !== null &&
+        (typeof value === 'object' || typeof value === 'function') &&
+        ((value as unknown as Record<symbol, unknown>)[unwrap] as T)) ||
+    value;
 
 /**
  * Make a computed live - register it with all its sources
@@ -161,7 +163,11 @@ export const makeNonLive = (node: ReactiveNode): void => {
         const { $_dependents, $_node: sourceNode } = nodeSources[i] as SourceEntry;
         $_dependents.delete(node);
         // Check: has Flag.LIVE but not Flag.EFFECT (effects never become non-live)
-        if (sourceNode !== undefined && (sourceNode.$_flags & (Flag.EFFECT | Flag.LIVE)) === Flag.LIVE && (sourceNode.$_deps as Set<ReactiveNode>).size === 0) {
+        if (
+            sourceNode !== undefined &&
+            (sourceNode.$_flags & (Flag.EFFECT | Flag.LIVE)) === Flag.LIVE &&
+            (sourceNode.$_deps as Set<ReactiveNode>).size === 0
+        ) {
             makeNonLive(sourceNode);
         }
     }
@@ -188,7 +194,12 @@ export const clearSources = (node: ReactiveNode, fromIndex = 0): void => {
             // Always remove from deps to prevent stale notifications
             $_dependents.delete(node);
             // If source is a computed and we're live, check if it became non-live
-            if (isLive && sourceNode !== undefined && (sourceNode.$_flags & (Flag.EFFECT | Flag.LIVE)) === Flag.LIVE && (sourceNode.$_deps as Set<ReactiveNode>).size === 0) {
+            if (
+                isLive &&
+                sourceNode !== undefined &&
+                (sourceNode.$_flags & (Flag.EFFECT | Flag.LIVE)) === Flag.LIVE &&
+                (sourceNode.$_deps as Set<ReactiveNode>).size === 0
+            ) {
                 makeNonLive(sourceNode);
             }
         }
@@ -244,11 +255,7 @@ export const scheduleFlush = (): void => {
  * Uses liveness tracking - only live consumers register with sources
  * PULL PHASE: Records dependencies during computation for future invalidation
  */
-export const trackStateDependency = <T>(
-    deps: DepsSet<ReactiveNode>,
-    valueGetter: () => T,
-    cachedValue: T
-): void => {
+export const trackStateDependency = <T>(deps: DepsSet<ReactiveNode>, valueGetter: () => T, cachedValue: T): void => {
     // Callers guarantee tracked && currentComputing are true
 
     const sourcesArray = (currentComputing as ReactiveNode).$_sources;
@@ -264,13 +271,9 @@ export const trackStateDependency = <T>(
 
         // Track deps version, value getter, and last seen value for polling
         // Uses shared createSourceEntry factory for V8 hidden class monomorphism
-        sourcesArray.push(createSourceEntry(
-            deps,
-            undefined,
-            (deps as DepsSet<ReactiveNode>).$_version as number,
-            valueGetter,
-            cachedValue,
-        ));
+        sourcesArray.push(
+            createSourceEntry(deps, undefined, (deps as DepsSet<ReactiveNode>).$_version as number, valueGetter, cachedValue)
+        );
 
         // Mark that this node has state/signal sources (for polling optimization)
         (currentComputing as ReactiveNode).$_flags |= Flag.HAS_STATE_SOURCE;
@@ -356,7 +359,7 @@ export const runWithTracking = <T>(node: ReactiveNode, getter: () => T): T => {
         currentComputing = prev;
         tracked = prevTracked;
         // biome-ignore lint/suspicious/noAssignInExpressions: optimization
-        const flags = node.$_flags &= ~Flag.COMPUTING;
+        const flags = (node.$_flags &= ~Flag.COMPUTING);
         const nodeSources = node.$_sources;
         const skipped = node.$_skipped;
         const nodeSourcesLength = nodeSources.length;
@@ -429,4 +432,3 @@ export const checkComputedSources = (sourcesArray: SourceEntry[]): boolean => {
     tracked = prevTracked;
     return false;
 };
-

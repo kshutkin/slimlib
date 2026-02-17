@@ -1,4 +1,16 @@
-import { checkComputedSources, clearSources, DepsSet, createSourceEntry, currentComputing, globalVersion, makeLive, noopGetter, runWithTracking, setTracked, tracked } from './core';
+import {
+    checkComputedSources,
+    clearSources,
+    createSourceEntry,
+    currentComputing,
+    DepsSet,
+    globalVersion,
+    makeLive,
+    noopGetter,
+    runWithTracking,
+    setTracked,
+    tracked,
+} from './core';
 import { cycleMessage } from './debug';
 import { Flag } from './flags';
 import type { ReactiveNode, SourceEntry } from './internal-types';
@@ -26,13 +38,7 @@ export function computedRead<T>(self: ReactiveNode): T {
 
             // Push source entry - version will be updated after source computes
             // Uses shared createSourceEntry factory for V8 hidden class monomorphism
-            consumerSources.push(createSourceEntry(
-                deps as DepsSet<ReactiveNode>,
-                self,
-                0,
-                undefined,
-                undefined,
-            ));
+            consumerSources.push(createSourceEntry(deps as DepsSet<ReactiveNode>, self, 0, undefined, undefined));
 
             // Only register with source if we're live
             if ((currentComputing.$_flags & (Flag.EFFECT | Flag.LIVE)) !== 0) {
@@ -82,7 +88,7 @@ export function computedRead<T>(self: ReactiveNode): T {
             setTracked(false);
             for (let i = 0, len = sourcesArray.length; i < len; ++i) {
                 const source = sourcesArray[i] as SourceEntry;
-                const sourceNode = source.$_node;  // Extract once at loop start
+                const sourceNode = source.$_node; // Extract once at loop start
                 if (sourceNode === undefined) {
                     // State source - check if deps version changed
                     const currentDepsVersion = (source.$_dependents as DepsSet<ReactiveNode>).$_version as number;
@@ -164,8 +170,7 @@ export function computedRead<T>(self: ReactiveNode): T {
                 const newValue = (self.$_fn as () => T)();
 
                 // Check if value actually changed (common path: no error recovery)
-                const changed =
-                    (flags & Flag.HAS_VALUE) === 0 || !(self.$_equals as (a: T, b: T) => boolean)(self.$_value as T, newValue);
+                const changed = (flags & Flag.HAS_VALUE) === 0 || !(self.$_equals as (a: T, b: T) => boolean)(self.$_value as T, newValue);
 
                 if (changed) {
                     self.$_value = newValue;

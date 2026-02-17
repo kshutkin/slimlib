@@ -16,7 +16,7 @@
  *   node --trace-deopt tests/deopt-check.mjs 2>&1 | node tests/deopt-check.mjs --parse
  */
 
-import { state, signal, computed, effect, flushEffects, untracked, unwrapValue } from '../dist/index.mjs';
+import { computed, effect, flushEffects, signal, state, untracked, unwrapValue } from '../dist/index.mjs';
 
 // ── Parse mode: read stdin and produce structured report ──────────────
 if (process.argv.includes('--parse')) {
@@ -42,9 +42,7 @@ if (process.argv.includes('--parse')) {
             });
             continue;
         }
-        const marking = line.match(
-            /\[marking dependent code.*?<SharedFunctionInfo (\S+)>.*reason: ([^\]]+)\]/
-        );
+        const marking = line.match(/\[marking dependent code.*?<SharedFunctionInfo (\S+)>.*reason: ([^\]]+)\]/);
         if (marking) {
             markings.push({ fn: marking[1], reason: marking[2] });
         }
@@ -91,10 +89,7 @@ if (process.argv.includes('--parse')) {
     }
 
     // Known-good: filter out benign/framework deopts
-    const benign = new Set([
-        'prepare for on stack replacement (OSR)',
-        '(unknown)',
-    ]);
+    const benign = new Set(['prepare for on stack replacement (OSR)', '(unknown)']);
     const actionable = deopts.filter(d => !benign.has(d.reason));
     const actionableByFn = new Map();
     for (const d of actionable) {
@@ -136,7 +131,7 @@ if (process.argv.includes('--parse')) {
     }
     if ([...byReason.keys()].some(k => k.includes('binary operation'))) {
         console.log('  ⚠  "Insufficient type feedback for binary operation" — Bitwise/arithmetic ops');
-        console.log('     on values whose types V8 hasn\'t profiled enough. May need more warm-up iterations.');
+        console.log("     on values whose types V8 hasn't profiled enough. May need more warm-up iterations.");
     }
     if ([...byReason.keys()].some(k => k.includes('generic named access'))) {
         console.log('  ⚠  "Insufficient type feedback for generic named access" — Named property loads');
@@ -171,9 +166,7 @@ const benchmark = (name, fn, iterations = 100_000) => {
     hotLoop(fn, iterations);
     const end = performance.now();
     const totalMs = end - start;
-    console.log(
-        `  ${name}: ${totalMs.toFixed(3)}ms — ${((totalMs / iterations) * 1_000).toFixed(4)}µs/op`
-    );
+    console.log(`  ${name}: ${totalMs.toFixed(3)}ms — ${((totalMs / iterations) * 1_000).toFixed(4)}µs/op`);
 };
 
 // ══════════════════════════════════════════════════════════════════════
@@ -187,7 +180,7 @@ console.log('── 1. Signal read/write (monomorphic) ──');
 {
     const count = signal(0);
     benchmark('signal read', () => count());
-    benchmark('signal write', (i) => count.set(i));
+    benchmark('signal write', i => count.set(i));
 }
 console.log();
 
@@ -246,7 +239,9 @@ console.log('── 5. Effect create / flush / dispose ──');
     const iterations = 5_000;
     const start = performance.now();
     for (let i = 0; i < iterations; i++) {
-        const dispose = effect(() => { count(); });
+        const dispose = effect(() => {
+            count();
+        });
         flushEffects();
         dispose();
     }
@@ -258,14 +253,23 @@ console.log();
 // ── 6. Effect with multiple deps (tests batched scheduling) ──────────
 console.log('── 6. Effect with 4 deps (batch scheduling) ──');
 {
-    const a = signal(0), b = signal(0), c = signal(0), d = signal(0);
+    const a = signal(0),
+        b = signal(0),
+        c = signal(0),
+        d = signal(0);
     let runs = 0;
-    const dispose = effect(() => { a() + b() + c() + d(); runs++; });
+    const dispose = effect(() => {
+        a() + b() + c() + d();
+        runs++;
+    });
     flushEffects();
     const iterations = 5_000;
     const start = performance.now();
     for (let i = 0; i < iterations; i++) {
-        a.set(i); b.set(i); c.set(i); d.set(i);
+        a.set(i);
+        b.set(i);
+        c.set(i);
+        d.set(i);
         flushEffects();
     }
     const ms = performance.now() - start;
@@ -280,8 +284,12 @@ console.log('── 7. State read/write (monomorphic shape) ──');
     const store = state({ count: 0, name: 'test' });
     benchmark('read number', () => store.count);
     benchmark('read string', () => store.name);
-    benchmark('write number', (i) => { store.count = i; });
-    benchmark('write string', (i) => { store.name = `test${i}`; });
+    benchmark('write number', i => {
+        store.count = i;
+    });
+    benchmark('write string', i => {
+        store.name = `test${i}`;
+    });
 }
 console.log();
 
@@ -290,7 +298,9 @@ console.log('── 8. Nested state access ──');
 {
     const store = state({ user: { profile: { name: 'John', age: 30 } } });
     benchmark('nested read', () => store.user.profile.name);
-    benchmark('nested write', (i) => { store.user.profile.age = i; });
+    benchmark('nested write', i => {
+        store.user.profile.age = i;
+    });
 }
 console.log();
 
@@ -298,12 +308,14 @@ console.log();
 console.log('── 9. State array operations ──');
 {
     const store = state({ items: [1, 2, 3, 4, 5] });
-    benchmark('index read', (i) => store.items[i % 5]);
-    benchmark('index write', (i) => { store.items[i % 5] = i; });
+    benchmark('index read', i => store.items[i % 5]);
+    benchmark('index write', i => {
+        store.items[i % 5] = i;
+    });
     benchmark('map', () => store.items.map(x => x * 2));
     benchmark('filter', () => store.items.filter(x => x > 2));
     benchmark('reduce', () => store.items.reduce((a, b) => a + b, 0));
-    benchmark('push+truncate', (i) => {
+    benchmark('push+truncate', i => {
         store.items.push(i);
         if (store.items.length > 100) store.items.length = 5;
     });
@@ -320,7 +332,7 @@ console.log('── 10. Polymorphic state shapes (multi-shape proxy targets) ─
         state({ value: null }),
         state({ value: { nested: 1 } }),
     ];
-    benchmark('poly read', (i) => stores[i % stores.length].value);
+    benchmark('poly read', i => stores[i % stores.length].value);
 }
 console.log();
 
@@ -344,8 +356,8 @@ console.log('── 12. Computed returning mixed types ──');
     const flag = signal(true);
     const num = signal(42);
     const str = signal('hello');
-    const mixed = computed(() => flag() ? num() : str());
-    benchmark('mixed-type computed', (i) => {
+    const mixed = computed(() => (flag() ? num() : str()));
+    benchmark('mixed-type computed', i => {
         flag.set(i % 2 === 0);
         return mixed();
     });
@@ -356,8 +368,10 @@ console.log();
 console.log('── 13. Large state object (100 props) ──');
 {
     const big = state(Object.fromEntries(Array.from({ length: 100 }, (_, i) => [`p${i}`, i])));
-    benchmark('random prop read', (i) => big[`p${i % 100}`]);
-    benchmark('random prop write', (i) => { big[`p${i % 100}`] = i; });
+    benchmark('random prop read', i => big[`p${i % 100}`]);
+    benchmark('random prop write', i => {
+        big[`p${i % 100}`] = i;
+    });
 }
 console.log();
 
@@ -369,7 +383,7 @@ console.log('── 14. unwrapValue (symbol keyed access) ──');
     const plain1 = { x: 1 };
     const plain2 = { y: 'hello' };
     const targets = [s1, s2, plain1, plain2, 42, 'str', null, undefined, true];
-    benchmark('unwrapValue mixed', (i) => unwrapValue(targets[i % targets.length]));
+    benchmark('unwrapValue mixed', i => unwrapValue(targets[i % targets.length]));
 }
 console.log();
 
@@ -418,7 +432,9 @@ console.log('── 17. Effect + computed interop ──');
     const c = computed(() => a() * 2);
     // biome-ignore lint/correctness/noUnusedVariables: used next line
     let effectVal = 0;
-    const dispose = effect(() => { effectVal = c(); });
+    const dispose = effect(() => {
+        effectVal = c();
+    });
     flushEffects();
 
     const iterations = 5_000;
@@ -440,7 +456,7 @@ console.log('── 18. Fan-out: signal → many computeds ──');
     const computeds = Array.from({ length: 50 }, (_, i) => computed(() => src() + i));
     // Init all
     for (const c of computeds) c();
-    benchmark('fan-out invalidation (50 deps)', (i) => {
+    benchmark('fan-out invalidation (50 deps)', i => {
         src.set(i);
         // Read one to trigger pull
         return computeds[i % 50]();
@@ -453,7 +469,10 @@ console.log('── 19. State inside effect (trackStateDependency stress) ──
 {
     const store = state({ x: 0, y: 0 });
     let runs = 0;
-    const dispose = effect(() => { store.x + store.y; runs++; });
+    const dispose = effect(() => {
+        store.x + store.y;
+        runs++;
+    });
     flushEffects();
     const iterations = 5_000;
     const start = performance.now();
@@ -476,7 +495,7 @@ console.log('── 20. notifyPropertyDependents (varied targets) ──');
     const s3 = state({ val: 0, extra: '', more: false });
     const c = computed(() => s1.val + s2.val + s3.val);
     c();
-    benchmark('notify varied shapes', (i) => {
+    benchmark('notify varied shapes', i => {
         s1.val = i;
         s2.val = i;
         s3.val = i;
@@ -496,7 +515,7 @@ console.log('── 21. Computed equality cutoff (value unchanged) ──');
     // Tests the equality-cutoff path in computedRead
     a.set(100);
     downstream();
-    benchmark('equality cutoff', (i) => {
+    benchmark('equality cutoff', i => {
         a.set(100 + i); // clamped still 10
         return downstream();
     });
@@ -512,10 +531,18 @@ console.log('── 22. Computed error caching ──');
         return 42;
     });
     // Exercise both paths
-    benchmark('error computed read', (i) => {
-        flag.set(i % 3 === 0);
-        try { return mayThrow(); } catch { return -1; }
-    }, 10_000);
+    benchmark(
+        'error computed read',
+        i => {
+            flag.set(i % 3 === 0);
+            try {
+                return mayThrow();
+            } catch {
+                return -1;
+            }
+        },
+        10_000
+    );
 }
 console.log();
 
@@ -526,10 +553,12 @@ console.log('── 23. Scope lifecycle ──');
     const iterations = 5_000;
     const start = performance.now();
     for (let i = 0; i < iterations; i++) {
-        const s = scope((onDispose) => {
+        const s = scope(onDispose => {
             const a = signal(i);
             const c = computed(() => a() + 1);
-            effect(() => { c(); });
+            effect(() => {
+                c();
+            });
             onDispose(() => {});
         });
         flushEffects();
@@ -547,9 +576,9 @@ console.log('── 24. clearSources (conditional deps) ──');
     const a = signal(1);
     const b = signal(2);
     // Alternating dependency set triggers clearSources
-    const cond = computed(() => flag() ? a() : b());
+    const cond = computed(() => (flag() ? a() : b()));
     cond();
-    benchmark('conditional deps', (i) => {
+    benchmark('conditional deps', i => {
         flag.set(i % 2 === 0);
         return cond();
     });
@@ -565,7 +594,9 @@ console.log('── 25. Live graph transitions ──');
     const start = performance.now();
     for (let i = 0; i < iterations; i++) {
         // Creating an effect makes mid "live"
-        const dispose = effect(() => { mid(); });
+        const dispose = effect(() => {
+            mid();
+        });
         flushEffects();
         dispose(); // makes mid "non-live"
     }

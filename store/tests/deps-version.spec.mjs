@@ -255,13 +255,24 @@ describe('$_version proof', () => {
 
     describe('edge cases', () => {
         it('should handle computed chain where only leaf changes', () => {
-            let aCount = 0, bCount = 0, cCount = 0;
+            let aCount = 0,
+                bCount = 0,
+                cCount = 0;
             const source = signal(1);
             const unrelated = signal(100);
 
-            const a = computed(() => { aCount++; return source() + 1; });
-            const b = computed(() => { bCount++; return a() + 1; });
-            const c = computed(() => { cCount++; return b() + 1; });
+            const a = computed(() => {
+                aCount++;
+                return source() + 1;
+            });
+            const b = computed(() => {
+                bCount++;
+                return a() + 1;
+            });
+            const c = computed(() => {
+                cCount++;
+                return b() + 1;
+            });
 
             // First read
             expect(c()).toBe(4);
@@ -292,11 +303,18 @@ describe('$_version proof', () => {
         });
 
         it('should handle multiple state properties independently', () => {
-            let xCount = 0, yCount = 0;
+            let xCount = 0,
+                yCount = 0;
             const store = state({ x: 1, y: 10 });
 
-            const compX = computed(() => { xCount++; return store.x * 2; });
-            const compY = computed(() => { yCount++; return store.y * 2; });
+            const compX = computed(() => {
+                xCount++;
+                return store.x * 2;
+            });
+            const compY = computed(() => {
+                yCount++;
+                return store.y * 2;
+            });
 
             // Initial reads
             expect(compX()).toBe(2);

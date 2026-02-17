@@ -295,7 +295,10 @@ describe('computed optimization', () => {
     describe('computed chain optimization', () => {
         it('should optimize long chain when first computed bails out', () => {
             const store = state({ ignored: 0 });
-            let aTimes = 0, bTimes = 0, cTimes = 0, dTimes = 0;
+            let aTimes = 0,
+                bTimes = 0,
+                cTimes = 0,
+                dTimes = 0;
 
             const a = computed(() => {
                 aTimes++;
@@ -335,7 +338,9 @@ describe('computed optimization', () => {
 
         it('should propagate change through chain when value changes', () => {
             const store = state({ value: 1 });
-            let aTimes = 0, bTimes = 0, cTimes = 0;
+            let aTimes = 0,
+                bTimes = 0,
+                cTimes = 0;
 
             const a = computed(() => {
                 aTimes++;
@@ -662,7 +667,7 @@ describe('computed optimization', () => {
             });
 
             effect(() => {
-                unrelated()
+                unrelated();
             });
             await flushAll();
 
