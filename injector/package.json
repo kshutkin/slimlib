@@ -1,48 +1,44 @@
 {
-  "type": "module",
-  "version": "1.0.6",
-  "name": "@slimlib/injector",
-  "description": "Parameter names based dependency injector for nodejs",
-  "license": "MIT",
-  "author": "Konstantin Shutkin",
-  "main": "./dist/index.cjs",
-  "module": "./dist/index.mjs",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.mjs",
-      "require": "./dist/index.cjs",
-      "default": "./dist/index.mjs"
+    "type": "module",
+    "version": "1.0.6",
+    "name": "@slimlib/injector",
+    "description": "Parameter names based dependency injector for nodejs",
+    "license": "MIT",
+    "author": "Konstantin Shutkin",
+    "main": "./src/index.js",
+    "module": "./src/index.js",
+    "exports": {
+        ".": {
+            "types": "./types/index.d.ts",
+            "default": "./src/index.js"
+        },
+        "./package.json": "./package.json"
     },
-    "./package.json": "./package.json"
-  },
-  "types": "./dist/index.d.ts",
-  "files": [
-    "dist"
-  ],
-  "engines": {
-    "node": ">=15"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/kshutkin/slimlib.git",
-    "directory": "injector"
-  },
-  "bugs": "https://github.com/kshutkin/slimlib/issues",
-  "homepage": "https://github.com/kshutkin/slimlib/blob/main/injector/README.md",
-  "readme": "README.md",
-  "keywords": [
-    "@slimlib",
-    "injector",
-    "dependency injection",
-    "nodejs"
-  ],
-  "scripts": {
-    "build": "pkgbld-internal",
-    "test": "jest --collectCoverage",
-    "lint": "eslint ./src"
-  },
-  "dependencies": {
-    "get-parameter-names": "0.3.0"
-  }
+    "types": "./types/index.d.ts",
+    "files": [
+        "src",
+        "types"
+    ],
+    "dependencies": {
+        "@slimlib/get-parameter-names": "workspace:^"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/kshutkin/slimlib.git",
+        "directory": "injector"
+    },
+    "bugs": "https://github.com/kshutkin/slimlib/issues",
+    "homepage": "https://github.com/kshutkin/slimlib/blob/main/injector/README.md",
+    "readme": "README.md",
+    "keywords": [
+        "@slimlib",
+        "injector",
+        "dependency injection",
+        "nodejs"
+    ],
+    "scripts": {
+        "build": "dts-buddy",
+        "test": "vitest run --coverage --config ../vitest.config.mjs",
+        "prepack": "pkgprn"
+    }
 }

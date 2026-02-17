@@ -1,5 +1,0 @@
-{
-  "type": "module",
-  "types": "../dist/core.d.ts",
-  "main": "../dist/core.mjs"
-}

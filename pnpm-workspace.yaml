@@ -1,6 +1,10 @@
 packages:
-  - "list"
-  - "store"
-  - "injector"
-  - "refine-partition"
-  - "smart-mock"
+  - list
+  - store
+  - injector
+  - refine-partition
+  - smart-mock
+  - get-parameter-names
+
+onlyBuiltDependencies:
+  - esbuild

@@ -1,117 +1,70 @@
 {
-  "type": "module",
-  "version": "1.6.2",
-  "name": "@slimlib/store",
-  "description": "Simple Proxy-based store for SPA",
-  "license": "MIT",
-  "author": "Konstantin Shutkin",
-  "main": "./dist/index.cjs",
-  "module": "./dist/index.mjs",
-  "unpkg": "./dist/index.umd.js",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.mjs",
-      "require": "./dist/index.cjs",
-      "default": "./dist/index.mjs"
+    "type": "module",
+    "version": "1.6.2",
+    "name": "@slimlib/store",
+    "description": "Simple Proxy-based store for SPA",
+    "license": "MIT",
+    "author": "Konstantin Shutkin",
+    "main": "./dist/index.mjs",
+    "module": "./dist/index.mjs",
+    "exports": {
+        ".": {
+            "types": "./types/index.d.ts",
+            "default": "./dist/index.mjs"
+        },
+        "./package.json": "./package.json"
     },
-    "./core": {
-      "types": "./dist/core.d.ts",
-      "import": "./dist/core.mjs",
-      "require": "./dist/core.cjs",
-      "default": "./dist/core.mjs"
+    "types": "./types/index.d.ts",
+    "files": [
+        "src",
+        "types",
+        "dist"
+    ],
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/kshutkin/slimlib.git",
+        "directory": "store"
     },
-    "./react": {
-      "types": "./dist/react.d.ts",
-      "import": "./dist/react.mjs",
-      "require": "./dist/react.cjs",
-      "default": "./dist/react.mjs"
+    "bugs": "https://github.com/kshutkin/slimlib/issues",
+    "homepage": "https://github.com/kshutkin/slimlib/blob/main/store/README.md",
+    "keywords": [
+        "@slimlib",
+        "store",
+        "proxy"
+    ],
+    "scripts": {
+        "build": "rollup -c && dts-buddy -m @slimlib/store:./src/index.ts",
+        "test": "vitest run --coverage --config ../vitest.config.mjs",
+        "bench": "node tests/benchmark.mjs -n 50 -f ./results.csv",
+        "build-compress": "BUILD_COMPRESS=true rollup -c && dts-buddy -m @slimlib/store:./src/index.ts",
+        "prepack": "pkgprn",
+        "deopt": "node --trace-deopt tests/deopt-check.mjs 2>&1 | grep -i deoptimiz || echo 'No deoptimizations detected!'",
+        "deopt:report": "node --trace-deopt tests/deopt-check.mjs 2>&1 | node tests/deopt-check.mjs --parse",
+        "deopt:full": "node --trace-deopt --trace-opt tests/deopt-check.mjs",
+        "deopt:opt": "node --trace-opt tests/deopt-check.mjs 2>&1 | grep -i optimiz"
     },
-    "./preact": {
-      "types": "./dist/preact.d.ts",
-      "import": "./dist/preact.mjs",
-      "require": "./dist/preact.cjs",
-      "default": "./dist/preact.mjs"
+    "dependencies": {
+        "esm-env": "^1.2.1"
     },
-    "./svelte": {
-      "types": "./dist/svelte.d.ts",
-      "import": "./dist/svelte.mjs",
-      "require": "./dist/svelte.cjs",
-      "default": "./dist/svelte.mjs"
-    },
-    "./angular": {
-      "types": "./dist/angular.d.ts",
-      "import": "./dist/angular.mjs",
-      "require": "./dist/angular.cjs",
-      "default": "./dist/angular.mjs"
-    },
-    "./rxjs": {
-      "types": "./dist/rxjs.d.ts",
-      "import": "./dist/rxjs.mjs",
-      "require": "./dist/rxjs.cjs",
-      "default": "./dist/rxjs.mjs"
-    },
-    "./package.json": "./package.json"
-  },
-  "types": "./dist/index.d.ts",
-  "files": [
-    "dist",
-    "react",
-    "preact",
-    "core",
-    "svelte",
-    "angular",
-    "rxjs"
-  ],
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/kshutkin/slimlib.git",
-    "directory": "store"
-  },
-  "bugs": "https://github.com/kshutkin/slimlib/issues",
-  "homepage": "https://github.com/kshutkin/slimlib/blob/main/store/README.md",
-  "keywords": [
-    "@slimlib",
-    "store",
-    "proxy"
-  ],
-  "scripts": {
-    "build": "pkgbld-internal --umd=index,preact,react,svelte,angular,rxjs",
-    "test": "jest --collectCoverage",
-    "lint": "eslint ./src"
-  },
-  "devDependencies": {
-    "@types/react": "^18.0.0",
-    "preact": ">=10.0.0",
-    "react": ">=17.0.0",
-    "react-dom": ">=17.0.0",
-    "@testing-library/react": "^14.0.0",
-    "@testing-library/angular": "^15.0.0",
-    "@types/react-dom": ">=17.0.0",
-    "jest-environment-jsdom": "^29.4.3",
-    "@testing-library/svelte": "^3.2.2",
-    "svelte": "^3.55.1",
-    "svelte-jester": "^2.3.2",
-    "tslib": "^2.5.0"
-  },
-  "peerDependencies": {
-    "preact": ">=10.0.0",
-    "react": ">=17.0.0",
-    "@angular/core": ">=16.0.0",
-    "rxjs": ">=7.0.0"
-  },
-  "peerDependenciesMeta": {
-    "react": {
-      "optional": true
-    },
-    "preact": {
-      "optional": true
-    },
-    "@angular/core": {
-      "optional": true
-    },
-    "rxjs": {
-      "optional": true
+    "devDependencies": {
+        "@angular/core": "^19.0.0",
+        "@jridgewell/remapping": "^2.3.5",
+        "@preact/signals-core": "^1.8.0",
+        "@reactively/core": "^0.0.8",
+        "@rollup-extras/plugin-clean": "^1.3.9",
+        "@rollup-extras/plugin-externals": "^1.2.2",
+        "@rollup/plugin-commonjs": "^28.0.2",
+        "@rollup/plugin-json": "^6.1.0",
+        "@rollup/plugin-node-resolve": "^16.0.0",
+        "@rollup/plugin-terser": "^0.4.4",
+        "@vue/reactivity": "^3.5.0",
+        "alien-signals": "^1.0.13",
+        "estree-walker": "^3.0.3",
+        "magic-string": "^0.30.21",
+        "rollup": "^4.34.7",
+        "rollup-plugin-typescript2": "^0.36.0",
+        "rxjs": "^7.8.0",
+        "solid-js": "^1.9.5",
+        "svelte": "^5.0.0"
     }
-  }
 }

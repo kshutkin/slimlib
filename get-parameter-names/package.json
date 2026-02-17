@@ -1,0 +1,42 @@
+{
+    "type": "module",
+    "version": "0.1.0",
+    "name": "@slimlib/get-parameter-names",
+    "description": "Parse a function and extract its parameter names",
+    "license": "MIT",
+    "author": "Konstantin Shutkin",
+    "main": "./src/index.js",
+    "module": "./src/index.js",
+    "exports": {
+        ".": {
+            "types": "./types/index.d.ts",
+            "default": "./src/index.js"
+        },
+        "./package.json": "./package.json"
+    },
+    "types": "./types/index.d.ts",
+    "files": [
+        "src",
+        "types"
+    ],
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/kshutkin/slimlib.git",
+        "directory": "get-parameter-names"
+    },
+    "bugs": "https://github.com/kshutkin/slimlib/issues",
+    "homepage": "https://github.com/kshutkin/slimlib/blob/main/get-parameter-names/README.md",
+    "readme": "README.md",
+    "keywords": [
+        "@slimlib",
+        "get-parameter-names",
+        "parameter names",
+        "function parameters",
+        "reflection"
+    ],
+    "scripts": {
+        "build": "dts-buddy",
+        "test": "vitest run --coverage --config ../vitest.config.mjs",
+        "prepack": "pkgprn"
+    }
+}

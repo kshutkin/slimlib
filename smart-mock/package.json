@@ -1,44 +1,41 @@
 {
-  "type": "module",
-  "version": "0.1.6",
-  "name": "@slimlib/smart-mock",
-  "description": "One more proxy based mock",
-  "license": "MIT",
-  "author": "Konstantin Shutkin",
-  "main": "./dist/index.cjs",
-  "module": "./dist/index.mjs",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.mjs",
-      "require": "./dist/index.cjs",
-      "default": "./dist/index.mjs"
+    "type": "module",
+    "version": "0.1.6",
+    "name": "@slimlib/smart-mock",
+    "description": "One more proxy based mock",
+    "license": "MIT",
+    "author": "Konstantin Shutkin",
+    "exports": {
+        ".": {
+            "types": "./types/index.d.ts",
+            "default": "./src/index.js"
+        },
+        "./package.json": "./package.json"
     },
-    "./package.json": "./package.json"
-  },
-  "types": "./dist/index.d.ts",
-  "files": [
-    "dist"
-  ],
-  "engines": {
-    "node": ">=15"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/kshutkin/slimlib.git",
-    "directory": "smart-mock"
-  },
-  "bugs": "https://github.com/kshutkin/slimlib/issues",
-  "homepage": "https://github.com/kshutkin/slimlib/blob/main/smart-mock/README.md",
-  "readme": "README.md",
-  "keywords": [
-    "@slimlib",
-    "mock",
-    "smart-mock"
-  ],
-  "scripts": {
-    "build": "pkgbld-internal",
-    "test": "jest --collectCoverage",
-    "lint": "eslint ./src"
-  }
+    "types": "./types/index.d.ts",
+    "files": [
+        "src",
+        "types"
+    ],
+    "engines": {
+        "node": ">=20"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/kshutkin/slimlib.git",
+        "directory": "smart-mock"
+    },
+    "bugs": "https://github.com/kshutkin/slimlib/issues",
+    "homepage": "https://github.com/kshutkin/slimlib/blob/main/smart-mock/README.md",
+    "readme": "README.md",
+    "keywords": [
+        "@slimlib",
+        "mock",
+        "smart-mock"
+    ],
+    "scripts": {
+        "build": "dts-buddy",
+        "test": "vitest run --coverage --config ../vitest.config.mjs",
+        "prepack": "pkgprn"
+    }
 }

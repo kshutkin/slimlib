@@ -1,14 +1,21 @@
 {
-  "include": ["src", "types"],
-  "compilerOptions": {
-    "lib": ["dom", "esnext"],
-    "target": "esnext",
-    "module": "esnext",
-    "esModuleInterop": true,
-    "strict": true,
-    "declaration": true,
-    "noUncheckedIndexedAccess": true,
-    "moduleResolution": "node",
-    "jsx": "react"
-  }
+    "include": ["src"],
+    "compilerOptions": {
+        "lib": ["dom", "esnext"],
+        "target": "esnext",
+        "module": "esnext",
+        "esModuleInterop": true,
+        "strict": true,
+        "sourceMap": true,
+        "noUncheckedIndexedAccess": true,
+        "moduleResolution": "node",
+        "skipLibCheck": true,
+        "declaration": true,
+        "noEmit": true,
+        "composite": true,
+        "baseUrl": ".",
+        "paths": {
+            "@slimlib/store": ["./types/index.d.ts"]
+        }
+    }
 }

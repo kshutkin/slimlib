@@ -102,3 +102,12 @@ dist
 
 # TernJS port file
 .tern-port
+
+# dts-buddy types
+types
+
+# results
+results.csv
+size-results.json
+
+.DS_Store

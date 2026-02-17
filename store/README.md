@@ -1,217 +1,788 @@
 # Store
 
-Proxy-based store for SPAs.
+Reactive state management for SPAs with automatic dependency tracking.
 
-1. Simple
-2. Relatively fast
-3. Small size (less than 1Kb minified not gzipped)
-4. Typescript support
+## Why This Library
+
+It is mostly DX. I don't want mandatory scopes, lifetime management, explicit batches, or non-tree-shakable code in my apps, and that's what I provide.
+
+It also works really well with imperative code because the state primitive is Proxy-based (at the same time it works with native objects like Set or Map without any wrappers, a wrapper will be more optimized, but it is not required).
+
+- **Relatively small and tree shakable** - less than 5KiB minified, you pay only for what you use
+- **GC friendly** - all primitives can be garbage collected
+- **Easy batching** - by default it is batched to the next microtask, but it is configurable
+- **Relatively fast** - it is not faster than Alien signals but faster than other big frameworks (it truly depends on the scenario)
+- **Proxy-based state** - easy to understand imperative code, signal alternative is also provided
+- **Dev mode** - you get warnings when you do stupid things
 
 [Changelog](./CHANGELOG.md)
 
-# Installation
+## Installation
 
-Using npm:
-```
-npm install --save-dev @slimlib/store
-```
-
-# Usage
-
-### React
-
-```javascript
-import { createStore, useStore } from '@slimlib/store/react';
-
-// create store
-const [state, store] = createStore();
-
-// action
-function doSomething() {
-    state.field = value;
-}
-
-//component
-function Component() {
-    const state = useStore(store);
-    
-    // use state
-}
+```bash
+npm install @slimlib/store
 ```
 
-### Preact
+## Quick Start
 
-```javascript
-import { createStore, useStore } from '@slimlib/store/preact';
+```js
+import { state, effect, computed } from "@slimlib/store";
 
-// create store
-const [state, store] = createStore();
+// Create a reactive store
+const store = state({ count: 0, name: "test" });
 
-// action
-function doSomething() {
-    state.field = value;
-}
+// Effects automatically track dependencies and re-run when they change
+const dispose = effect(() => {
+  console.log("Count:", store.count);
+});
+// Logs: "Count: 0" (on next microtask)
 
-//component
-function Component() {
-    const state = useStore(store);
-    
-    // use state
-}
-```
+// Computed values are lazy and cached
+const doubled = computed(() => store.count * 2);
 
-### Svelte
+// Updates trigger effects automatically
+store.count = 5;
+// Logs: "Count: 5" (on next microtask)
 
-In store
+console.log(doubled()); // 10
 
-```javascript
-import { createStore } from '@slimlib/store/svelte';
-
-// create store
-const [state, subscribe] = createStore();
-
-// action
-export function doSomething() {
-    state.field = value;
-}
-
-export default { subscribe };
-```
-
-In component
-
-```svelte
-<script>
-import { storeName } from './stores/storeName';
-</script>
-
-// use it in reactive way for reading data
-$storeName
-```
-
-### Angular
-
-In store
-
-```javascript
-import { SlimlibStore } from '@slimlib/store/angular';
-
-// create store
-@Injectable()
-export class StoreName extends SlimlibStore<State> {
-    constructor() {
-        super(/*Initial state*/{ field: 123 }});
-    }
-
-    // selectors
-    field = this.select(state => state.field);
-
-    // actions
-    doSomething() {
-        this.state.field = value;
-    }
-}
-```
-
-### rxjs
-
-```javascript
-import { createStore, toObservable } from '@slimlib/store/rxjs';
-
-// create store
-const [state, store] = createStore();
-
-// action
-export function doSomething() {
-    state.field = value;
-}
-
-// observable
-export const state$ = toObservable(store);
+// Stop the effect when done
+dispose();
 ```
 
 ## API
 
-### `main` and `core` exports
+### Reactive Primitives
 
-####  `createStoreFactory(notifyAfterCreation: boolean)`
+#### `state<T>(object?: T): T`
 
-Returns createStore factory (see next) which notifies immediately after creating store if `notifyAfterCreation` is truthy.
+Creates a reactive store from an object. Returns a proxy that tracks property access for dependency tracking.
 
-#### `createStore<T>(initialState: T): [T, Store<T>, () => void]`
+```js
+const store = state({ user: { name: "John" }, items: [] });
 
-Store factory function that takes initial state and returns proxy object, store and function to notify subscribers. Proxy object meant to be left for actions implementations, store is for subscription for changes and notification only for some edge cases when an original object has been changed and listeners have to be notified.
-
-#### `unwrapValue(value: T): T`
-
-Unwraps a potential proxy object and returns a plain object if possible or value itself.
-
-#### `Store<T>`
-
-```typescript
-type StoreCallback<T> = (value: T) => void;
-type UnsubscribeCallback = () => void;
-interface Store<T> {
-    (cb: StoreCallback<T>): UnsubscribeCallback;
-    (): T;
-}
+store.user.name = "Jane"; // Triggers effects that depend on user.name
+store.items.push("item"); // Triggers effects that depend on items
 ```
 
-Publish/subscribe/read pattern implementation. Meant to be used in components / services that want to subscribe for store changes.
+#### `signal<T>(initialValue?: T): (() => T) & { set: (value: T) => void }`
 
-### `react` and `preact` exports
+Creates a simple reactive signal. Returns a function to read the value with a `set` method to update it.
 
-#### `createStore<T>(initialState: T): [T, Store<T>, () => void]`
+```js
+import { signal, effect } from "@slimlib/store";
 
-Store factory created with `notifyAfterCreation` === `false`.
+const count = signal(0);
 
-### `useStore<T>(store: Store<T>): Readonly<T>`
+effect(() => {
+  console.log("Count:", count());
+});
 
-Function to subscribe to store inside component. Returns current state.
+count.set(5); // Effect runs after microtask
+console.log(count()); // 5
+```
 
-### `svelte` export
+#### `computed<T>(getter: () => T, equals?: (a: T, b: T) => boolean): () => T`
 
-#### `createStore<T>(initialState: T): [T, Store<T>, () => void]`
+Creates a computed value that is lazily evaluated and cached until dependencies change. Returns a function that retrieves the computed value.
 
-Store factory created with `notifyAfterCreation` === `true`.
+- `getter` - Function that computes the value
+- `equals` - Optional equality function (defaults to `Object.is`). Return `true` if values are equal (skip update).
 
-### `angular` export
+```js
+const store = state({ items: [1, 2, 3] });
 
-#### `createStore<T>(initialState: T): [T, Store<T>, () => void]`
+const sum = computed(() => store.items.reduce((a, b) => a + b, 0));
+const doubled = computed(() => sum() * 2);
 
-Store factory created with `notifyAfterCreation` === `false`.
+console.log(doubled()); // 12
 
-#### `toSignal<T>(store: Store<T>): Signal<T>` - converts store to signal
+store.items.push(4);
+console.log(doubled()); // 20
+```
 
-#### `SlimlibStore`
+##### Reactive vs Imperative Usage
 
-Base class for store services.
+Computeds support two usage patterns:
 
-##### `constructor(initialState: T)` - creates store with initial state
+**Reactive** - tracked by effects, automatically re-evaluated:
 
-##### `state: T` - store state (proxy object)
-##### `select<R>(...signals: Signal[], projector: (state: T, ...signalValue: SignalValue<signals[index]>) => R): Signal<R>` - selector function that returns a signal
+```js
+const count = signal(0);
+const doubled = computed(() => count() * 2);
 
-### `rxjs` export
+effect(() => {
+  console.log(doubled()); // Re-runs when count changes
+});
+```
 
-#### `createStore<T>(initialState: T): [T, Store<T>, () => void]`
+**Imperative** - called directly from regular code on-demand:
 
-Store factory created with `notifyAfterCreation` === `false`.
+```js
+const count = signal(0);
+const doubled = computed(() => count() * 2);
 
-#### `toObservable<T>(store: Store<T>): Observable<T>` - converts store to observable
+// No effect needed - just read when you want
+console.log(doubled()); // 0
+
+count.set(5);
+console.log(doubled()); // 10 - recomputes on demand
+```
+
+Both patterns can coexist. A computed stays connected to its sources as long as it's referenced, regardless of whether any effect tracks it. This allows computeds to be used as derived getters in imperative code while still participating in the reactive graph when needed.
+
+#### `effect(callback: () => void | EffectCleanup): () => void`
+
+Creates a reactive effect that runs when its dependencies change. Returns a dispose function.
+
+- `callback` - Effect function that optionally returns a cleanup function (`EffectCleanup = () => void`)
+- Effects run on the next microtask (not synchronously) by default
+- Multiple synchronous changes are automatically batched
+- The cleanup function runs before each re-execution and when the effect is disposed
+- **Important**: If not created within a scope, you must hold a reference to the dispose function to prevent the effect from being garbage collected
+
+```js
+import { effect, state } from "@slimlib/store";
+
+const store = state({ count: 0 });
+
+// Hold the dispose function to prevent GC
+const dispose = effect(() => {
+  console.log(store.count);
+
+  // Optional: return cleanup function
+  return () => {
+    console.log("Cleaning up...");
+  };
+});
+
+store.count = 1; // Effect runs after microtask
+
+dispose(); // Stop the effect, run cleanup
+```
+
+For managing multiple effects, use a `scope`:
+
+```js
+import { scope, effect, state } from "@slimlib/store";
+
+const store = state({ count: 0 });
+
+const ctx = scope(() => {
+  effect(() => console.log("Effect 1:", store.count));
+  effect(() => console.log("Effect 2:", store.count));
+});
+
+ctx(); // Dispose all effects at once
+```
+
+### Scope Management
+
+#### `scope(callback?, parent?): Scope`
+
+Creates a reactive scope for tracking effects. Effects created within a scope are automatically tracked and disposed together when the scope is disposed. This is useful for managing component lifecycles or grouping related effects.
+
+```js
+import { scope, effect, state } from "@slimlib/store";
+
+const store = state({ count: 0 });
+
+// Create a scope with callback
+const ctx = scope((onDispose) => {
+  effect(() => console.log(store.count));
+
+  // Register cleanup to run when scope is disposed
+  onDispose(() => console.log("Scope disposed"));
+});
+
+// Extend the scope (add more effects)
+ctx((onDispose) => {
+  effect(() => console.log("Another effect:", store.count));
+});
+
+// Dispose all effects and run cleanup handlers
+ctx();
+```
+
+**Parameters:**
+
+- `callback` - Optional function receiving an `onDispose` callback for registering cleanup handlers
+- `parent` - Optional parent scope (defaults to `activeScope`). Pass `undefined` for a detached scope with no parent.
+
+**Returns:** A scope function (`ctx`) that:
+
+- `ctx(callback)` - Runs callback in scope context, returns `ctx` for chaining
+- `ctx()` - Disposes scope and all tracked effects, returns `undefined`
+
+**Note:** All operations on a disposed scope are safe no-ops. Disposing multiple times, extending, or registering cleanup handlers after disposal will silently do nothing. Cleanup handlers only run once.
+
+##### Hierarchical Scopes
+
+Scopes can be nested. When a parent scope is disposed, all child scopes are also disposed:
+
+```js
+const outer = scope(() => {
+  effect(() => console.log("Outer effect"));
+
+  // Inner scope automatically becomes child of outer
+  const inner = scope(() => {
+    effect(() => console.log("Inner effect"));
+  });
+});
+
+outer(); // Disposes both outer AND inner effects
+```
+
+Create a detached scope (no parent) by passing `undefined`:
+
+```js
+const detached = scope(() => {
+  effect(() => console.log("Detached"));
+}, undefined);
+```
+
+#### `activeScope`
+
+A live binding export that contains the currently active scope (or `undefined` if none).
+
+```js
+import { activeScope, scope } from "@slimlib/store";
+
+console.log(activeScope); // undefined
+
+scope(() => {
+  console.log(activeScope); // the current scope
+});
+
+console.log(activeScope); // undefined
+```
+
+#### `setActiveScope(scope?): void`
+
+Sets or clears the global active scope. Effects created outside of a `scope()` callback will be tracked to the active scope.
+
+```js
+import { setActiveScope, scope, effect, state } from "@slimlib/store";
+
+const store = state({ count: 0 });
+const appScope = scope();
+
+// Set as the default scope for all effects
+setActiveScope(appScope);
+
+// This effect is tracked to appScope
+effect(() => console.log(store.count));
+
+// Clear the active scope
+setActiveScope(undefined);
+
+// Dispose all effects
+appScope();
+```
+
+This is useful for frameworks that want a single root scope for all effects created during component initialization.
+
+### Scheduling and Execution
+
+#### `flushEffects(): void`
+
+Immediately executes all pending effects without waiting for the next microtask. Useful for testing or when you need synchronous effect execution.
+
+```js
+const store = state({ count: 0 });
+
+let runs = 0;
+effect(() => {
+  store.count;
+  runs++;
+});
+
+flushEffects(); // runs = 1 (initial run)
+
+store.count = 1;
+store.count = 2;
+flushEffects(); // runs = 2 (batched update executed immediately)
+```
+
+#### `setScheduler(fn: (callback: () => void) => void): void`
+
+Sets a custom scheduler function for effect execution. By default, effects are scheduled using `queueMicrotask`. You can replace it with any function that accepts a callback.
+
+```js
+import { setScheduler } from "@slimlib/store";
+
+// Use setTimeout instead of queueMicrotask
+setScheduler((callback) => setTimeout(callback, 0));
+
+// Or use requestAnimationFrame for UI updates
+setScheduler((callback) => requestAnimationFrame(callback));
+```
+
+### Utilities
+
+#### `untracked<T>(callback: () => T): T`
+
+Execute a callback without tracking dependencies.
+
+```js
+const store = state({ a: 1, b: 2 });
+
+effect(() => {
+  console.log(store.a); // Tracked - effect re-runs when a changes
+
+  const b = untracked(() => store.b); // Not tracked
+  console.log(b);
+});
+
+store.b = 10; // Effect does NOT re-run
+store.a = 5; // Effect re-runs
+```
+
+#### `unwrapValue<T>(value: T): T`
+
+Gets the underlying raw object from a proxy.
+
+```js
+const store = state({ data: { x: 1 } });
+const raw = unwrapValue(store); // Returns the original object
+```
+
+### Debug Configuration
+
+#### `debugConfig(flags: number): void`
+
+Configure debug behavior using a bitfield of flags.
+
+```js
+import { debugConfig, WARN_ON_WRITE_IN_COMPUTED } from "@slimlib/store";
+
+// Enable warnings when writing to signals/state inside a computed
+debugConfig(WARN_ON_WRITE_IN_COMPUTED);
+
+// Disable all debug flags
+debugConfig(0);
+```
+
+##### `WARN_ON_WRITE_IN_COMPUTED`
+
+When enabled, logs a warning to the console if you write to a signal or state inside a computed. This helps catch a common mistake where the computed will not re-run when the written value changes, potentially leading to stale values.
+
+```js
+import { debugConfig, WARN_ON_WRITE_IN_COMPUTED } from "@slimlib/store";
+
+debugConfig(WARN_ON_WRITE_IN_COMPUTED);
+
+const counter = signal(0);
+const other = signal(0);
+
+const doubled = computed(() => {
+  other.set(counter() * 2); // ⚠️ Warning logged!
+  return counter() * 2;
+});
+```
+
+**Note**: This warning only appears in development mode (when `esm-env`'s `DEV` flag is true). In production builds, the warning code is completely eliminated via dead code elimination when bundlers replace the `DEV` constant with `false`.
+
+For zero-cost production builds, configure your bundler to replace the `DEV` constant. With Vite/Rollup, this happens automatically based on the build mode.
+
+##### `SUPPRESS_EFFECT_GC_WARNING`
+
+By default in development mode, the library warns when an effect is garbage collected without being properly disposed. This helps detect memory leaks where effects are created but never cleaned up.
+
+```js
+// ⚠️ This will trigger a warning in dev mode:
+(() => {
+  const store = state({ count: 0 });
+  effect(() => {
+    console.log(store.count);
+  });
+  // dispose function is not stored or called!
+})();
+// When the scope exits, the effect's dispose function becomes unreachable
+// and will be garbage collected, triggering a warning.
+```
+
+The warning includes a stack trace showing where the orphaned effect was created, making it easy to track down the issue.
+
+To suppress this warning (e.g., in tests or when intentionally letting effects be GC'd), use the `SUPPRESS_EFFECT_GC_WARNING` flag:
+
+```js
+import { debugConfig, SUPPRESS_EFFECT_GC_WARNING } from "@slimlib/store";
+
+// Suppress the GC warning
+debugConfig(SUPPRESS_EFFECT_GC_WARNING);
+
+// Combine with other flags
+debugConfig(WARN_ON_WRITE_IN_COMPUTED | SUPPRESS_EFFECT_GC_WARNING);
+```
+
+**Best Practice**: Always properly dispose effects by either:
+
+- Calling the returned dispose function
+- Creating effects within a `scope()` that gets disposed
+- Using `setActiveScope()` to track effects to a parent scope
+
+**Note**: This warning uses `FinalizationRegistry` internally and only runs in development mode. The entire mechanism is eliminated in production builds.
+
+##### `WARN_ON_UNTRACKED_EFFECT`
+
+When enabled, warns when effects are created without an active scope. This is an allowed pattern, but teams may choose to enforce scope usage for better effect lifecycle management.
+
+```js
+import { debugConfig, WARN_ON_UNTRACKED_EFFECT } from "@slimlib/store";
+
+debugConfig(WARN_ON_UNTRACKED_EFFECT);
+
+// ⚠️ This will now trigger a warning:
+const dispose = effect(() => {
+  console.log("No active scope!");
+});
+
+// No warning when using a scope:
+const ctx = scope(() => {
+  effect(() => {
+    console.log("Tracked by scope");
+  });
+});
+```
+
+This warning is disabled by default because creating effects without a scope is a valid pattern - developers simply need to manage the dispose function manually. However, teams that prefer all effects to be tracked by scopes can enable this warning to enforce that convention.
+
+**Note**: This warning only runs in development mode and is completely eliminated in production builds.
+
+## Features
+
+### Automatic Batching
+
+Multiple synchronous updates are automatically batched:
+
+```js
+const store = state({ a: 0, b: 0 });
+
+let runs = 0;
+effect(() => {
+  store.a;
+  store.b;
+  runs++;
+});
+
+flushEffects(); // runs = 1 (initial)
+
+store.a = 1;
+store.b = 2;
+store.a = 3;
+
+flushEffects(); // runs = 2 (single batched update)
+```
+
+### Fine-Grained Tracking
+
+Effects only re-run when their specific dependencies change:
+
+```js
+const store = state({ name: "John", age: 30 });
+
+effect(() => console.log("Name:", store.name));
+effect(() => console.log("Age:", store.age));
+
+store.name = "Jane"; // Only first effect runs
+store.age = 31; // Only second effect runs
+```
+
+### Conditional Dependencies
+
+Dependencies are tracked dynamically based on execution path:
+
+```js
+const store = state({ flag: true, a: 1, b: 2 });
+
+effect(() => {
+  console.log(store.flag ? store.a : store.b);
+});
+
+store.b = 10; // Effect does NOT run (b not tracked when flag is true)
+store.flag = false; // Effect runs, now tracks b instead of a
+store.b = 20; // Effect runs
+store.a = 5; // Effect does NOT run (a not tracked when flag is false)
+```
+
+### Error Handling in Computeds
+
+This library follows the [TC39 Signals proposal](https://github.com/tc39/proposal-signals) for error handling:
+
+> Like Promises, Signals can represent an error state: If a computed Signal's callback throws, then that error is cached just like another value, and rethrown every time the Signal is read.
+
+When a computed throws an error during evaluation, the error is **cached** and the computed is marked as clean. Subsequent reads will rethrow the cached error without re-executing the callback, until a dependency changes:
+
+```js
+const store = state({ value: -1 });
+let callCount = 0;
+
+const safeSqrt = computed(() => {
+  callCount++;
+  if (store.value < 0) {
+    throw new Error("Cannot compute square root of negative number");
+  }
+  return Math.sqrt(store.value);
+});
+
+// First read throws
+try {
+  safeSqrt();
+} catch (e) {
+  console.log(e.message); // "Cannot compute square root of negative number"
+}
+console.log(callCount); // 1
+
+// Second read rethrows the CACHED error (callback is NOT called again)
+try {
+  safeSqrt();
+} catch (e) {
+  console.log(e.message); // "Cannot compute square root of negative number"
+}
+console.log(callCount); // Still 1 - callback was not re-executed
+
+// Fix the data - this marks the computed as needing re-evaluation
+store.value = 4;
+
+// Computed recovers automatically
+console.log(safeSqrt()); // 2
+console.log(callCount); // 3 - callback was called again
+```
+
+Key behaviors (per TC39 Signals proposal):
+
+- Errors **are cached** - the computed will NOT retry on subsequent reads
+- The cached error is rethrown on every read until a dependency changes
+- When a dependency changes, the computed is marked for re-evaluation
+- The computed remains connected to its dependencies even after an error
+- Effects that read throwing computeds should handle errors appropriately
+
+### Cycle Detection
+
+This library follows the [TC39 Signals proposal](https://github.com/tc39/proposal-signals) for cycle detection:
+
+> It is an error to read a computed recursively.
+
+When a computed signal attempts to read itself (directly or indirectly through other computeds), an error is thrown immediately:
+
+```js
+// Direct self-reference
+const self = computed(() => self() + 1);
+self(); // throws: "Detected cycle in computations."
+
+// Indirect cycle through multiple computeds
+const a = computed(() => b() + 1);
+const b = computed(() => a() + 1);
+a(); // throws: "Detected cycle in computations."
+```
+
+Key behaviors:
+
+- Cycles are detected at runtime when the cycle is actually traversed
+- The error is thrown immediately, not cached like regular computed errors
+- Computeds can recover if their dependencies change to break the cycle:
+
+```js
+const store = state({ useCycle: true, value: 10 });
+
+const a = computed(() => {
+  if (store.useCycle) {
+    return b() + 1; // Creates cycle when useCycle is true
+  }
+  return store.value;
+});
+const b = computed(() => a() + 1);
+
+a(); // throws: "Detected cycle in computations."
+
+store.useCycle = false; // Break the cycle
+a(); // 10 - works now!
+b(); // 11
+```
+
+### Scoped Effects
+
+When you need an effect that owns inner effects (so they're automatically disposed when the outer effect re-runs), create a scope inside the effect:
+
+```js
+import { effect, scope, state } from "@slimlib/store";
+
+const store = state({ items: ["a", "b", "c"] });
+
+effect(() => {
+  const innerScope = scope();
+
+  // Create inner effects for each item
+  innerScope(() => {
+    store.items.forEach((item) => {
+      effect(() => {
+        console.log("Item:", item);
+      });
+    });
+  });
+
+  // Dispose inner scope (and all inner effects) on re-run or dispose
+  return () => innerScope();
+});
+
+// When items change, outer effect re-runs:
+// 1. Returned cleanup runs, disposing innerScope and all inner effects
+// 2. New inner effects are created for the new items
+store.items = ["x", "y"];
+```
+
+You can wrap this pattern in a helper for reuse:
+
+```js
+import { effect, scope } from "@slimlib/store";
+
+/**
+ * Creates an effect that acts as a scope for inner effects.
+ * Inner effects are automatically disposed when the outer effect re-runs.
+ */
+const scopedEffect = (callback) => {
+  return effect(() => {
+    const innerScope = scope();
+    innerScope(callback);
+    return () => innerScope();
+  });
+};
+
+// Usage
+const dispose = scopedEffect(() => {
+  effect(() => console.log("Inner effect 1"));
+  effect(() => console.log("Inner effect 2"));
+});
+
+dispose(); // Disposes outer effect and all inner effects
+```
+
+### Diamond Problem Solved
+
+Effects run only once even when multiple dependencies change:
+
+```js
+const store = state({ value: 1 });
+const a = computed(() => store.value + 1);
+const b = computed(() => store.value + 2);
+
+let runs = 0;
+effect(() => {
+  a() + b();
+  runs++;
+});
+
+flushEffects(); // runs = 1
+
+store.value = 10;
+flushEffects(); // runs = 2 (not 3!)
+```
+
+### Automatic Memory Management
+
+Computeds use a **liveness tracking** system for automatic memory management. When a computed has no live consumers (effects or other live computeds depending on it), it becomes "non-live" and removes itself from its source dependencies. This allows it to be garbage collected when no external references exist.
+
+Key points:
+
+- **No manual disposal needed for computeds** - they clean up automatically when unreferenced
+- **Effects still require explicit disposal** via the returned function or scope cleanup
+- **Push/pull hybrid** - live computeds receive push notifications, non-live computeds poll on read
+
+## Migration from v1.x
+
+v2.0 is a breaking change. Key differences:
+
+| v1.x                                             | v2.x                         |
+| ------------------------------------------------ | ---------------------------- |
+| `const [proxy, store, notify] = createStore({})` | `const store = state({})`    |
+| `store(callback)` for subscription               | `effect(() => { ... })`      |
+| `store()` to get raw value                       | `unwrapValue(store)`         |
+| `notify()` for manual notification               | Automatic (no manual notify) |
+
+### Before (v1.x)
+
+```js
+const [state, store] = createStore({ count: 0 });
+const unsubscribe = store((value) => console.log(value.count));
+state.count = 1;
+```
+
+### After (v2.x)
+
+```js
+import { state, effect } from "@slimlib/store";
+
+const store = state({ count: 0 });
+const dispose = effect(() => console.log(store.count));
+store.count = 1;
+```
+
+## Development Warnings
+
+The library includes development-time warnings that help catch common mistakes. These warnings:
+
+1. **Are DEV-only** - Only run when `esm-env`'s `DEV` flag is true
+2. **Are tree-shakeable** - Completely eliminated in production builds
+
+| Warning                      | Default     | Flag                                    |
+| ---------------------------- | ----------- | --------------------------------------- |
+| Effect GC'd without disposal | **Enabled** | `SUPPRESS_EFFECT_GC_WARNING` to disable |
+| Writing in computed          | Disabled    | `WARN_ON_WRITE_IN_COMPUTED` to enable   |
+| Effect without active scope  | Disabled    | `WARN_ON_UNTRACKED_EFFECT` to enable    |
+
+### Configuring Warnings
+
+```js
+import {
+  debugConfig,
+  WARN_ON_WRITE_IN_COMPUTED,
+  WARN_ON_UNTRACKED_EFFECT,
+  SUPPRESS_EFFECT_GC_WARNING,
+} from "@slimlib/store";
+
+// Enable write-in-computed warnings
+debugConfig(WARN_ON_WRITE_IN_COMPUTED);
+
+// Warn when effects are created without a scope
+debugConfig(WARN_ON_UNTRACKED_EFFECT);
+
+// Suppress GC warnings (e.g., in tests)
+debugConfig(SUPPRESS_EFFECT_GC_WARNING);
+
+// Combine flags
+debugConfig(
+  WARN_ON_WRITE_IN_COMPUTED |
+    WARN_ON_UNTRACKED_EFFECT |
+    SUPPRESS_EFFECT_GC_WARNING
+);
+
+// Reset to defaults
+debugConfig(0);
+```
+
+### Bundler Configuration
+
+The warnings use `esm-env` for environment detection. Most bundlers handle this automatically:
+
+- **Vite**: Works out of the box - uses `development` condition in dev, `production` in build
+- **Rollup/Webpack**: Configure resolve conditions or use `@rollup/plugin-replace`
+
+For truly zero-cost production builds (complete code elimination), ensure your bundler sets the appropriate conditions.
 
 ## Limitations
 
-`Map`, `Set`, `WeakMap`, `WeakSet` cannot be used as values in current implementation.
+- Mixing proxied values and values from an underlying object can fail for equality checks
+- Effects run on microtask by default, not synchronously (use `flushEffects()` for immediate execution)
+- Effects are not removed until the next flush if they already scheduled but disposed
 
-Mixing proxied values and values from an underlying object can fail for cases where code needs checking for equality.
+## Similar Projects
 
-For example searching for an array element from the underlying object in a proxied array will fail.
+- [Alien Signals](https://github.com/stackblitz/alien-signals)
+- [Solid.js Signals](https://www.solidjs.com/docs/latest/api#createsignal) - similar reactive primitives
+- [Valtio](https://github.com/pmndrs/valtio) - proxy-based state management
+- [@preact/signals](https://github.com/preactjs/signals) - signals for Preact
 
-## Similar projects
-
-[Valtio](https://github.com/pmndrs/valtio) - more sophisticated but similar approach, less limitations
-
-# License
+## License
 
 [MIT](https://github.com/kshutkin/slimlib/blob/main/LICENSE)
