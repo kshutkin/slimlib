@@ -1,6 +1,6 @@
 {
     "type": "module",
-    "version": "0.1.6",
+    "version": "1.0.0",
     "name": "@slimlib/smart-mock",
     "description": "One more proxy based mock",
     "license": "MIT",

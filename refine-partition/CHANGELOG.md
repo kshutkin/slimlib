@@ -1,5 +1,13 @@
 Changelog
 
+## 2.0.0
+
+### Major Changes
+
+- ac961c9: - use new Set methods (`intersection`, `difference`)
+  - require Node.js >= 22
+  - ESM only (removed CJS and UMD)
+
 ## 1.0.3
 
 ### Patch Changes
