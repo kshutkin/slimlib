@@ -54,7 +54,7 @@ function manglePropertiesPlugin() {
                             // For shorthand { $_prop }, key and value share the same position
                             // We need to expand to { mangledName: mangledName }
                             if (!handledPositions.has(node.key.start)) {
-                                magicString.overwrite(node.key.start, node.key.end, mangledName + ': ' + mangledName);
+                                magicString.overwrite(node.key.start, node.key.end, `${mangledName}: ${mangledName}`);
                                 handledPositions.add(node.key.start);
                             }
                         } else {

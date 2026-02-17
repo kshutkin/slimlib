@@ -413,7 +413,7 @@ console.log('── 16. Source entry hidden class monomorphism ──');
     const s = signal(0);
     const s2 = signal('hello');
     const c1 = computed(() => s() + 1);
-    const c2 = computed(() => s2() + '!');
+    const c2 = computed(() => `${s2()}!`);
     // Interleave state + computed source creation
     const interleaved = computed(() => s() + c1() + c2().length + s2().length);
     interleaved();

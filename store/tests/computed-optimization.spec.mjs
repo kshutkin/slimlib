@@ -699,7 +699,7 @@ describe('computed optimization', () => {
             // Derived computed depends on source
             const derived = computed(() => {
                 derivedCallCount++;
-                return source() + '!';
+                return `${source()}!`;
             });
 
             // Effect makes both computeds live
@@ -786,7 +786,7 @@ describe('computed optimization', () => {
                 if (val === 'negative') {
                     throw new Error('Negative not allowed');
                 }
-                return val + '!';
+                return `${val}!`;
             });
 
             // Effect makes both computeds live

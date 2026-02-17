@@ -40,7 +40,7 @@ describe('topology', () => {
             const b = computed(() => store.a - 1);
             const c = computed(() => store.a + b());
 
-            const compute = vi.fn(() => 'd: ' + c());
+            const compute = vi.fn(() => `d: ${c()}`);
             const d = computed(compute);
 
             // Trigger read
@@ -66,7 +66,7 @@ describe('topology', () => {
             const b = computed(() => store.a);
             const c = computed(() => store.a);
 
-            const spy = vi.fn(() => b() + ' ' + c());
+            const spy = vi.fn(() => `${b()} ${c()}`);
             const d = computed(spy);
 
             expect(d()).toBe('a a');
@@ -91,7 +91,7 @@ describe('topology', () => {
             const b = computed(() => store.a);
             const c = computed(() => store.a);
 
-            const d = computed(() => b() + ' ' + c());
+            const d = computed(() => `${b()} ${c()}`);
 
             const spy = vi.fn(() => d());
             const e = computed(spy);
@@ -142,7 +142,7 @@ describe('topology', () => {
 
             const d = computed(() => c());
 
-            const eSpy = vi.fn(() => b() + ' ' + d());
+            const eSpy = vi.fn(() => `${b()} ${d()}`);
             const e = computed(eSpy);
 
             const fSpy = vi.fn(() => e());
@@ -259,7 +259,7 @@ describe('topology', () => {
                 store.a;
                 return 'c';
             });
-            const spy = vi.fn(() => b() + ' ' + c());
+            const spy = vi.fn(() => `${b()} ${c()}`);
             const d = computed(spy);
 
             expect(d()).toBe('a c');
@@ -289,7 +289,7 @@ describe('topology', () => {
                 store.a;
                 return 'd';
             });
-            const spy = vi.fn(() => b() + ' ' + c() + ' ' + d());
+            const spy = vi.fn(() => `${b()} ${c()} ${d()}`);
             const e = computed(spy);
 
             expect(e()).toBe('a c d');
@@ -330,7 +330,7 @@ describe('topology', () => {
                 store.a;
                 return 'c';
             });
-            const spy = vi.fn(() => b() + ' ' + c());
+            const spy = vi.fn(() => `${b()} ${c()}`);
             const d = computed(spy);
 
             expect(d()).toBe('b c');
@@ -402,7 +402,7 @@ describe('topology with signals', () => {
             const b = computed(() => a() - 1);
             const c = computed(() => a() + b());
 
-            const compute = vi.fn(() => 'd: ' + c());
+            const compute = vi.fn(() => `d: ${c()}`);
             const d = computed(compute);
 
             // Trigger read
@@ -426,7 +426,7 @@ describe('topology with signals', () => {
             const b = computed(() => a());
             const c = computed(() => a());
 
-            const spy = vi.fn(() => b() + ' ' + c());
+            const spy = vi.fn(() => `${b()} ${c()}`);
             const d = computed(spy);
 
             expect(d()).toBe('a a');
@@ -450,7 +450,7 @@ describe('topology with signals', () => {
             const b = computed(() => a());
             const c = computed(() => a());
 
-            const d = computed(() => b() + ' ' + c());
+            const d = computed(() => `${b()} ${c()}`);
 
             const spy = vi.fn(() => d());
             const e = computed(spy);
@@ -499,7 +499,7 @@ describe('topology with signals', () => {
 
             const d = computed(() => c());
 
-            const eSpy = vi.fn(() => b() + ' ' + d());
+            const eSpy = vi.fn(() => `${b()} ${d()}`);
             const e = computed(eSpy);
 
             const fSpy = vi.fn(() => e());
@@ -609,7 +609,7 @@ describe('topology with signals', () => {
                 a();
                 return 'c';
             });
-            const spy = vi.fn(() => b() + ' ' + c());
+            const spy = vi.fn(() => `${b()} ${c()}`);
             const d = computed(spy);
 
             expect(d()).toBe('a c');
@@ -636,7 +636,7 @@ describe('topology with signals', () => {
                 a();
                 return 'd';
             });
-            const spy = vi.fn(() => b() + ' ' + c() + ' ' + d());
+            const spy = vi.fn(() => `${b()} ${c()} ${d()}`);
             const e = computed(spy);
 
             expect(e()).toBe('a c d');
@@ -675,7 +675,7 @@ describe('topology with signals', () => {
                 a();
                 return 'c';
             });
-            const spy = vi.fn(() => b() + ' ' + c());
+            const spy = vi.fn(() => `${b()} ${c()}`);
             const d = computed(spy);
 
             expect(d()).toBe('b c');
