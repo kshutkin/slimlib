@@ -1,5 +1,11 @@
 Changelog
 
+## 1.0.0
+
+### Major Changes
+
+- ac961c9: Increased minimum Node.js version from 15 to 20
+
 ## 0.1.6
 
 ### Patch Changes

@@ -1,5 +1,55 @@
 Changelog
 
+## 2.0.0
+
+### Major Changes
+
+- ac961c9: new build and new get parameters name implementation
+
+### Minor Changes
+
+- ac961c9: Changed from default export to named export. Import using `{ createInject }` instead of the default import.
+
+  **Before:**
+
+  ```js
+  import createInject from "@slimlib/injector";
+  ```
+
+  **After:**
+
+  ```js
+  import { createInject } from "@slimlib/injector";
+  ```
+
+  Added `createInjectAnnotated` function for minification-safe dependency injection using AngularJS-style array annotation.
+
+  ```js
+  import { createInjectAnnotated } from "@slimlib/injector";
+
+  const inject = createInjectAnnotated();
+
+  inject([
+    "$provide",
+    ($provide) => {
+      $provide("config", { url: "http://example.com" });
+    },
+  ]);
+
+  inject([
+    "config",
+    (config) => {
+      console.log(config.url);
+    },
+  ]);
+  ```
+
+### Patch Changes
+
+- Updated dependencies [ac961c9]
+- Updated dependencies [ac961c9]
+  - @slimlib/get-parameter-names@1.0.0
+
 ## 1.0.6
 
 ### Patch Changes
