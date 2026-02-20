@@ -1,5 +1,11 @@
 Changelog
 
+## 2.0.0
+
+### Major Changes
+
+- c01aab2: move to ES only format
+
 ## 1.0.10
 
 ### Patch Changes

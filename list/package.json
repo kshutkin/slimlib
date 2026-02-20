@@ -1,6 +1,6 @@
 {
     "type": "module",
-    "version": "1.0.10",
+    "version": "2.0.0",
     "name": "@slimlib/list",
     "description": "Doubly linked list",
     "license": "MIT",
