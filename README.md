@@ -5,6 +5,7 @@
 Collection of slim general-purpose typescript/javascript libraries
 
 ## Packages
+
 - [list](./list/README.md)
 - [get-parameter-names](./get-parameter-names/README.md)
 - [store](./store/README.md)
@@ -13,4 +14,5 @@ Collection of slim general-purpose typescript/javascript libraries
 - [smart-mock](./smart-mock/README.md)
 
 # License
+
 [MIT](./LICENSE)
