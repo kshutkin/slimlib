@@ -1,6 +1,6 @@
 # injector
 
-Parameter names based dependency injector for nodejs.
+Parameter-names-based dependency injector for Node.js.
 
 [Changelog](./CHANGELOG.md)
 
@@ -32,10 +32,10 @@ This allows code to be minified since the dependency names are preserved as stri
 
 ### injector(function, scope)
 
-Injects arguments into function and invokes it.
+Injects arguments into a function and invokes it.
 
-`function` - _required_, function to inject parameters and call (or annotated array for `createInjectAnnotated`)
-`scope` - _optional_, _default_ = `{}`, this argument for the function
+`function` - _required_, function to inject parameters into and call (or annotated array for `createInjectAnnotated`)
+`scope` - _optional_, _default_ = `{}`, `this` argument for the function
 
 ### $provide(key, value)
 
@@ -138,7 +138,7 @@ You can use `createInject` during development and swap to `createInjectAnnotated
 
 - `createInject` will not work after minification, but `createInjectAnnotated` is designed to work with minified code.
 
-3. Is it good for nodejs applications?
+3. Is it good for Node.js applications?
 
 - Only in some edge cases, please use singletons/factories/something else if possible.
 

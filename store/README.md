@@ -11,7 +11,7 @@ It also works really well with imperative code because the state primitive is Pr
 - **Relatively small and tree shakable** - less than 5KiB minified, you pay only for what you use
 - **GC friendly** - all primitives can be garbage collected
 - **Easy batching** - by default it is batched to the next microtask, but it is configurable
-- **Relatively fast** - it is not faster than Alien signals but faster than other big frameworks (it truly depends on the scenario)
+- **Relatively fast** - it is not faster than Alien Signals, but faster than other big frameworks (it truly depends on the scenario)
 - **Proxy-based state** - easy to understand imperative code, signal alternative is also provided
 - **Dev mode** - you get warnings when you do stupid things
 
@@ -774,7 +774,7 @@ For truly zero-cost production builds (complete code elimination), ensure your b
 
 - Mixing proxied values and values from an underlying object can fail for equality checks
 - Effects run on microtask by default, not synchronously (use `flushEffects()` for immediate execution)
-- Effects are not removed until the next flush if they already scheduled but disposed
+- Effects are not removed until the next flush if they are already scheduled but disposed
 
 ## Similar Projects
 

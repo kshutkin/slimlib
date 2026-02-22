@@ -1,12 +1,13 @@
 # List
 
-Doubly linked list implementation in typescript.
+Doubly linked list implementation in TypeScript.
 
 [Changelog](./CHANGELOG.md)
 
 ## Installation
 
 Using npm:
+
 ```
 npm install --save-dev @slimlib/list
 ```
@@ -18,7 +19,7 @@ npm install --save-dev @slimlib/list
 No arguments. Constructs a new list object.
 
 ```javascript
-const list = new List;
+const list = new List();
 ```
 
 ```typescript
@@ -32,23 +33,23 @@ List provides an iterator using the `[Symbol.iterator]()` method. Most commonly 
 ```javascript
 Array.from(list);
 for (const item of list) {
-    // something with item
+  // something with item
 }
 ```
 
 ### append(element, data)
 
-inserts an element after element (at the end of the list in case of list)
+Inserts an element after the specified element (at the end of the list when called on the list itself).
 
-element - `ListNode` or `List` itself to add a new element after
+element - a `ListNode` or `List` itself, after which to add the new element
 
-data - object that will become a `ListNode`
+data - an object that will become a `ListNode`
 
 ### appendRange(element, begin, end)
 
-inserts a range of elements after element (at the end of the list in case of list)
+Inserts a range of elements after the specified element (at the end of the list when called on the list itself).
 
-element - `ListNode` or `List` itself to add range after
+element - a `ListNode` or `List` itself, after which to add the range
 
 begin - first `ListNode` of a range
 
@@ -56,17 +57,17 @@ end - last `ListNode` of a range
 
 ### prepend(element, data)
 
-inserts an element before element (at the beginning of the list in case of list)
+Inserts an element before the specified element (at the beginning of the list when called on the list itself).
 
-element - `ListNode` or `List` itself to add a new element before
+element - a `ListNode` or `List` itself, before which to add the new element
 
-data - object that will become a `ListNode`
+data - an object that will become a `ListNode`
 
 ### prependRange(element, begin, end)
 
-inserts a range of elements before element (at the beginning of the list in case of list)
+Inserts a range of elements before the specified element (at the beginning of the list when called on the list itself).
 
-element - `ListNode` or `List` itself to insert range before
+element - a `ListNode` or `List` itself, before which to insert the range
 
 begin - first `ListNode` of a range
 
