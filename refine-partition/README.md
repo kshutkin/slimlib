@@ -1,6 +1,6 @@
 # Refine Partition
 
-Simple refine partition implementation
+A simple partition refinement implementation.
 
 https://en.wikipedia.org/wiki/Partition_refinement
 
@@ -14,18 +14,18 @@ https://en.wikipedia.org/wiki/Partition_refinement
 
 Creates a refiner function.
 
-Pass to it new candidates for refinement.
+Pass new candidates for refinement to it.
 
-Returns refined partition.
+Returns the refined partition.
 
 ### Example
 
 ```typescript
-import refiner from '../src';
+import refiner from "../src";
 
 const refineNext = refiner();
-refineNext(['a', 'b', 'c']);
-refineNext(['b', 'c', 'e']);
+refineNext(["a", "b", "c"]);
+refineNext(["b", "c", "e"]);
 console.log(refineNext()); // Iterable of Iterables: ((a), (b, c), (e))
 ```
 

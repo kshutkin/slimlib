@@ -1,5 +1,11 @@
 Changelog
 
+## 2.0.1
+
+### Patch Changes
+
+- 252ad95: readme updates
+
 ## 2.0.0
 
 ### Major Changes
