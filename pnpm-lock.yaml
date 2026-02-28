@@ -21,8 +21,8 @@ importers:
         specifier: ^4.0.16
         version: 4.0.16(vitest@4.0.16(@types/node@20.19.27)(jsdom@25.0.1)(terser@5.44.1))
       dts-buddy:
-        specifier: ^0.6.2
-        version: 0.6.2(typescript@5.8.3)
+        specifier: ^0.7.0
+        version: 0.7.0(typescript@5.8.3)
       pkgprn:
         specifier: ^0.1.0
         version: 0.1.0
@@ -904,11 +904,11 @@ packages:
     resolution: {integrity: sha512-WkrWp9GR4KXfKGYzOLmTuGVi1UWFfws377n9cc55/tb6DuqyF6pcQ5AbiHEshaDpY9v6oaSr2XCDidGmMwdzIA==}
     engines: {node: '>=8'}
 
-  dts-buddy@0.6.2:
-    resolution: {integrity: sha512-KUmYrRKpVpjmnqM/JY93p1PWezMXodKCiMd5CFvfLtRCRc5i2GZiojrkVQXO2Dd8HeaU1C3sgTKDWxCEK5cyXA==}
+  dts-buddy@0.7.0:
+    resolution: {integrity: sha512-smcL+Hg0HTt83U2rhBiqUaPRdPBTONItZU1rF42zBffHobyQird6/R/QcGFguem4aCrRwBozoz4l4KtMYcXEKA==}
     hasBin: true
     peerDependencies:
-      typescript: '>=5.0.4 <5.9'
+      typescript: '>=5.0.4 <6'
 
   enquirer@2.4.1:
     resolution: {integrity: sha512-rRqJg/6gd538VHvR3PSrdRBb/1Vy2YfzHqzvbhGIQpDRKIa4FgV/54b5Q1xYSxOOwKvjXweS26E0Q+nAMwp2pQ==}
@@ -2395,7 +2395,7 @@ snapshots:
     dependencies:
       path-type: 4.0.0
 
-  dts-buddy@0.6.2(typescript@5.8.3):
+  dts-buddy@0.7.0(typescript@5.8.3):
     dependencies:
       '@jridgewell/source-map': 0.3.5
       '@jridgewell/sourcemap-codec': 1.5.5
