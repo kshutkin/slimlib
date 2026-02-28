@@ -13,13 +13,13 @@
         "ci:publish": "changeset publish"
     },
     "devDependencies": {
-        "@biomejs/biome": "^2.3.11",
+        "@biomejs/biome": "2.4.4",
         "@changesets/cli": "^2.29.8",
-        "@types/node": "^20.00.0",
-        "@vitest/coverage-v8": "^4.0.16",
-        "dts-buddy": "^0.6.2",
-        "pkgprn": "^0.1.0",
-        "typescript": "~5.8.3",
-        "vitest": "^4.0.16"
+        "@types/node": "24.x",
+        "@vitest/coverage-v8": "^4.0.18",
+        "dts-buddy": "^0.7.0",
+        "pkgprn": "^0.3.1",
+        "typescript": "~5.9.3",
+        "vitest": "^4.0.18"
     }
 }
