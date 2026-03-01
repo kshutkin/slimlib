@@ -24,8 +24,8 @@ importers:
         specifier: ^0.7.0
         version: 0.7.0(typescript@5.9.3)
       pkgprn:
-        specifier: ^0.3.1
-        version: 0.3.1
+        specifier: ^0.5.0
+        version: 0.5.4
       typescript:
         specifier: ~5.9.3
         version: 5.9.3
@@ -1131,10 +1131,6 @@ packages:
       canvas:
         optional: true
 
-  jsonata@2.1.0:
-    resolution: {integrity: sha512-OCzaRMK8HobtX8fp37uIVmL8CY1IGc/a6gLsDqz3quExFR09/U78HUzWYr7T31UEB6+Eu0/8dkVD5fFDOl9a8w==}
-    engines: {node: '>= 8'}
-
   jsonfile@4.0.0:
     resolution: {integrity: sha512-m6F1R3z8jjlf2imQHS2Qez5sjKWQzbuuhuJ/FKYFRZvPE3PuHcSMVZzfsLhGVOkfd20obL5SWEBew5ShlquNxg==}
 
@@ -1292,8 +1288,8 @@ packages:
     resolution: {integrity: sha512-NPE8TDbzl/3YQYY7CSS228s3g2ollTFnc+Qi3tqmqJp9Vg2ovUpixcJEo2HJScN2Ez+kEaal6y70c0ehqJBJeA==}
     engines: {node: '>=10'}
 
-  pkgprn@0.3.1:
-    resolution: {integrity: sha512-ewINFWXSW1lO2CbtDe4wejwhXQda1IAW2+GWcpgiiI88/BuqG50JsB7f7sbpFaHisOeeAKjPFTsNxiBX3v3TeA==}
+  pkgprn@0.5.4:
+    resolution: {integrity: sha512-p3HQEsnFKc6E8wYGn5LKL31RU6E7/4Dy8k9RIaK2S1a+RPa57X1RYXgmAT7ps8rs7yljw+LNsefC0xiIAUm5hA==}
     hasBin: true
 
   postcss@8.5.6:
@@ -2671,8 +2667,6 @@ snapshots:
       - utf-8-validate
     optional: true
 
-  jsonata@2.1.0: {}
-
   jsonfile@4.0.0:
     optionalDependencies:
       graceful-fs: 4.2.11
@@ -2811,11 +2805,11 @@ snapshots:
     dependencies:
       find-up: 5.0.0
 
-  pkgprn@0.3.1:
+  pkgprn@0.5.4:
     dependencies:
+      '@jridgewell/sourcemap-codec': 1.5.5
       '@niceties/logger': 1.1.13
       cleye: 2.2.1
-      jsonata: 2.1.0
 
   postcss@8.5.6:
     dependencies:
