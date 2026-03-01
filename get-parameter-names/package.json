@@ -1,6 +1,6 @@
 {
     "type": "module",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "name": "@slimlib/get-parameter-names",
     "description": "Parse a function and extract its parameter names",
     "license": "MIT",

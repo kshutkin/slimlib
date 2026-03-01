@@ -1,5 +1,11 @@
 Changelog
 
+## 1.0.1
+
+### Patch Changes
+
+- dcb7ca7: remove comments, flatten packages
+
 ## 1.0.0
 
 ### Major Changes
