@@ -16,7 +16,6 @@
     },
     "types": "./types/index.d.ts",
     "files": [
-        "src",
         "types",
         "dist"
     ],
