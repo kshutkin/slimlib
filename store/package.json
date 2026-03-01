@@ -58,7 +58,7 @@
         "@rollup/plugin-node-resolve": "^16.0.0",
         "@rollup/plugin-terser": "^0.4.4",
         "@vue/reactivity": "^3.5.0",
-        "alien-signals": "^1.0.13",
+        "alien-signals": "^3.0.0",
         "estree-walker": "^3.0.3",
         "magic-string": "^0.30.21",
         "rollup": "^4.34.7",
