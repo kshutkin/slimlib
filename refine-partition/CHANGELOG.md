@@ -1,5 +1,11 @@
 Changelog
 
+## 2.0.2
+
+### Patch Changes
+
+- dcb7ca7: remove comments, flatten packages
+
 ## 2.0.1
 
 ### Patch Changes
