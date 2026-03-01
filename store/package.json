@@ -37,7 +37,7 @@
         "test": "vitest run --coverage --config ../vitest.config.mjs",
         "bench": "node tests/benchmark.mjs -n 50 -f ./results.csv",
         "build-compress": "BUILD_COMPRESS=true rollup -c && dts-buddy -m @slimlib/store:./src/index.ts",
-        "prepack": "pkgprn",
+        "prepack": "pkgprn-internal --remove-sourcemaps --strip-comments --flatten=dist,types",
         "deopt": "node --trace-deopt tests/deopt-check.mjs 2>&1 | grep -i deoptimiz || echo 'No deoptimizations detected!'",
         "deopt:report": "node --trace-deopt tests/deopt-check.mjs 2>&1 | node tests/deopt-check.mjs --parse",
         "deopt:full": "node --trace-deopt --trace-opt tests/deopt-check.mjs",

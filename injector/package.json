@@ -39,6 +39,6 @@
     "scripts": {
         "build": "dts-buddy",
         "test": "vitest run --coverage --config ../vitest.config.mjs",
-        "prepack": "pkgprn"
+        "prepack": "pkgprn-internal --strip-comments --flatten=src,types"
     }
 }
