@@ -13,6 +13,7 @@
 
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { parseArgs } from 'node:util';
+import { fileURLToPath } from 'node:url';
 
 // ============================================================================
 // Framework Adapters
@@ -386,6 +387,8 @@ const frameworks = [
     svelteFramework,
 ];
 
+export { frameworks };
+
 // ============================================================================
 // Helpers
 // ============================================================================
@@ -422,7 +425,9 @@ function pseudoRandom(seed = 0) {
 // Results: Map<testName, Map<frameworkName, number[]>> - stores all times across runs
 const results = new Map();
 
-async function runBenchmark(framework, name, setup, run, iterations = 1) {
+// Default benchmark runner implementation — can be swapped out by other tools
+// (e.g. a mitata-based runner) via setRunImpl().
+async function defaultRunImpl(framework, name, setup, run, iterations = 1) {
     // Warmup
     let cleanup = framework.withBuild(() => setup(framework));
     for (let i = 0; i < 3; i++) run();
@@ -459,6 +464,16 @@ async function runBenchmark(framework, name, setup, run, iterations = 1) {
     const testResults = results.get(name);
     if (!testResults.has(framework.name)) testResults.set(framework.name, []);
     testResults.get(framework.name).push(fastestTime);
+}
+
+let runImpl = defaultRunImpl;
+
+export function setRunImpl(fn) {
+    runImpl = fn;
+}
+
+async function runBenchmark(framework, name, setup, run, iterations = 1) {
+    return runImpl(framework, name, setup, run, iterations);
 }
 
 // Calculate mean of an array
@@ -1173,6 +1188,8 @@ const dynamicGraphConfigs = [
     ['6-100x15 - dyn50%', 100, 15, 0.5, 6, 1, 20],
 ];
 
+export { benchmarks, dynamicGraph, dynamicGraphConfigs };
+
 async function main() {
     // Parse command line arguments
     const { values: args } = parseArgs({
@@ -1454,4 +1471,6 @@ async function main() {
     }
 }
 
-main().catch(console.error);
+if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+    main().catch(console.error);
+}

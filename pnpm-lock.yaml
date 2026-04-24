@@ -92,6 +92,9 @@ importers:
       alien-signals:
         specifier: ^3.1.2
         version: 3.1.2
+      mitata:
+        specifier: ^1.0.34
+        version: 1.0.34
       rollup:
         specifier: ^4.59.0
         version: 4.59.0
@@ -1240,6 +1243,9 @@ packages:
   mime-types@2.1.35:
     resolution: {integrity: sha512-ZDY+bPm5zTTF+YpCrAU9nK0UgICYPT0QtT1NZWFv4s++TNkcgVaT0g6+4R2uI4MjQjzysHB1zxuWL50hzaeXiw==}
     engines: {node: '>= 0.6'}
+
+  mitata@1.0.34:
+    resolution: {integrity: sha512-Mc3zrtNBKIMeHSCQ0XqRLo1vbdIx1wvFV9c8NJAiyho6AjNfMY8bVhbS12bwciUdd1t4rj8099CH3N3NFahaUA==}
 
   mri@1.2.0:
     resolution: {integrity: sha512-tzzskb3bG8LvYGFF/mDTpq3jpI6Q9wc3LEmBaghu+DdCssd1FakN7Bc0hVNmEyGq1bq3RgfkCb3cmQLpNPOroA==}
@@ -2813,6 +2819,8 @@ snapshots:
     dependencies:
       mime-db: 1.52.0
     optional: true
+
+  mitata@1.0.34: {}
 
   mri@1.2.0: {}
 
