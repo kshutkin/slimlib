@@ -1,5 +1,11 @@
 Changelog
 
+## 2.0.3
+
+### Patch Changes
+
+- e1a352e: remove src from package
+
 ## 2.0.2
 
 ### Patch Changes
