@@ -5,6 +5,7 @@ packages:
   - refine-partition
   - smart-mock
   - get-parameter-names
+  - jsx
 
 onlyBuiltDependencies:
   - esbuild
