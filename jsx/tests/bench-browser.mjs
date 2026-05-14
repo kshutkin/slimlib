@@ -37,7 +37,7 @@ await build({
     // a dynamic import — esbuild will produce a chunk it never loads in the
     // browser. Mark it external as a belt-and-suspenders so the bundle stays
     // small and we never fault on a node-only dep at import time.
-    external: ['happy-dom', 'bun:jsc', 'node:os', 'node:v8', 'node:process']
+    external: ['happy-dom', 'bun:jsc', 'node:os', 'node:v8', 'node:process', 'node:fs/promises', 'node:url']
 });
 
 await writeFile(
@@ -51,7 +51,9 @@ await writeFile(
   "bun:jsc":   "data:text/javascript,export const memoryUsage = () => ({});",
   "node:os":   "data:text/javascript,export default {};",
   "node:v8":   "data:text/javascript,export default {};",
-  "node:process": "data:text/javascript,export default {};"
+  "node:process": "data:text/javascript,export default {};",
+  "node:fs/promises": "data:text/javascript,export const writeFile = () => {};",
+  "node:url": "data:text/javascript,export const fileURLToPath = (x) => String(x);"
 } }
 </script>
 <script type="module" src="./bundle.mjs"></script>
