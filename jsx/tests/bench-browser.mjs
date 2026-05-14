@@ -10,11 +10,12 @@
  * If the chromium binary is missing, run:  npx playwright install chromium
  */
 
-import { build } from 'esbuild';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
-import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+import { build } from 'esbuild';
 
 const outDir = new URL('../.bench-browser/', import.meta.url);
 await mkdir(outDir, { recursive: true });
@@ -37,7 +38,7 @@ await build({
     // a dynamic import — esbuild will produce a chunk it never loads in the
     // browser. Mark it external as a belt-and-suspenders so the bundle stays
     // small and we never fault on a node-only dep at import time.
-    external: ['happy-dom', 'bun:jsc', 'node:os', 'node:v8', 'node:process', 'node:fs/promises', 'node:url']
+    external: ['happy-dom', 'bun:jsc', 'node:os', 'node:v8', 'node:process', 'node:fs/promises', 'node:url'],
 });
 
 await writeFile(
@@ -65,7 +66,7 @@ const mime = {
     '.html': 'text/html; charset=utf-8',
     '.mjs': 'text/javascript; charset=utf-8',
     '.js': 'text/javascript; charset=utf-8',
-    '.map': 'application/json'
+    '.map': 'application/json',
 };
 
 const server = createServer(async (req, res) => {
@@ -79,7 +80,7 @@ const server = createServer(async (req, res) => {
     }
 });
 
-await new Promise((r) => server.listen(0, r));
+await new Promise(r => server.listen(0, r));
 const port = server.address().port;
 console.log(`[bench-browser] serving on http://127.0.0.1:${port}/`);
 
@@ -108,7 +109,7 @@ const page = await browser.newPage();
 let done = false;
 let benchResultsPayload = null;
 const BENCH_RESULTS_PREFIX = '[bench-results] ';
-page.on('console', (msg) => {
+page.on('console', msg => {
     const text = msg.text();
     if (text.startsWith(BENCH_RESULTS_PREFIX)) {
         try {
@@ -121,7 +122,7 @@ page.on('console', (msg) => {
     process.stdout.write(text + '\n');
     if (text.includes('[bench-done]')) done = true;
 });
-page.on('pageerror', (err) => {
+page.on('pageerror', err => {
     process.stderr.write('PAGE ERROR: ' + (err.stack || err.message) + '\n');
 });
 
@@ -129,7 +130,7 @@ await page.goto(`http://127.0.0.1:${port}/`);
 
 const deadline = Date.now() + 5 * 60_000;
 while (!done && Date.now() < deadline) {
-    await new Promise((r) => setTimeout(r, 200));
+    await new Promise(r => setTimeout(r, 200));
 }
 
 await browser.close();

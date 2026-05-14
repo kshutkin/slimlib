@@ -6,7 +6,4 @@ export type Props = Record<string, unknown> & { children?: Child };
 
 export type Component<P extends Props = Props> = (props: P) => Child;
 
-export const FRAGMENT = Symbol.for('@slimlib/jsx.fragment');
-export type Fragment = typeof FRAGMENT;
-
-export type ElementType<P extends Props = Props> = string | Component<P> | Fragment;
+export type ElementType<P extends Props = Props> = string | Component<P>;
