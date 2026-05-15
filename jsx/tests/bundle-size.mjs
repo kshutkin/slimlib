@@ -35,6 +35,14 @@ const entries = [
         name: '@mastrojs/reactive',
         code: `import { ReactiveElement, signal } from '@mastrojs/reactive'; export { ReactiveElement, signal };`,
     },
+    {
+        name: '@slimlib/jsx',
+        code: `import { createElement, Fragment, render } from '@slimlib/jsx'; export { createElement, Fragment, render };`,
+    },
+    {
+        name: '@slimlib/jsx+store',
+        code: `import { createElement, Fragment, render } from '@slimlib/jsx'; import { signal, effect, computed } from '@slimlib/store'; export { createElement, Fragment, render, signal, effect, computed };`,
+    },
 ];
 
 async function bundleOnce(entryPath, minify) {
