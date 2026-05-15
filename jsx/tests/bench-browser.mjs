@@ -96,7 +96,10 @@ try {
 
 let browser;
 try {
-    browser = await chromium.launch({ headless: true });
+    browser = await chromium.launch({
+        headless: true,
+        args: ['--js-flags=--expose-gc'],
+    });
 } catch (err) {
     console.error('[bench-browser] failed to launch chromium: ' + err.message);
     console.error('  download the browser with:  npx playwright install chromium');

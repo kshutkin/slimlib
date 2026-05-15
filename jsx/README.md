@@ -206,17 +206,17 @@ Custom element properties are detected by the prototype-setter heuristic — pas
 
 ## Benchmarks
 
-Real-DOM benchmarks (Chromium via Playwright, M1 Mac, mitata; lower is better):
+Real-DOM benchmarks (Chromium via Playwright with `--expose-gc`, M1 Mac, mitata `.gc('inner')` to isolate GC pauses; lower is better):
 
 | Scenario | @slimlib/jsx | lit-html | voby | preact | solid-js |
 |---|---:|---:|---:|---:|---:|
-| create-1000 (1000 children mount) | **0.41 ms** | 0.04 ms | 0.66 ms | 0.63 ms | 0.82 ms |
-| update-1000 (reactive text update) | 0.31 ms | 0.13 ms | 0.22 ms | 0.30 ms | 0.55 ms |
-| custom-element-mount (100×) | 0.24 ms | 0.20 ms | 0.19 ms | 0.21 ms | 0.22 ms |
-| deep-tree (4096 leaves) | 4.56 ms | 0.39 ms | 3.79 ms | 4.99 ms | 6.05 ms |
-| deep-tree-update (reactive label) | 1.43 ms | 0.75 ms | 0.70 ms | 2.69 ms | 0.89 ms |
-| swap-rows (keyed) | — | 0.05 ms | 0.05 ms | 0.21 ms | 0.11 ms |
-| shuffle-1000 (keyed) | — | 0.58 ms | 0.30 ms | 2.16 ms | 0.36 ms |
+| create-1000 (1000 children mount) | **0.53 ms** | 0.06 ms | 1.15 ms | 0.69 ms | 0.75 ms |
+| update-1000 (reactive text update) | 0.46 ms | 0.16 ms | 0.47 ms | 0.30 ms | 0.60 ms |
+| custom-element-mount (100×) | 0.31 ms | 0.29 ms | 0.36 ms | 0.31 ms | 0.36 ms |
+| deep-tree (4096 leaves) | **2.44 ms** | 0.54 ms | 6.43 ms | 4.48 ms | 5.52 ms |
+| deep-tree-update (reactive label) | 1.39 ms | 0.88 ms | 1.69 ms | 2.48 ms | 1.01 ms |
+| swap-rows (keyed) | — | 0.14 ms | 0.27 ms | 0.32 ms | 0.30 ms |
+| shuffle-1000 (keyed) | — | 0.90 ms | 0.58 ms | 2.20 ms | 0.58 ms |
 
 Keyed scenarios require v0.1. Reproduce: `pnpm bench:browser` (writes `results-browser.csv`).
 
@@ -225,8 +225,8 @@ Keyed scenarios require v0.1. Reproduce: `pnpm bench:browser` (writes `results-b
 | Library | Min | **Gzip** | Brotli |
 |---|---:|---:|---:|
 | vanjs-core | 2.29 KB | **1.13 KB** | 1.04 KB |
-| **@slimlib/jsx** | 5.80 KB | **2.67 KB** | 2.37 KB |
-| @slimlib/jsx + store | 6.64 KB | **3.04 KB** | 2.69 KB |
+| **@slimlib/jsx** | 5.87 KB | **2.70 KB** | 2.40 KB |
+| @slimlib/jsx + store | 6.71 KB | **3.06 KB** | 2.73 KB |
 | lit-html | 6.99 KB | 3.10 KB | 2.81 KB |
 | snabbdom | 8.85 KB | 3.40 KB | 3.06 KB |
 | preact | 10.13 KB | 4.32 KB | 3.95 KB |
@@ -234,12 +234,12 @@ Keyed scenarios require v0.1. Reproduce: `pnpm bench:browser` (writes `results-b
 | mithril | 25.88 KB | 9.80 KB | 8.77 KB |
 | voby | 29.92 KB | 11.14 KB | 10.09 KB |
 
-`@slimlib/jsx` + full reactive system fits in **3.04 KB gzip** — smaller than lit-html alone. Reproduce: `pnpm size`.
+`@slimlib/jsx` + full reactive system fits in **3.06 KB gzip** — smaller than lit-html alone. Reproduce: `pnpm size`.
 
 ## Design Notes
 
 - **One scope per `render()` call.** Components do NOT create per-component scopes. All effects/cleanups go to the single render-level scope, torn down by `dispose()`. Keeps mount cost minimal but means individual subtrees can't be disposed independently (v0.1 plan).
-- **DocumentFragment per component.** Component results are appended through a `DocumentFragment`. Minor overhead; could be optimized away when the result is a single Node.
+- **DocumentFragment only when needed.** When a component returns a single Node, the renderer inserts it directly. Fragment wrapping is reserved for primitives, arrays, and function-children — keeping deep-tree mounts cheap.
 - **No keyed reconciliation in v0.** Re-rendering an array of nodes from a thunk replaces the whole sub-range. For long lists with stable identity, wait for `<For>` in v0.1.
 - **Prototype-setter cache.** First touch of each `(tagName, propName)` pair walks the prototype chain; result cached for the lifetime of the program. Same heuristic as vanjs.
 

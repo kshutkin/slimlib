@@ -100,7 +100,7 @@ const setProp = (el: Element, key: string, value: unknown): void => {
 const appendChild = (parent: Node, child: Child): void => {
     if (child == null || child === false || child === true) return;
     if (Array.isArray(child)) {
-        for (const c of child) appendChild(parent, c);
+        for (let i = 0; i < child.length; i++) appendChild(parent, child[i]);
         return;
     }
     if (typeof child === 'function') {
@@ -108,14 +108,37 @@ const appendChild = (parent: Node, child: Child): void => {
         const end = document.createComment('');
         parent.appendChild(start);
         parent.appendChild(end);
+        // Fast path tracking: if the most recent result was a single Text node and
+        // the next result is a primitive, mutate textContent instead of remove+create.
+        let lastText: Text | null = null;
         effect(() => {
+            const next = (child as () => Child)();
+            // Fast-path: primitive replacement of an existing single text node.
+            if (
+                lastText !== null &&
+                (typeof next === 'string' || typeof next === 'number' || typeof next === 'bigint') &&
+                lastText.previousSibling === start &&
+                lastText.nextSibling === end
+            ) {
+                const s = String(next);
+                if (lastText.data !== s) lastText.data = s;
+                return;
+            }
+            // Slow path: clear range, build fresh nodes.
             let n = start.nextSibling;
             while (n !== null && n !== end) {
-                const next = n.nextSibling;
+                const nx = n.nextSibling;
                 parent.removeChild(n);
-                n = next;
+                n = nx;
             }
-            insertBefore(parent, (child as () => Child)(), end);
+            lastText = null;
+            if (typeof next === 'string' || typeof next === 'number' || typeof next === 'bigint') {
+                const t = document.createTextNode(String(next));
+                parent.insertBefore(t, end);
+                lastText = t;
+                return;
+            }
+            insertBefore(parent, next, end);
         });
         return;
     }
@@ -130,7 +153,7 @@ const appendChild = (parent: Node, child: Child): void => {
 const insertBefore = (parent: Node, child: Child, anchor: Node): void => {
     if (child == null || child === false || child === true) return;
     if (Array.isArray(child)) {
-        for (const c of child) insertBefore(parent, c, anchor);
+        for (let i = 0; i < child.length; i++) insertBefore(parent, child[i], anchor);
         return;
     }
     if (child instanceof Node) {
@@ -146,21 +169,27 @@ const insertBefore = (parent: Node, child: Child, anchor: Node): void => {
 
 /** Build a Node for a JSX element. Uses module-level scope state. */
 export const createElement = <P extends Props>(type: ElementType<P>, props: P | null, ...children: Child[]): Node => {
-    const allProps = (props ?? {}) as Props;
     if (typeof type === 'function') {
-        const result = (type as Component<Props>)({
-            ...allProps,
-            children: children.length === 0 ? undefined : children.length === 1 ? children[0] : children,
-        });
+        // Inject children into props only when present; avoid spread allocation otherwise.
+        const compProps: Props =
+            children.length === 0
+                ? ((props ?? {}) as Props)
+                : ({ ...((props ?? {}) as Props), children: children.length === 1 ? children[0] : children } as Props);
+        const result = (type as Component<Props>)(compProps);
+        // Fast path: component returned a single Node — no fragment wrapping needed.
+        if (result instanceof Node) return result;
+        // Fallback for primitives / arrays / function-children: wrap in a fragment.
         const frag = document.createDocumentFragment();
         appendChild(frag, result);
         return frag;
     }
     const el = document.createElement(type);
-    for (const [k, v] of Object.entries(allProps)) {
-        if (k === 'children') continue;
-        setProp(el, k, v);
+    if (props !== null) {
+        for (const k in props) {
+            if (k === 'children') continue;
+            setProp(el, k, (props as Record<string, unknown>)[k]);
+        }
     }
-    for (const c of children) appendChild(el, c);
+    for (let i = 0; i < children.length; i++) appendChild(el, children[i]);
     return el;
 };

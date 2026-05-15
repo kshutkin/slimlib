@@ -2103,7 +2103,7 @@ for (const [scenarioName, entries] of scenarios) {
                     } else {
                         yield () => spec.run(state);
                     }
-                });
+                }).gc('inner');
             }
         });
     });
@@ -2131,7 +2131,7 @@ for (const scenarioName of ['swap-rows', 'shuffle-1000']) {
                     } else {
                         yield () => spec.run(state);
                     }
-                });
+                }).gc('inner');
             }
             for (const [name, reason] of keyedSkips) {
                 console.warn(`[bench] ${name} skips ${scenarioName}: ${reason}`);
