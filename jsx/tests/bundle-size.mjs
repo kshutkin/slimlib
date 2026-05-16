@@ -96,7 +96,6 @@ async function main() {
     const failed = results.filter(r => r.error);
     const ordered = [...ok, ...failed];
 
-    const cols = ['name', 'raw', 'min', 'gzip', 'brotli'];
     const widths = {
         name: Math.max(4, ...ordered.map(r => r.name.length)),
         raw: 10,

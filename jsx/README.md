@@ -206,17 +206,17 @@ Custom element properties are detected by the prototype-setter heuristic — pas
 
 ## Benchmarks
 
-Real-DOM benchmarks (Chromium via Playwright with `--expose-gc`, M1 Mac, mitata `.gc('inner')` to isolate GC pauses; lower is better):
+Real-DOM benchmarks (Chromium via Playwright with `--expose-gc`, M1 Mac, mitata `.gc('inner')` to isolate GC pauses; median of 3 runs; lower is better):
 
 | Scenario | @slimlib/jsx | lit-html | voby | preact | solid-js |
 |---|---:|---:|---:|---:|---:|
-| create-1000 (1000 children mount) | **0.53 ms** | 0.06 ms | 1.15 ms | 0.69 ms | 0.75 ms |
-| update-1000 (reactive text update) | 0.46 ms | 0.16 ms | 0.47 ms | 0.30 ms | 0.60 ms |
-| custom-element-mount (100×) | 0.31 ms | 0.29 ms | 0.36 ms | 0.31 ms | 0.36 ms |
-| deep-tree (4096 leaves) | **2.44 ms** | 0.54 ms | 6.43 ms | 4.48 ms | 5.52 ms |
-| deep-tree-update (reactive label) | 1.39 ms | 0.88 ms | 1.69 ms | 2.48 ms | 1.01 ms |
-| swap-rows (keyed) | — | 0.14 ms | 0.27 ms | 0.32 ms | 0.30 ms |
-| shuffle-1000 (keyed) | — | 0.90 ms | 0.58 ms | 2.20 ms | 0.58 ms |
+| create-1000 (1000 children mount) | **0.60 ms** | 0.06 ms | 1.13 ms | 0.70 ms | 0.74 ms |
+| update-1000 (reactive text update) | 0.53 ms | 0.14 ms | 0.50 ms | 0.35 ms | 0.57 ms |
+| custom-element-mount (100×) | 0.33 ms | 0.30 ms | 0.35 ms | 0.31 ms | 0.36 ms |
+| deep-tree (4096 leaves) | **2.49 ms** | 0.48 ms | 6.17 ms | 4.42 ms | 5.46 ms |
+| deep-tree-update (reactive label) | 1.72 ms | 0.87 ms | 1.27 ms | 2.30 ms | 0.98 ms |
+| swap-rows (keyed) | — | 0.21 ms | 0.27 ms | 0.39 ms | 0.32 ms |
+| shuffle-1000 (keyed) | — | 0.76 ms | 0.57 ms | 2.20 ms | 0.57 ms |
 
 Keyed scenarios require v0.1. Reproduce: `pnpm bench:browser` (writes `results-browser.csv`).
 

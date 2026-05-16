@@ -58,5 +58,13 @@
         "enabled": true,
         "clientKind": "git",
         "useIgnoreFile": true
-    }
+    },
+    "overrides": [
+        {
+            "includes": ["**/tests/bench-*.mjs", "**/tests/benchmark-*.mjs"],
+            "linter": { "enabled": false },
+            "formatter": { "enabled": false },
+            "assist": { "enabled": false }
+        }
+    ]
 }

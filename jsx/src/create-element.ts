@@ -108,37 +108,14 @@ const appendChild = (parent: Node, child: Child): void => {
         const end = document.createComment('');
         parent.appendChild(start);
         parent.appendChild(end);
-        // Fast path tracking: if the most recent result was a single Text node and
-        // the next result is a primitive, mutate textContent instead of remove+create.
-        let lastText: Text | null = null;
         effect(() => {
-            const next = (child as () => Child)();
-            // Fast-path: primitive replacement of an existing single text node.
-            if (
-                lastText !== null &&
-                (typeof next === 'string' || typeof next === 'number' || typeof next === 'bigint') &&
-                lastText.previousSibling === start &&
-                lastText.nextSibling === end
-            ) {
-                const s = String(next);
-                if (lastText.data !== s) lastText.data = s;
-                return;
-            }
-            // Slow path: clear range, build fresh nodes.
             let n = start.nextSibling;
             while (n !== null && n !== end) {
                 const nx = n.nextSibling;
                 parent.removeChild(n);
                 n = nx;
             }
-            lastText = null;
-            if (typeof next === 'string' || typeof next === 'number' || typeof next === 'bigint') {
-                const t = document.createTextNode(String(next));
-                parent.insertBefore(t, end);
-                lastText = t;
-                return;
-            }
-            insertBefore(parent, next, end);
+            insertBefore(parent, (child as () => Child)(), end);
         });
         return;
     }
