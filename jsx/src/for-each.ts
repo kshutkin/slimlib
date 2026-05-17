@@ -1,4 +1,4 @@
-import { effect, flushEffects, scope, signal, untracked } from '@slimlib/store';
+import { effect, scope, signal, untracked } from '@slimlib/store';
 
 import { setOnDispose } from './index';
 import type { Signal } from '@slimlib/store';
@@ -115,14 +115,6 @@ export const forEach = <T>(
             }
 
             prevMap = newMap;
-
-            // Drain any per-item child effects scheduled during this run (e.g.
-            // function-child effects wired by `{() => item().name}`). They live in
-            // the global batch queue and would otherwise wait for the next
-            // microtask flush, leaving freshly-mounted items briefly empty in
-            // synchronous observation paths. flushEffects() re-entry is safe: it
-            // snapshots the queue at entry.
-            flushEffects();
         });
     });
 

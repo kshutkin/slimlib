@@ -93,6 +93,26 @@ const dispose = render(() => <App />, document.body);
 dispose();
 ```
 
+#### Commit timing
+
+`@slimlib/jsx` is **scheduler-agnostic**: it never calls `flushEffects()` internally. Reactive bindings are scheduled by `@slimlib/store`'s scheduler, which defaults to `queueMicrotask`. As a result, `render()` returns with the comment-anchor structure in place but reactive children populate on the next microtask.
+
+For synchronous observation (tests, SSR, or a `connectedCallback` that needs `this.children` immediately) pick one:
+
+```js
+import { flushEffects, setScheduler } from '@slimlib/store';
+
+// 1) Drain manually after each commit point:
+render(() => <App />, document.body);
+flushEffects(); // may need to be called multiple times if effects schedule more effects
+
+// 2) Install a synchronous scheduler globally (signal writes commit inline,
+//    at the cost of losing write batching):
+setScheduler(fn => fn());
+```
+
+The library does not pick for you because the right answer depends on whether you value batched microtask updates (default) or strict synchronous commits.
+
 ### `createElement(type, props, ...children)`
 
 The hyperscript factory the JSX runtime calls. You can use it directly:
@@ -236,6 +256,8 @@ customElements.define('x-counter', XCounter);
 
 Custom element properties are detected by the prototype-setter heuristic — pass typed values straight through JSX.
 
+The element body is populated on the next microtask after `render()` returns (see [Commit timing](#commit-timing)). This is fine for the usual case of a freshly-attached element with no consumer reading its children synchronously; install a sync scheduler if your tests need to inspect children inside the same microtask as `connectedCallback`.
+
 ## Benchmarks
 
 Real-DOM benchmarks (Chromium via Playwright with `--expose-gc`, M1 Mac, mitata `.gc('inner')` to isolate GC pauses; median of 3 runs; lower is better):
@@ -247,10 +269,10 @@ Real-DOM benchmarks (Chromium via Playwright with `--expose-gc`, M1 Mac, mitata 
 | custom-element-mount (100×) | 0.33 ms | 0.30 ms | 0.35 ms | 0.31 ms | 0.36 ms |
 | deep-tree (4096 leaves) | **2.49 ms** | 0.48 ms | 6.17 ms | 4.42 ms | 5.46 ms |
 | deep-tree-update (reactive label) | 1.72 ms | 0.87 ms | 1.27 ms | 2.30 ms | 0.98 ms |
-| swap-rows (keyed) | **0.58 ms** | 0.21 ms | 0.27 ms | 0.39 ms | 0.32 ms |
-| shuffle-1000 (keyed) | **0.69 ms** | 0.83 ms | 0.59 ms | 2.27 ms | 0.57 ms |
+| swap-rows (keyed) | **0.70 ms** | 0.21 ms | 0.27 ms | 0.39 ms | 0.32 ms |
+| shuffle-1000 (keyed) | **0.85 ms** | 0.83 ms | 0.59 ms | 2.27 ms | 0.57 ms |
 
-Keyed scenarios use `forEach` from `@slimlib/jsx/for-each`. Reproduce: `pnpm bench:browser` (writes `results-browser.csv`).
+Keyed scenarios use `forEach` from `@slimlib/jsx/for-each`. The bench harness drives `@slimlib/jsx` with the default microtask scheduler and explicitly calls `flushEffects()` after each signal write to make commit cost visible in the timed window. Reproduce: `pnpm bench:browser` (writes `results-browser.csv`).
 
 ### Bundle size (esbuild minified, gzipped)
 
@@ -271,6 +293,7 @@ Keyed scenarios use `forEach` from `@slimlib/jsx/for-each`. Reproduce: `pnpm ben
 ## Design Notes
 
 - **One scope per `render()` call, with sub-scopes per dynamic boundary.** Components do NOT create their own scopes. Every function-child boundary (`{() => ...}`) and every `forEach` row gets a sub-scope that is disposed and replaced on re-run, so `on:` listeners, `ref` callbacks, and inner `effect()` calls don't leak when conditionals flip or list rows are removed.
+- **Scheduler-agnostic commit.** `@slimlib/jsx` never calls `flushEffects()` internally — that would silently force *every* pending `@slimlib/store` effect (including ones from other packages) to run on the renderer's terms. Instead, the renderer enqueues effects via the store's scheduler and trusts the host to decide commit timing. See [Commit timing](#commit-timing) for the two supported modes.
 - **DocumentFragment only when needed.** When a component returns a single Node, the renderer inserts it directly. Fragment wrapping is reserved for primitives, arrays, and function-children — keeping deep-tree mounts cheap.
 - **Keyed reconciliation lives in a sub-entry.** `forEach` is opt-in via `@slimlib/jsx/for-each` so apps that don't need keyed lists don't pay for the diff algorithm. A reverse-walk reorder using `nextSibling` checks avoids the LIS step; reconcile is wrapped in `untracked()` to prevent the outer effect from re-subscribing on item writes.
 - **Prototype-setter cache.** First touch of each `(tagName, propName)` pair walks the prototype chain; result cached for the lifetime of the program. Same heuristic as vanjs.

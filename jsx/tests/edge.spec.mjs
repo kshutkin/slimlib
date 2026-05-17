@@ -4,13 +4,14 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { effect, flushEffects, signal } from '@slimlib/store';
+import { effect, flushEffects, setScheduler, signal } from '@slimlib/store';
 
 import { createElement, render } from '../src/index.js';
 
-// Function-child transitions through the fast-path / slow-path branches.
-// render() is required because @slimlib/store effects are batched and only
-// run after flushEffects(), which render() calls.
+// Synchronous scheduler: effects run inline on creation/write. JSX itself no
+// longer calls flushEffects() (full async-commit contract); tests opt into
+// synchronous observation by installing a sync scheduler.
+setScheduler(fn => fn());
 describe('function-child transitions', () => {
     it('handles primitives, bigint, and falsy values across updates', () => {
         const root = document.createElement('div');

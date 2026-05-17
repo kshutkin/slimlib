@@ -69,6 +69,14 @@ const slimlibJsx = await safeImport('@slimlib/jsx', () => import('../dist/index.
 const slimlibForEach = await safeImport('@slimlib/jsx/for-each', () => import('../dist/for-each.mjs'));
 const slimlibStore = await safeImport('@slimlib/store', () => import('@slimlib/store'));
 
+// @slimlib/jsx does not call flushEffects() internally — the library is
+// scheduler-agnostic and leaves commit timing to @slimlib/store's scheduler
+// (default: queueMicrotask). In a synchronous benchmark we must drain effects
+// manually. A single flushEffects() drains one wave; nested reactive structures
+// (forEach schedules per-item effects on top of the outer reconcile effect)
+// need a small loop. `drainSlimlib` is called from every slimlib adapter run().
+const drainSlimlib = slimlibStore?.flushEffects ? () => slimlibStore.flushEffects() : () => {};
+
 // ----- adapters -------------------------------------------------------------
 
 function makeContainer() {
@@ -1330,7 +1338,7 @@ const slimlibAdapter =
     slimlibStore &&
     (() => {
         const { createElement: h, render, Fragment } = slimlibJsx;
-        const { signal, flushEffects } = slimlibStore;
+        const { signal } = slimlibStore;
         if (typeof h !== 'function' || typeof render !== 'function') {
             console.warn('[bench] @slimlib/jsx adapter disabled: missing createElement/render');
             return null;
@@ -1383,6 +1391,7 @@ const slimlibAdapter =
                         },
                         state.c,
                     );
+                    drainSlimlib();
                 },
             },
             update1000: {
@@ -1402,11 +1411,12 @@ const slimlibAdapter =
                         },
                         c,
                     );
+                    drainSlimlib();
                     return { c, v, dispose };
                 },
                 run(state) {
                     state.v.set(state.v() + 1);
-                    flushEffects();
+                    drainSlimlib();
                 },
                 teardown(state) {
                     state.dispose?.();
@@ -1431,6 +1441,7 @@ const slimlibAdapter =
                     state.dispose?.();
                     resetContainer(state.c);
                     state.dispose = render(() => h(SlimDeepNode, { depth: DEEP_DEPTH, label: '0' }), state.c);
+                    drainSlimlib();
                 },
             },
             // deep-tree-update: Strategy B — reactive label at the root signal feeds every leaf.
@@ -1448,11 +1459,12 @@ const slimlibAdapter =
                         return h('div', null, children);
                     }
                     const dispose = render(() => h(DeepReactive, { depth: DEEP_DEPTH, suffix: '' }), c);
+                    drainSlimlib();
                     return { c, label, dispose };
                 },
                 run(state) {
                     state.label.set(state.label() === 'A' ? 'B' : 'A');
-                    flushEffects();
+                    drainSlimlib();
                 },
                 teardown(state) {
                     state.dispose?.();
@@ -1822,7 +1834,7 @@ const slimlibForEachKeyed =
     slimlibJsx && slimlibStore && slimlibForEach
         ? (() => {
               const { createElement: h, render } = slimlibJsx;
-              const { signal, flushEffects } = slimlibStore;
+              const { signal } = slimlibStore;
               const forEach = slimlibForEach.forEach;
               if (typeof forEach !== 'function') {
                   console.warn('[bench] @slimlib/jsx/for-each adapter disabled: missing forEach');
@@ -1847,12 +1859,13 @@ const slimlibForEachKeyed =
                                   ),
                               c
                           );
+                          drainSlimlib();
                           return { ctx: { items, dispose }, toggle: false };
                       },
                       run(state) {
                           state.toggle = !state.toggle;
                           state.ctx.items.set(state.toggle ? orderB : baseItems);
-                          flushEffects();
+                          drainSlimlib();
                       },
                       teardown(state) {
                           state.ctx.dispose?.();
@@ -1966,7 +1979,6 @@ if (vanMod) {
 const keyedSkips = [
     ['vanjs-core', 'no keyed reconciliation primitive'],
     ['@mastrojs/reactive', 'HTML+signal model, no list reconciliation'],
-    ['@slimlib/jsx', 'no keyed list reconciliation in v0'],
 ];
 
 // ----- scenario registration ---------------------------------------------

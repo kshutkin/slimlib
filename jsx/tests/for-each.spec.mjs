@@ -2,10 +2,15 @@
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { flushEffects, signal } from '@slimlib/store';
+import { flushEffects, setScheduler, signal } from '@slimlib/store';
 
 import { forEach } from '../src/for-each.js';
 import { createElement, render } from '../src/index.js';
+
+// Synchronous scheduler: effects run inline on creation/write. JSX itself no
+// longer calls flushEffects() (full async-commit contract); tests opt into
+// synchronous observation by installing a sync scheduler.
+setScheduler(fn => fn());
 
 let mounted = [];
 afterEach(() => {
