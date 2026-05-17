@@ -52,6 +52,7 @@
         "bench:mitata": "node tests/benchmark-mitata.mjs",
         "bench:browser": "node tests/bench-browser.mjs",
         "size": "node tests/bundle-size.mjs",
+        "play": "vite --config playground/vite.config.mjs",
         "prepack": "pkgprn-internal --remove-sourcemaps --strip-comments --flatten=dist,types"
     },
     "dependencies": {
@@ -78,6 +79,7 @@
         "solid-js": "^1.9.12",
         "uhtml": "^5.0.0",
         "vanjs-core": "^1.6.0",
+        "vite": "^5.4.10",
         "voby": "^0.58.1"
     }
 }
