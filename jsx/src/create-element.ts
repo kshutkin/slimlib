@@ -1,4 +1,4 @@
-import { effect } from '@slimlib/store';
+import { effect, scope } from '@slimlib/store';
 
 import type { Child, Component, ElementType, Primitive, Props } from './types';
 
@@ -108,6 +108,11 @@ const appendChild = (parent: Node, child: Child): void => {
         const end = document.createComment('');
         parent.appendChild(start);
         parent.appendChild(end);
+        // Each re-render gets its own child scope so effects, on:* listeners,
+        // and ref(null) cleanups registered by the previous subtree are disposed
+        // when the function-child swaps content. The effect cleanup disposes the
+        // sub-scope before each re-run and on final disposal.
+        let sub: () => void;
         effect(() => {
             let n = start.nextSibling;
             while (n !== null && n !== end) {
@@ -115,7 +120,15 @@ const appendChild = (parent: Node, child: Child): void => {
                 parent.removeChild(n);
                 n = nx;
             }
-            insertBefore(parent, (child as () => Child)(), end);
+            sub = scope(onDispose => {
+                const prev = setOnDispose(onDispose);
+                try {
+                    insertBefore(parent, (child as () => Child)(), end);
+                } finally {
+                    setOnDispose(prev);
+                }
+            });
+            return () => sub();
         });
         return;
     }
@@ -138,6 +151,10 @@ const insertBefore = (parent: Node, child: Child, anchor: Node): void => {
         return;
     }
     if (typeof child === 'function') {
+        // One-shot eager evaluation: a function-child returning another function
+        // is unwrapped here without creating an effect. No re-runs → no leak,
+        // so no sub-scope is needed. The outer effect (set up by appendChild)
+        // owns reactivity for this slot.
         insertBefore(parent, (child as () => Child)(), anchor);
         return;
     }
