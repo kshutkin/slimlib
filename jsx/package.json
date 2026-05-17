@@ -20,6 +20,10 @@
             "types": "./types/jsx-runtime.d.ts",
             "default": "./dist/jsx-runtime.mjs"
         },
+        "./for-each": {
+            "types": "./types/for-each.d.ts",
+            "default": "./dist/for-each.mjs"
+        },
         "./package.json": "./package.json"
     },
     "types": "./types/index.d.ts",
@@ -43,7 +47,7 @@
         "renderer"
     ],
     "scripts": {
-        "build": "rollup -c && dts-buddy -m @slimlib/jsx:./src/index.ts -m @slimlib/jsx/jsx-runtime:./src/jsx-runtime.ts",
+        "build": "rollup -c && dts-buddy -m @slimlib/jsx:./src/index.ts -m @slimlib/jsx/jsx-runtime:./src/jsx-runtime.ts -m @slimlib/jsx/for-each:./src/for-each.ts",
         "test": "vitest run --coverage --config ../vitest.config.mjs",
         "bench:mitata": "node tests/benchmark-mitata.mjs",
         "bench:browser": "node tests/bench-browser.mjs",

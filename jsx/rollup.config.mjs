@@ -6,7 +6,7 @@ import rollupPluginTypescript2 from 'rollup-plugin-typescript2';
 
 export default [
     {
-        input: ['./src/index.ts', './src/jsx-runtime.ts'],
+        input: ['./src/index.ts', './src/jsx-runtime.ts', './src/for-each.ts'],
         output: [
             {
                 format: 'es',

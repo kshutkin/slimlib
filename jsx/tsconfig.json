@@ -16,7 +16,8 @@
         "baseUrl": ".",
         "paths": {
             "@slimlib/jsx": ["./types/index.d.ts"],
-            "@slimlib/jsx/jsx-runtime": ["./types/jsx-runtime.d.ts"]
+            "@slimlib/jsx/jsx-runtime": ["./types/jsx-runtime.d.ts"],
+            "@slimlib/jsx/for-each": ["./types/for-each.d.ts"]
         }
     }
 }

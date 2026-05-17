@@ -4,7 +4,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { flushEffects, signal } from '@slimlib/store';
+import { effect, flushEffects, signal } from '@slimlib/store';
 
 import { createElement, render } from '../src/index.js';
 
@@ -312,5 +312,387 @@ describe('attribute prefix + children-in-props', () => {
 
         const el2 = createElement('div', { ref: 'not-a-fn' });
         expect(el2.tagName).toBe('DIV');
+    });
+});
+
+// Sub-scope per dynamic boundary: a function-child must dispose its previous
+// subtree (effects, on:* listeners, ref(null) callbacks) when it re-runs.
+describe('sub-scope per dynamic boundary', () => {
+    it('disposes inner effect when conditional swaps it away', () => {
+        const root = document.createElement('div');
+        const cond = signal(true);
+        const inner = signal(0);
+        let effectRuns = 0;
+
+        const dispose = render(
+            () =>
+                createElement('div', null, () =>
+                    cond()
+                        ? createElement('span', null, () => {
+                              effectRuns++;
+                              return inner();
+                          })
+                        : createElement('p', null, 'off')
+                ),
+            root
+        );
+
+        flushEffects();
+        const initial = effectRuns;
+        expect(initial).toBeGreaterThan(0);
+
+        inner.set(1);
+        flushEffects();
+        expect(effectRuns).toBe(initial + 1);
+
+        cond.set(false);
+        flushEffects();
+        const afterSwap = effectRuns;
+
+        // Writing to `inner` should NOT re-run the disposed inner effect.
+        inner.set(2);
+        flushEffects();
+        inner.set(3);
+        flushEffects();
+        expect(effectRuns).toBe(afterSwap);
+
+        dispose();
+    });
+
+    it('removes event listener when conditional swaps the button away', () => {
+        const root = document.createElement('div');
+        const cond = signal(true);
+        let clicks = 0;
+        const handler = () => {
+            clicks++;
+        };
+
+        const dispose = render(
+            () =>
+                createElement('div', null, () =>
+                    cond() ? createElement('button', { 'on:click': handler }, 'go') : createElement('p', null, 'off')
+                ),
+            root
+        );
+
+        flushEffects();
+        const outer = root.firstChild;
+        // Capture the button reference before the swap.
+        const btn = Array.from(outer.childNodes).find(n => n.nodeName === 'BUTTON');
+        expect(btn).toBeDefined();
+        btn.click();
+        expect(clicks).toBe(1);
+
+        cond.set(false);
+        flushEffects();
+
+        // The detached button must no longer fire the handler.
+        btn.click();
+        expect(clicks).toBe(1);
+
+        dispose();
+    });
+
+    it('calls ref(null) when conditional swaps the ref-bearing node away', () => {
+        const root = document.createElement('div');
+        const cond = signal(true);
+        const refCalls = [];
+        const refCb = e => {
+            refCalls.push(e);
+        };
+
+        const dispose = render(
+            () => createElement('div', null, () => (cond() ? createElement('span', { ref: refCb }, 'x') : createElement('p', null, 'off'))),
+            root
+        );
+
+        flushEffects();
+        expect(refCalls.length).toBe(1);
+        expect(refCalls[0]).not.toBeNull();
+        const span = refCalls[0];
+        expect(span.nodeName).toBe('SPAN');
+
+        cond.set(false);
+        flushEffects();
+        expect(refCalls.length).toBe(2);
+        expect(refCalls[1]).toBeNull();
+
+        dispose();
+    });
+
+    it('disposes nested conditional inner effects when outer flips', () => {
+        const root = document.createElement('div');
+        const condA = signal(true);
+        const condB = signal(true);
+        const leaf = signal(0);
+        let leafRuns = 0;
+
+        const dispose = render(
+            () =>
+                createElement('div', null, () =>
+                    condA()
+                        ? createElement('div', null, () =>
+                              condB()
+                                  ? createElement('span', null, () => {
+                                        leafRuns++;
+                                        return leaf();
+                                    })
+                                  : createElement('em', null, 'b-off')
+                          )
+                        : createElement('p', null, 'a-off')
+                ),
+            root
+        );
+
+        flushEffects();
+        flushEffects();
+        flushEffects();
+        const initial = leafRuns;
+        expect(initial).toBeGreaterThan(0);
+
+        // Outer flip should dispose both the inner condB switcher AND the leaf.
+        condA.set(false);
+        flushEffects();
+        flushEffects();
+        const afterFlip = leafRuns;
+
+        // Writing to either inner signal must NOT cause re-runs.
+        leaf.set(1);
+        flushEffects();
+        condB.set(false);
+        flushEffects();
+        leaf.set(2);
+        flushEffects();
+        expect(leafRuns).toBe(afterFlip);
+
+        dispose();
+    });
+
+    // Regression: dispose() the whole render while a sub-scope is alive.
+    // The top-level dispose must tear down nested sub-scopes — effects, event
+    // listeners, and ref callbacks — without first having to flip the
+    // conditional. Locks the contract the implementation already satisfies.
+    it('dispose() tears down live sub-scope (effects, listeners, refs)', () => {
+        const root = document.createElement('div');
+        const inner = signal(0);
+        let effectRuns = 0;
+        let clicks = 0;
+        const refCalls = [];
+
+        const dispose = render(
+            () =>
+                createElement('div', null, () =>
+                    createElement(
+                        'button',
+                        {
+                            'on:click': () => {
+                                clicks++;
+                            },
+                            ref: e => {
+                                refCalls.push(e);
+                            },
+                        },
+                        () => {
+                            effectRuns++;
+                            return inner();
+                        }
+                    )
+                ),
+            root
+        );
+
+        flushEffects();
+        const btn = Array.from(root.firstChild.childNodes).find(n => n.nodeName === 'BUTTON');
+        expect(btn).toBeDefined();
+        const initialRuns = effectRuns;
+        expect(initialRuns).toBeGreaterThan(0);
+        expect(refCalls.length).toBe(1);
+        expect(refCalls[0]).toBe(btn);
+
+        btn.click();
+        expect(clicks).toBe(1);
+
+        // Dispose while everything is alive. No prior cond flip.
+        dispose();
+
+        // ref(null) must have fired.
+        expect(refCalls.length).toBe(2);
+        expect(refCalls[1]).toBeNull();
+
+        // Detached button must no longer fire the handler.
+        btn.click();
+        expect(clicks).toBe(1);
+
+        // Writing to inner must NOT re-run the disposed effect.
+        inner.set(1);
+        flushEffects();
+        inner.set(2);
+        flushEffects();
+        expect(effectRuns).toBe(initialRuns);
+    });
+});
+
+// Lock the conditional-render cleanup contract. These cases should already
+// pass on top of the sub-scope wiring from item #2; failures here indicate a
+// real bug in `currentOnDispose` / sub-scope teardown — not a missing feature.
+describe('conditional render cleanup contract', () => {
+    it('swap back to truthy creates a fresh sub-scope (old node detached, new node live)', () => {
+        const root = document.createElement('div');
+        const cond = signal(true);
+        let clicks = 0;
+        const handler = () => {
+            clicks++;
+        };
+
+        const dispose = render(
+            () =>
+                createElement('div', null, () =>
+                    cond() ? createElement('span', { 'on:click': handler }, 'on') : createElement('p', null, 'off')
+                ),
+            root
+        );
+
+        flushEffects();
+        const outer = root.firstChild;
+        const oldSpan = Array.from(outer.childNodes).find(n => n.nodeName === 'SPAN');
+        expect(oldSpan).toBeDefined();
+        oldSpan.click();
+        expect(clicks).toBe(1);
+
+        cond.set(false);
+        flushEffects();
+        cond.set(true);
+        flushEffects();
+
+        const newSpan = Array.from(outer.childNodes).find(n => n.nodeName === 'SPAN');
+        expect(newSpan).toBeDefined();
+        expect(newSpan).not.toBe(oldSpan);
+
+        // The OLD span's listener must have been torn down by the first swap.
+        oldSpan.click();
+        expect(clicks).toBe(1);
+
+        // The NEW span has a fresh listener registered in the new sub-scope.
+        newSpan.click();
+        expect(clicks).toBe(2);
+
+        dispose();
+    });
+
+    it('user effect cleanup runs on re-run and on sub-scope dispose', () => {
+        const root = document.createElement('div');
+        const cond = signal(true);
+        const sig = signal(0);
+        const cleanups = [];
+
+        const MyComponent = () => {
+            effect(() => {
+                sig();
+                return () => {
+                    cleanups.push('cleaned');
+                };
+            });
+            return createElement('span', null, 'c');
+        };
+
+        const dispose = render(() => createElement('div', null, () => (cond() ? createElement(MyComponent, null) : 'off')), root);
+
+        flushEffects();
+        // First run done; cleanup does not fire on first run.
+        expect(cleanups).toEqual([]);
+
+        // Re-run via signal write: previous run's cleanup fires.
+        sig.set(1);
+        flushEffects();
+        expect(cleanups).toEqual(['cleaned']);
+
+        // Flip outer cond off: sub-scope tears down, current run's cleanup fires.
+        cond.set(false);
+        flushEffects();
+        expect(cleanups).toEqual(['cleaned', 'cleaned']);
+
+        // After teardown, further sig writes must not re-run the effect.
+        sig.set(2);
+        flushEffects();
+        expect(cleanups).toEqual(['cleaned', 'cleaned']);
+
+        dispose();
+    });
+
+    it('removes multiple listeners on the same node when conditional swaps it away', () => {
+        const root = document.createElement('div');
+        const cond = signal(true);
+        let clicks = 0;
+        let overs = 0;
+        const h1 = () => {
+            clicks++;
+        };
+        const h2 = () => {
+            overs++;
+        };
+
+        const dispose = render(
+            () =>
+                createElement('div', null, () =>
+                    cond() ? createElement('button', { 'on:click': h1, 'on:mouseover': h2 }, 'go') : createElement('p', null, 'off')
+                ),
+            root
+        );
+
+        flushEffects();
+        const btn = Array.from(root.firstChild.childNodes).find(n => n.nodeName === 'BUTTON');
+        expect(btn).toBeDefined();
+        btn.click();
+        btn.dispatchEvent(new Event('mouseover'));
+        expect(clicks).toBe(1);
+        expect(overs).toBe(1);
+
+        cond.set(false);
+        flushEffects();
+
+        // Both listeners must have been removed on swap.
+        btn.click();
+        btn.dispatchEvent(new Event('mouseover'));
+        expect(clicks).toBe(1);
+        expect(overs).toBe(1);
+
+        dispose();
+    });
+
+    it('nulls refs on both outer and inner nodes when outer conditional flips', () => {
+        const root = document.createElement('div');
+        const cond = signal(true);
+        const outerCalls = [];
+        const innerCalls = [];
+        const refOuter = e => {
+            outerCalls.push(e);
+        };
+        const refInner = e => {
+            innerCalls.push(e);
+        };
+
+        const dispose = render(
+            () =>
+                createElement('div', null, () =>
+                    cond() ? createElement('span', { ref: refOuter }, createElement('em', { ref: refInner })) : null
+                ),
+            root
+        );
+
+        flushEffects();
+        expect(outerCalls.length).toBe(1);
+        expect(innerCalls.length).toBe(1);
+        expect(outerCalls[0]?.nodeName).toBe('SPAN');
+        expect(innerCalls[0]?.nodeName).toBe('EM');
+
+        cond.set(false);
+        flushEffects();
+
+        expect(outerCalls.length).toBe(2);
+        expect(innerCalls.length).toBe(2);
+        expect(outerCalls[1]).toBeNull();
+        expect(innerCalls[1]).toBeNull();
+
+        dispose();
     });
 });

@@ -22,11 +22,12 @@ render(() => <Counter />, document.body);
 
 ## Status
 
-**v0.0.0 — minimum viable.** API is locked, 27 tests passing, benchmarks wired in.
+**v0.1.0-pre.** API is locked, 62 tests passing, 100% branch coverage, benchmarks wired in.
 
-Not yet supported (planned for v0.1):
-- Keyed list reconciliation (`<For each key>`).
-- Per-boundary dispose for conditional sub-trees.
+New in v0.1:
+- Keyed list reconciliation via [`forEach`](#keyed-lists-foreach) (sub-entry, opt-in).
+- Per-boundary dispose for conditional sub-trees (effects, `on:`, `ref` torn down when a function-child re-runs).
+- `setOnDispose` is now public for users implementing custom list/conditional helpers.
 
 ## Installation
 
@@ -178,6 +179,37 @@ A function in any prop becomes an `effect`:
 </ul>
 ```
 
+For long reactive lists with stable identity, use [`forEach`](#keyed-lists-foreach) instead — it keys nodes and reuses them on reorder.
+
+## Keyed lists: `forEach`
+
+Long lists with stable identity should use the keyed list helper. It's shipped as a sub-entry so apps that don't need it pay nothing:
+
+```jsx
+import { forEach } from '@slimlib/jsx/for-each';
+import { signal } from '@slimlib/store';
+
+const items = signal([{ id: 1, label: 'A' }, { id: 2, label: 'B' }]);
+
+<ul>
+    {forEach(
+        () => items(),
+        (item) => item.id,
+        (item, index) => <li>{() => item().label}</li>,
+    )}
+</ul>
+```
+
+Signature: `forEach<T>(each: () => readonly T[], key: (item, index) => string | number, body: (item: () => T, index: () => number) => Node): DocumentFragment`.
+
+- `each` is a thunk read in the renderer's reactive scope; updates to the underlying signal trigger reconciliation.
+- `key` must be unique per row. Identical keys reuse the same DOM node and per-item reactive scope on reorder.
+- `body` receives reactive accessors for `item` and `index` — both update in place when the same key moves position or its value changes, without rebuilding DOM.
+- Each row gets its own sub-scope, so `on:` listeners, `ref` callbacks, and `effect()` calls inside a row are disposed when the row is removed (or when the parent tree is disposed).
+- Returns a `DocumentFragment` — drop it anywhere JSX accepts a child (including inside a function-child return).
+
+Bundle cost: **610 B gzip** (sub-entry, separate from core).
+
 ## Web Components
 
 Define a custom element with `render()` in `connectedCallback`:
@@ -215,10 +247,10 @@ Real-DOM benchmarks (Chromium via Playwright with `--expose-gc`, M1 Mac, mitata 
 | custom-element-mount (100×) | 0.33 ms | 0.30 ms | 0.35 ms | 0.31 ms | 0.36 ms |
 | deep-tree (4096 leaves) | **2.49 ms** | 0.48 ms | 6.17 ms | 4.42 ms | 5.46 ms |
 | deep-tree-update (reactive label) | 1.72 ms | 0.87 ms | 1.27 ms | 2.30 ms | 0.98 ms |
-| swap-rows (keyed) | — | 0.21 ms | 0.27 ms | 0.39 ms | 0.32 ms |
-| shuffle-1000 (keyed) | — | 0.76 ms | 0.57 ms | 2.20 ms | 0.57 ms |
+| swap-rows (keyed) | **0.58 ms** | 0.21 ms | 0.27 ms | 0.39 ms | 0.32 ms |
+| shuffle-1000 (keyed) | **0.69 ms** | 0.83 ms | 0.59 ms | 2.27 ms | 0.57 ms |
 
-Keyed scenarios require v0.1. Reproduce: `pnpm bench:browser` (writes `results-browser.csv`).
+Keyed scenarios use `forEach` from `@slimlib/jsx/for-each`. Reproduce: `pnpm bench:browser` (writes `results-browser.csv`).
 
 ### Bundle size (esbuild minified, gzipped)
 
@@ -238,9 +270,9 @@ Keyed scenarios require v0.1. Reproduce: `pnpm bench:browser` (writes `results-b
 
 ## Design Notes
 
-- **One scope per `render()` call.** Components do NOT create per-component scopes. All effects/cleanups go to the single render-level scope, torn down by `dispose()`. Keeps mount cost minimal but means individual subtrees can't be disposed independently (v0.1 plan).
+- **One scope per `render()` call, with sub-scopes per dynamic boundary.** Components do NOT create their own scopes. Every function-child boundary (`{() => ...}`) and every `forEach` row gets a sub-scope that is disposed and replaced on re-run, so `on:` listeners, `ref` callbacks, and inner `effect()` calls don't leak when conditionals flip or list rows are removed.
 - **DocumentFragment only when needed.** When a component returns a single Node, the renderer inserts it directly. Fragment wrapping is reserved for primitives, arrays, and function-children — keeping deep-tree mounts cheap.
-- **No keyed reconciliation in v0.** Re-rendering an array of nodes from a thunk replaces the whole sub-range. For long lists with stable identity, wait for `<For>` in v0.1.
+- **Keyed reconciliation lives in a sub-entry.** `forEach` is opt-in via `@slimlib/jsx/for-each` so apps that don't need keyed lists don't pay for the diff algorithm. A reverse-walk reorder using `nextSibling` checks avoids the LIS step; reconcile is wrapped in `untracked()` to prevent the outer effect from re-subscribing on item writes.
 - **Prototype-setter cache.** First touch of each `(tagName, propName)` pair walks the prototype chain; result cached for the lifetime of the program. Same heuristic as vanjs.
 
 ## License

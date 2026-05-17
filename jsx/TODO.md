@@ -3,37 +3,39 @@
 Scope: features that close the gap to v1 readiness without bloating the core.
 Keep gzip footprint under ~4 KB (currently 3.06 KB with store, 2.70 KB standalone).
 
-## 1. Keyed list renderer
+Status:
+- [x] #2 Sub-scope per dynamic boundary — shipped (commit pending).
+- [x] #3 Conditional render cleanup contract — locked by tests (no source change needed).
+- [x] #1 Keyed list renderer — shipped as `forEach` (sub-entry `@slimlib/jsx/for-each`). `<For>` component variant was prototyped and dropped after browser bench showed `forEach` was 10–15% faster and 24 B smaller (gzip). See `Notes from v0.1` below.
 
-**Goal:** unlock the `swap-rows` and `shuffle-1000` benchmark scenarios; enable typical row/table UIs.
+## Notes from v0.1 perf work (Nov 2025)
 
-**Shape (proposed):**
+Browser bench (chromium, mitata) — keyed list scenarios:
 
-```jsx
-<For each={() => items()} key={(item) => item.id}>
-    {(item, index) => <li>{() => item.label}</li>}
-</For>
-```
+| Scenario      | snabbdom | solid-js | voby | preact | @slimlib forEach | @slimlib For (dropped) |
+|---------------|---------:|---------:|-----:|-------:|-----------------:|-----------------------:|
+| swap-rows     |    74 µs |   325 µs | 267 µs | 333 µs |        **583 µs** |                 675 µs |
+| shuffle-1000  |   492 µs |   575 µs | 592 µs | 2270 µs |       **692 µs** |                 733 µs |
 
-or a function form:
+- `forEach` (plain function returning a `DocumentFragment`) consistently beat the JSX-component `For` variant in both happy-dom and chromium runs. No expressivity advantage to `For` — both take the same `each` / `key` / body shape.
+- Reconcile wrapped in `untracked()` to avoid an outer-effect cycle when item signals are written during reorder.
+- Sub-scope per item via `setOnDispose` (newly exported from `@slimlib/jsx`) routes `on:` / `ref` cleanups to the item's own scope, so removed rows tear down cleanly.
 
-```jsx
-{forEach(
+## 1. Keyed list renderer — SHIPPED
+
+Final shape (kept):
+
+```js
+import { forEach } from '@slimlib/jsx/for-each';
+
+forEach(
     () => items(),
     (item) => item.id,
-    (item) => <li>...</li>,
-)}
+    (item, index) => <li>{() => item().label}</li>,
+)
 ```
 
-**Implementation notes:**
-
-- Insert anchor comment nodes (start/end), same pattern as the existing function-child effect.
-- Maintain `Map<key, { node, item, dispose }>` between renders.
-- Diff old key list vs new key list using a single-pass LIS-free algorithm (Solid does this; ~80 LOC).
-- Each item gets its OWN sub-scope (see #2) so reactive bindings inside an item teardown when the item is removed.
-- Decide: keep in core, or ship as `@slimlib/jsx/for` sub-entry to keep base size minimal.
-
-**Open question:** does `key` accept a primitive value too? (`key={(_, i) => i}` is the unkeyed fallback.)
+Returns a `DocumentFragment` that can be embedded anywhere a `Node` is accepted (including as a function-child return value).
 
 ## 2. Sub-scope per dynamic boundary
 
@@ -74,6 +76,10 @@ When `condition` flips, the old subtree's `effect()` calls and event listeners a
 - **Server-side render to string**: out of scope until DOM API surface is locked.
 - **Hydration**: out of scope for v0.x.
 
+## Invariants (do not break)
+
+- `insertBefore`'s function-child branch unwraps a returned function eagerly **without** creating its own sub-scope. This is safe today because `currentOnDispose` still points at the enclosing sub-scope when this branch runs. If a future change adds a reactive boundary (an `effect()` call) here, it MUST push/pop `setOnDispose` to its own sub-scope's `onDispose` — otherwise listener/ref cleanups created in the inner function will leak into the outer scope.
+
 ## Notes from v0.0 perf work (Nov 2025)
 
 - Text fast-path (mutate `.data` instead of remove + recreate on primitive→primitive
@@ -92,6 +98,6 @@ When `condition` flips, the old subtree's `effect()` calls and event listeners a
 1. Open feature branch off `jsx`.
 2. Implement #2 (sub-scope) first — small change, unblocks #1 and #3.
 3. Add tests for #3 (proves #2 works).
-4. Implement #1 (keyed list) on top of #2.
+4. Implement #1 on top of #2.
 5. Benchmark `swap-rows` / `shuffle-1000` against voby/solid/lit-html.
 6. Update README, results CSVs, bump to 0.1.0.

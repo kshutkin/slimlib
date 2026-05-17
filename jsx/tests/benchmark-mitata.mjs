@@ -66,6 +66,7 @@ const mithril = await safeImport('mithril', () => import('mithril'));
 const snabbdom = await safeImport('snabbdom', () => import('snabbdom'));
 const litRepeat = await safeImport('lit-html/directives/repeat', () => import('lit-html/directives/repeat.js'));
 const slimlibJsx = await safeImport('@slimlib/jsx', () => import('../dist/index.mjs'));
+const slimlibForEach = await safeImport('@slimlib/jsx/for-each', () => import('../dist/for-each.mjs'));
 const slimlibStore = await safeImport('@slimlib/store', () => import('@slimlib/store'));
 
 // ----- adapters -------------------------------------------------------------
@@ -1816,6 +1817,56 @@ const snabbdomKeyed = snabbdom
       })()
     : null;
 
+// ---- @slimlib/jsx (forEach function) ----
+const slimlibForEachKeyed =
+    slimlibJsx && slimlibStore && slimlibForEach
+        ? (() => {
+              const { createElement: h, render } = slimlibJsx;
+              const { signal, flushEffects } = slimlibStore;
+              const forEach = slimlibForEach.forEach;
+              if (typeof forEach !== 'function') {
+                  console.warn('[bench] @slimlib/jsx/for-each adapter disabled: missing forEach');
+                  return null;
+              }
+              function build(orderB) {
+                  return {
+                      async: true,
+                      setup() {
+                          const c = makeContainer();
+                          const items = signal(baseItems);
+                          const dispose = render(
+                              () =>
+                                  h(
+                                      'div',
+                                      null,
+                                      forEach(
+                                          () => items(),
+                                          item => item.id,
+                                          item => h('div', null, () => item().label)
+                                      )
+                                  ),
+                              c
+                          );
+                          return { ctx: { items, dispose }, toggle: false };
+                      },
+                      run(state) {
+                          state.toggle = !state.toggle;
+                          state.ctx.items.set(state.toggle ? orderB : baseItems);
+                          flushEffects();
+                      },
+                      teardown(state) {
+                          state.ctx.dispose?.();
+                      },
+                  };
+              }
+              return {
+                  name: '@slimlib/jsx',
+                  swapRows: build(swappedOrder),
+                  shuffle1000: build(shuffledOrder),
+              };
+          })()
+        : null;
+
 const keyedAdapters = [
     uhtmlKeyed,
     lighterKeyed,
@@ -1826,6 +1877,7 @@ const keyedAdapters = [
     preactKeyed,
     mithrilKeyed,
     snabbdomKeyed,
+    slimlibForEachKeyed,
 ].filter(Boolean);
 
 // ---- voby DOM-commit probe (must happen after vobyKeyed is built) ----
