@@ -30,8 +30,7 @@ export const render = (factory, container) => {
     return createScope(onDispose => {
         const prev = setOnDispose(onDispose);
         try {
-            const frag = /** @type {DocumentFragment} */ (createElement(factory, null));
-            container.appendChild(frag);
+            container.appendChild(createElement(factory, null));
         } finally {
             setOnDispose(prev);
         }
