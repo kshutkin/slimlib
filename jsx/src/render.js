@@ -1,7 +1,8 @@
 import { scope as createScope } from '@slimlib/store';
 
-import { createElement, setOnDispose } from './create-element';
-import type { Child } from './types';
+import { createElement, setOnDispose } from './create-element.js';
+
+/** @typedef {import('./types.js').Child} Child */
 
 /**
  * Mount JSX into `container`. The first argument must be a function that produces
@@ -20,12 +21,16 @@ import type { Child } from './types';
  * or remove the specific nodes) after calling dispose.
  *
  * Usage: `render(() => <App />, document.body)`
+ *
+ * @param {() => Child} factory
+ * @param {Element | DocumentFragment} container
+ * @returns {() => void}
  */
-export const render = (factory: () => Child, container: Element | DocumentFragment): (() => void) => {
+export const render = (factory, container) => {
     return createScope(onDispose => {
         const prev = setOnDispose(onDispose);
         try {
-            const frag = createElement(factory, null);
+            const frag = /** @type {DocumentFragment} */ (createElement(factory, null));
             container.appendChild(frag);
         } finally {
             setOnDispose(prev);

@@ -1,15 +1,18 @@
 import { effect, scope, signal, untracked } from '@slimlib/store';
 
-import { setOnDispose } from './index';
-import type { Signal } from '@slimlib/store';
-import type { Child } from './types';
+import { setOnDispose } from './index.js';
 
-type Entry<T> = {
-    node: Node;
-    itemSig: Signal<T>;
-    idxSig: Signal<number>;
-    dispose: () => void;
-};
+/** @typedef {import('./types.js').Child} Child */
+
+/**
+ * @template T
+ * @typedef {{
+ *     node: Node,
+ *     itemSig: import('@slimlib/store').Signal<T>,
+ *     idxSig: import('@slimlib/store').Signal<number>,
+ *     dispose: () => void
+ * }} Entry
+ */
 
 /**
  * Keyed list renderer.
@@ -32,25 +35,30 @@ type Entry<T> = {
  * inserts / moves / removes item nodes between them. Per-item sub-scopes are
  * children of the surrounding scope, so they tear down on item removal or
  * when the outer scope is disposed.
+ *
+ * @template T
+ * @param {() => readonly T[]} each
+ * @param {(item: T, index: number) => string | number} key
+ * @param {(item: () => T, index: () => number) => Child} body
+ * @returns {DocumentFragment}
  */
-export const forEach = <T>(
-    each: () => readonly T[],
-    key: (item: T, index: number) => string | number,
-    body: (item: () => T, index: () => number) => Child
-): DocumentFragment => {
+export const forEach = (each, key, body) => {
     const frag = document.createDocumentFragment();
     const start = document.createComment('');
     const end = document.createComment('');
     frag.appendChild(start);
     frag.appendChild(end);
 
-    let prevMap = new Map<string | number, Entry<T>>();
+    /** @type {Map<string | number, Entry<T>>} */
+    let prevMap = new Map();
 
     effect(() => {
         const arr = each();
         const len = arr.length;
-        const newMap = new Map<string | number, Entry<T>>();
-        const newKeys: (string | number)[] = new Array(len);
+        /** @type {Map<string | number, Entry<T>>} */
+        const newMap = new Map();
+        /** @type {(string | number)[]} */
+        const newKeys = new Array(len);
 
         // Reconciliation runs untracked so that signal reads performed by `body`
         // during item construction (and by per-item function-child effects when
@@ -60,20 +68,22 @@ export const forEach = <T>(
         // outer effect — triggering the store's cycle guard.
         untracked(() => {
             for (let i = 0; i < len; i++) {
-                const item = arr[i] as T;
+                const item = /** @type {T} */ (arr[i]);
                 const k = key(item, i);
                 newKeys[i] = k;
                 const existing = prevMap.get(k);
-                let entry: Entry<T>;
+                /** @type {Entry<T>} */
+                let entry;
                 if (existing !== undefined) {
                     if (!Object.is(existing.itemSig(), item)) existing.itemSig.set(item);
                     if (existing.idxSig() !== i) existing.idxSig.set(i);
                     prevMap.delete(k);
                     entry = existing;
                 } else {
-                    const itemSig = signal<T>(item);
-                    const idxSig = signal<number>(i);
-                    let node: Node | undefined;
+                    const itemSig = signal(item);
+                    const idxSig = signal(i);
+                    /** @type {Node | undefined} */
+                    let node;
                     const dispose = scope(onDispose => {
                         // Route non-effect cleanups (on:* listeners, ref(null)) into THIS
                         // sub-scope so they tear down when the item is removed. Without
@@ -90,12 +100,12 @@ export const forEach = <T>(
                             setOnDispose(prev);
                         }
                     });
-                    entry = { node: node as Node, itemSig, idxSig, dispose };
+                    entry = { node: /** @type {Node} */ (node), itemSig, idxSig, dispose };
                 }
                 newMap.set(k, entry);
             }
 
-            const parent = end.parentNode as Node;
+            const parent = /** @type {Node} */ (end.parentNode);
 
             // Remove entries that vanished from the new list.
             for (const entry of prevMap.values()) {
@@ -105,9 +115,10 @@ export const forEach = <T>(
 
             // Reorder + insert. Walk new order in reverse so each step's anchor
             // (the node that should follow `i`) is already in its final position.
-            let nextRef: Node = end;
+            /** @type {Node} */
+            let nextRef = end;
             for (let i = len - 1; i >= 0; i--) {
-                const entry = newMap.get(newKeys[i] as string | number) as Entry<T>;
+                const entry = /** @type {Entry<T>} */ (newMap.get(/** @type {string | number} */ (newKeys[i])));
                 if (entry.node.nextSibling !== nextRef) {
                     parent.insertBefore(entry.node, nextRef);
                 }
