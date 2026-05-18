@@ -14,24 +14,21 @@ import type { Child } from './types';
  * synchronously, either drain manually with `flushEffects()` or install a
  * synchronous scheduler via `setScheduler(fn => fn())`.
  *
+ * The returned dispose function tears down reactive bindings only — it does
+ * **not** remove the inserted DOM nodes from `container`. If you need to
+ * unmount the DOM, remove the nodes yourself (e.g. `container.replaceChildren()`
+ * or remove the specific nodes) after calling dispose.
+ *
  * Usage: `render(() => <App />, document.body)`
  */
 export const render = (factory: () => Child, container: Element | DocumentFragment): (() => void) => {
-    let inserted: Node[] = [];
-    const s = createScope(onDispose => {
+    return createScope(onDispose => {
         const prev = setOnDispose(onDispose);
         try {
-            const frag = createElement(factory, null) as DocumentFragment;
-            inserted = Array.from(frag.childNodes);
+            const frag = createElement(factory, null);
             container.appendChild(frag);
         } finally {
             setOnDispose(prev);
         }
     });
-    return () => {
-        s();
-        for (const n of inserted) {
-            if (n.parentNode === container) container.removeChild(n);
-        }
-    };
 };
