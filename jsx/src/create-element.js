@@ -256,16 +256,16 @@ export const createElement = (type, props, ...children) => {
             return result;
         }
         // Fallback for primitives / arrays / function-children: wrap in a fragment.
-        const frag = document.createDocumentFragment();
-        appendChild(frag, result);
-        return frag;
+        const fragment = document.createDocumentFragment();
+        appendChild(fragment, result);
+        return fragment;
     }
-    const el = document.createElement(type);
-    for (const k in props) {
-        setProp(el, k, /** @type {Record<string, unknown>} */ (props)[k]);
+    const element = document.createElement(type);
+    for (const key in props) {
+        setProp(element, key, /** @type {Record<string, unknown>} */ (props)[key]);
     }
     for (let i = 0; i < childrenLength; ++i) {
-        appendChild(el, children[i]);
+        appendChild(element, children[i]);
     }
-    return el;
+    return element;
 };
