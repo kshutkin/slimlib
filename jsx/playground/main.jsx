@@ -121,6 +121,11 @@ const TodoList = () => {
 
 const App = () => (
     <>
+        <h1>@slimlib/jsx playground</h1>
+        <p>
+            Edit <code>main.jsx</code> and refresh — esbuild rebuilds on request. JSX is compiled with{' '}
+            <code>jsxImportSource: "@slimlib/jsx"</code>.
+        </p>
         <section class="demo">
             <h2>Counter (signal + on:click)</h2>
             <Counter />
