@@ -1,4 +1,4 @@
-import { effect, scope } from '@slimlib/store';
+import { activeScope, effect, scope } from '@slimlib/store';
 
 /** @typedef {import('./types.js').Child} Child */
 /** @typedef {import('./types.js').Primitive} Primitive */
@@ -164,6 +164,10 @@ const appendChild = (parent, child) => {
         const end = document.createComment('');
         parent.appendChild(start);
         parent.appendChild(end);
+        // Capture the surrounding scope at setup time. The effect below runs
+        // later via the flush queue, when `activeScope` is typically undefined —
+        // so the sub-scope created below would otherwise be orphaned.
+        const parentScope = activeScope;
         // Each re-render gets its own child scope so effects, on:* listeners,
         // and ref(null) cleanups registered by the previous subtree are disposed
         // when the function-child swaps content. The effect cleanup disposes the
@@ -184,7 +188,7 @@ const appendChild = (parent, child) => {
                 } finally {
                     setOnDispose(prev);
                 }
-            });
+            }, parentScope);
             return () => sub();
         });
         return;

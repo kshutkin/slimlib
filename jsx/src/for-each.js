@@ -1,4 +1,4 @@
-import { effect, scope, signal, untracked } from '@slimlib/store';
+import { activeScope, effect, scope, signal, untracked } from '@slimlib/store';
 
 import { setOnDispose } from './index.js';
 
@@ -43,6 +43,12 @@ import { setOnDispose } from './index.js';
  * @returns {DocumentFragment}
  */
 export const forEach = (each, key, body) => {
+    // Capture the surrounding scope at construction time. The reconciler effect
+    // below runs later via the flush queue, at which point `activeScope` is
+    // typically undefined — so per-item `scope(...)` calls would otherwise be
+    // orphaned (not reachable from any parent) and survive `render()` dispose.
+    const parentScope = activeScope;
+
     const frag = document.createDocumentFragment();
     const start = document.createComment('');
     const end = document.createComment('');
@@ -99,7 +105,7 @@ export const forEach = (each, key, body) => {
                         } finally {
                             setOnDispose(prev);
                         }
-                    });
+                    }, parentScope);
                     entry = { node: /** @type {Node} */ (node), itemSig, idxSig, dispose };
                 }
                 newMap.set(k, entry);

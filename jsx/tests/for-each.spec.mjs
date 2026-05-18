@@ -326,4 +326,62 @@ describe('forEach — keyed list renderer', () => {
         errSpy.mockRestore();
         expect(errs.some(e => e instanceof Error && /single Node/.test(e.message))).toBe(true);
     });
+
+    it('14. render dispose tears down per-item reactive children (no orphan scopes)', () => {
+        // Regression test: per-item scopes used to be created during reconciler
+        // effect re-runs, when activeScope is undefined — making them orphans
+        // unreachable from the render scope. render() dispose then failed to
+        // tear down per-item reactive children (function-child inner effects),
+        // and they kept firing on shared-signal changes.
+        //
+        // The bug only manifests with the async default scheduler: with the
+        // sync scheduler the reconciler effect runs synchronously while the
+        // surrounding scope is still active. Use a manual flush queue here.
+        const queue = [];
+        setScheduler(fn => queue.push(fn));
+        const flush = () => {
+            while (queue.length) queue.shift()();
+            flushEffects();
+        };
+        try {
+            const shared = signal(0);
+            const items = signal([{ id: 'a' }, { id: 'b' }, { id: 'c' }]);
+            let itemFires = 0;
+            const dispose = render(
+                () =>
+                    createElement(
+                        'ul',
+                        null,
+                        forEach(
+                            () => items(),
+                            item => item.id,
+                            item =>
+                                createElement('li', null, () => {
+                                    shared();
+                                    item();
+                                    itemFires++;
+                                    return String(item().id);
+                                })
+                        )
+                    ),
+                document.body
+            );
+            flush();
+            expect(itemFires).toBe(3);
+            shared.set(1);
+            flush();
+            expect(itemFires).toBe(6);
+
+            dispose();
+            const before = itemFires;
+            shared.set(2);
+            flush();
+            // Without the fix: orphan per-item scopes survive dispose and the
+            // shared-signal write re-fires every item's inner effect.
+            expect(itemFires).toBe(before);
+        } finally {
+            setScheduler(fn => fn());
+            document.body.innerHTML = '';
+        }
+    });
 });
