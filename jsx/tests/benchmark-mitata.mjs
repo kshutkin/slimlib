@@ -65,8 +65,8 @@ const preact = await safeImport('preact', () => import('preact'));
 const mithril = await safeImport('mithril', () => import('mithril'));
 const snabbdom = await safeImport('snabbdom', () => import('snabbdom'));
 const litRepeat = await safeImport('lit-html/directives/repeat', () => import('lit-html/directives/repeat.js'));
-const slimlibJsx = await safeImport('@slimlib/jsx', () => import('../dist/index.mjs'));
-const slimlibForEach = await safeImport('@slimlib/jsx/for-each', () => import('../dist/for-each.mjs'));
+const slimlibJsx = await safeImport('@slimlib/jsx', () => import('../src/index.js'));
+const slimlibForEach = await safeImport('@slimlib/jsx/for-each', () => import('../src/for-each.js'));
 const slimlibStore = await safeImport('@slimlib/store', () => import('@slimlib/store'));
 
 // @slimlib/jsx does not call flushEffects() internally — the library is
