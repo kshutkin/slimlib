@@ -261,10 +261,8 @@ export const createElement = (type, props, ...children) => {
         return frag;
     }
     const el = document.createElement(type);
-    if (props !== null) {
-        for (const k in props) {
-            setProp(el, k, /** @type {Record<string, unknown>} */ (props)[k]);
-        }
+    for (const k in props) {
+        setProp(el, k, /** @type {Record<string, unknown>} */ (props)[k]);
     }
     for (let i = 0; i < childrenLength; ++i) {
         appendChild(el, children[i]);
