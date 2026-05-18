@@ -211,7 +211,7 @@ const appendChild = (parent, child) => {
 const insertBefore = (parent, child, anchor) => {
     if (child == null || child === false || child === true) return;
     if (Array.isArray(child)) {
-        for (let i = 0; i < child.length; i++) insertBefore(parent, child[i], anchor);
+        for (let i = 0; i < child.length; ++i) insertBefore(parent, child[i], anchor);
         return;
     }
     if (child instanceof Node) {
