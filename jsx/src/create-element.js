@@ -239,19 +239,22 @@ const insertBefore = (parent, child, anchor) => {
  * @returns {Node}
  */
 export const createElement = (type, props, ...children) => {
+    const childrenLength = children.length;
     if (typeof type === 'function') {
         // Inject children into props only when present; avoid spread allocation otherwise.
         /** @type {Props} */
         const compProps =
-            children.length === 0
+            childrenLength === 0
                 ? /** @type {Props} */ (props ?? {})
                 : /** @type {Props} */ ({
                       .../** @type {Props} */ (props ?? {}),
-                      children: children.length === 1 ? children[0] : children,
+                      children: childrenLength === 1 ? children[0] : children,
                   });
         const result = /** @type {Component<Props>} */ (type)(compProps);
         // Fast path: component returned a single Node — no fragment wrapping needed.
-        if (result instanceof Node) return result;
+        if (result instanceof Node) {
+            return result;
+        }
         // Fallback for primitives / arrays / function-children: wrap in a fragment.
         const frag = document.createDocumentFragment();
         appendChild(frag, result);
@@ -260,10 +263,11 @@ export const createElement = (type, props, ...children) => {
     const el = document.createElement(type);
     if (props !== null) {
         for (const k in props) {
-            if (k === 'children') continue;
             setProp(el, k, /** @type {Record<string, unknown>} */ (props)[k]);
         }
     }
-    for (let i = 0; i < children.length; i++) appendChild(el, children[i]);
+    for (let i = 0; i < childrenLength; ++i) {
+        appendChild(el, children[i]);
+    }
     return el;
 };

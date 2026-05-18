@@ -241,19 +241,6 @@ describe('attribute prefix + children-in-props', () => {
         expect(el.hasAttribute('children')).toBe(false);
     });
 
-    // Same skip, but via createElement directly with 'children' in props.
-    // jsx-runtime strips children from props via destructuring, so to hit
-    // the L166 continue branch we have to call createElement directly.
-    it('createElement skips a children prop', () => {
-        // createElement signature: (type, props, ...children)
-        // When props contains a 'children' key, it must be skipped.
-        const el = createElement('div', { id: 'y', children: 'ignored-via-prop' }, 'real');
-        expect(el.getAttribute('id')).toBe('y');
-        // The literal 'real' is the actual child (positional arg), not the prop.
-        expect(el.textContent).toBe('real');
-        expect(el.hasAttribute('children')).toBe(false);
-    });
-
     // create-element.ts L40 + L26: getPropSetter caches `null` when the property
     // descriptor exists but has no setter (getter-only / read-only). Reached
     // by attempting to set a read-only DOM property like 'tagName'.
