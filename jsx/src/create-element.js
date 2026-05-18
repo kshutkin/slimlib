@@ -247,7 +247,7 @@ export const createElement = (type, props, ...children) => {
             childrenLength === 0
                 ? /** @type {Props} */ (props ?? {})
                 : /** @type {Props} */ ({
-                      .../** @type {Props} */ (props ?? {}),
+                      .../** @type {Props} */ (props),
                       children: childrenLength === 1 ? children[0] : children,
                   });
         const result = /** @type {Component<Props>} */ (type)(compProps);
