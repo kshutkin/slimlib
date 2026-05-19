@@ -181,8 +181,8 @@ const appendChild = (parent, child) => {
             // `end` is always reached before the sibling chain runs out, so no
             // null guard is needed (start and end live in `parent` together).
             while (nextSibling !== end) {
-                const nextNextSibling = nextSibling.nextSibling;
-                parent.removeChild(nextSibling);
+                const nextNextSibling = /** @type {ChildNode} */ (nextSibling).nextSibling;
+                parent.removeChild(/** @type {ChildNode} */ (nextSibling));
                 nextSibling = nextNextSibling;
             }
             scopeInstance = scope(onDispose => {
