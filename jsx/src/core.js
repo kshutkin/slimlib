@@ -78,21 +78,15 @@ const getPropertySetter = (element, key) => {
 const applyProperty = (element, key, value) => {
     if (key.startsWith('prop:')) {
         /** @type {Record<string, unknown>} */ (/** @type {unknown} */ (element))[key.slice(5)] = value;
-        return;
-    }
-    if (key.startsWith('attr:')) {
+    } else if (key.startsWith('attr:')) {
         const k = key.slice(5);
         if (value === false || value == null) element.removeAttribute(k);
         else element.setAttribute(k, value === true ? '' : String(value));
-        return;
-    }
-    const setter = getPropertySetter(element, key);
-    if (setter !== null) {
-        setter.call(element, value);
-    } else if (value === false || value == null) {
-        element.removeAttribute(key);
     } else {
-        element.setAttribute(key, value === true ? '' : String(value));
+        const setter = getPropertySetter(element, key);
+        if (setter !== null) setter.call(element, value);
+        else if (value === false || value == null) element.removeAttribute(key);
+        else element.setAttribute(key, value === true ? '' : String(value));
     }
 };
 
@@ -112,25 +106,21 @@ const setProp = (element, key, value) => {
             element.addEventListener(eventName, listener);
             currentOnDispose?.(() => element.removeEventListener(eventName, listener));
         }
-        return;
-    }
-    if (key === 'ref') {
+    } else if (key === 'ref') {
         if (typeof value === 'function') {
             const refFn = /** @type {(e: Element | null) => void} */ (value);
             refFn(element);
             currentOnDispose?.(() => refFn(null));
         }
-        return;
-    }
-    if (typeof value === 'function') {
+    } else if (typeof value === 'function') {
         const reactive = /** @type {() => unknown} */ (value);
         // effect() auto-registers with the active store scope.
         effect(() => {
             applyProperty(element, key, reactive());
         });
-        return;
+    } else {
+        applyProperty(element, key, value);
     }
-    applyProperty(element, key, value);
 };
 
 /**
@@ -141,14 +131,13 @@ const setProp = (element, key, value) => {
  * @returns {void}
  */
 const appendChild = (parent, child) => {
-    if (child == null || child === false || child === true) return;
-    if (Array.isArray(child)) {
+    if (child == null || child === false || child === true) {
+        // skip
+    } else if (Array.isArray(child)) {
         for (let i = 0; i < child.length; ++i) {
             appendChild(parent, child[i]);
         }
-        return;
-    }
-    if (typeof child === 'function') {
+    } else if (typeof child === 'function') {
         const start = document.createComment('');
         const end = document.createComment('');
         parent.appendChild(start);
@@ -183,13 +172,11 @@ const appendChild = (parent, child) => {
             }, parentScope);
             return () => scopeInstance();
         });
-        return;
-    }
-    if (child instanceof Node) {
+    } else if (child instanceof Node) {
         parent.appendChild(child);
-        return;
+    } else {
+        parent.appendChild(document.createTextNode(String(/** @type {Primitive} */ (child))));
     }
-    parent.appendChild(document.createTextNode(String(/** @type {Primitive} */ (child))));
 };
 
 /**
@@ -201,26 +188,23 @@ const appendChild = (parent, child) => {
  * @returns {void}
  */
 const insertBefore = (parent, child, anchor) => {
-    if (child == null || child === false || child === true) return;
-    if (Array.isArray(child)) {
+    if (child == null || child === false || child === true) {
+        // skip
+    } else if (Array.isArray(child)) {
         for (let i = 0; i < child.length; ++i) {
             insertBefore(parent, child[i], anchor);
         }
-        return;
-    }
-    if (child instanceof Node) {
+    } else if (child instanceof Node) {
         parent.insertBefore(child, anchor);
-        return;
-    }
-    if (typeof child === 'function') {
+    } else if (typeof child === 'function') {
         // One-shot eager evaluation: a function-child returning another function
         // is unwrapped here without creating an effect. No re-runs → no leak,
         // so no sub-scope is needed. The outer effect (set up by appendChild)
         // owns reactivity for this slot.
         insertBefore(parent, child(), anchor);
-        return;
+    } else {
+        parent.insertBefore(document.createTextNode(String(/** @type {Primitive} */ (child))), anchor);
     }
-    parent.insertBefore(document.createTextNode(String(/** @type {Primitive} */ (child))), anchor);
 };
 
 /**
