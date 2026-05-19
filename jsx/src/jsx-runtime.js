@@ -1,4 +1,4 @@
-import { createElementArray, Fragment } from './create-element.js';
+import { createElementArray, Fragment } from './core.js';
 
 /** @typedef {import('./types.js').Child} Child */
 /** @typedef {import('./types.js').Props} Props */

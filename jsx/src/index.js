@@ -1,2 +1,1 @@
-export { createElement, Fragment, setOnDispose } from './create-element.js';
-export { render } from './render.js';
+export { createElement, Fragment, render } from './core.js';
