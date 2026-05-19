@@ -178,7 +178,9 @@ const appendChild = (parent, child) => {
         let scopeInstance;
         effect(() => {
             let nextSibling = start.nextSibling;
-            while (nextSibling !== null && nextSibling !== end) {
+            // `end` is always reached before the sibling chain runs out, so no
+            // null guard is needed (start and end live in `parent` together).
+            while (nextSibling !== end) {
                 const nextNextSibling = nextSibling.nextSibling;
                 parent.removeChild(nextSibling);
                 nextSibling = nextNextSibling;
