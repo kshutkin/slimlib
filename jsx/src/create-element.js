@@ -230,15 +230,17 @@ const insertBefore = (parent, child, anchor) => {
 };
 
 /**
- * Build a Node for a JSX element. Uses module-level scope state.
+ * Internal: build a Node from an already-arrayed children list. Shared by both
+ * the public varargs `createElement` and the JSX automatic-runtime entry points
+ * (`jsx` / `jsxs`) to avoid the array → spread → rest → array roundtrip.
  *
  * @template {Props} P
  * @param {ElementType<P>} type
  * @param {P | null} props
- * @param {...Child} children
+ * @param {readonly Child[]} children
  * @returns {Node}
  */
-export const createElement = (type, props, ...children) => {
+export const createElementArray = (type, props, children) => {
     const childrenLength = children.length;
     if (typeof type === 'function') {
         // Inject children into props only when present; avoid spread allocation otherwise.
@@ -269,3 +271,14 @@ export const createElement = (type, props, ...children) => {
     }
     return element;
 };
+
+/**
+ * Build a Node for a JSX element (classic varargs signature).
+ *
+ * @template {Props} P
+ * @param {ElementType<P>} type
+ * @param {P | null} props
+ * @param {...Child} children
+ * @returns {Node}
+ */
+export const createElement = (type, props, ...children) => createElementArray(type, props, children);
