@@ -39,29 +39,31 @@ let currentOnDispose = null;
  *
  * @type {Map<string, ((value: unknown) => void) | null>}
  */
-const propSetterCache = new Map();
+const propertiesSetterCache = new Map();
 
 /**
  * @param {Element} element
  * @param {string} key
  * @returns {((value: unknown) => void) | null}
  */
-const getPropSetter = (element, key) => {
+const getPropertySetter = (element, key) => {
     const cacheKey = `${element.tagName},${key}`;
-    let setter = propSetterCache.get(cacheKey);
-    if (setter !== undefined) return setter;
+    let setter = propertiesSetterCache.get(cacheKey);
+    if (setter !== undefined) {
+        return setter;
+    }
     /** @type {object | null} */
-    let proto = Object.getPrototypeOf(element);
-    while (proto !== null) {
-        const desc = Object.getOwnPropertyDescriptor(proto, key);
+    let prototype = Object.getPrototypeOf(element);
+    while (prototype !== null) {
+        const desc = Object.getOwnPropertyDescriptor(prototype, key);
         if (desc !== undefined) {
             setter = desc.set !== undefined ? /** @type {(value: unknown) => void} */ (desc.set) : null;
-            propSetterCache.set(cacheKey, setter);
+            propertiesSetterCache.set(cacheKey, setter);
             return setter;
         }
-        proto = Object.getPrototypeOf(proto);
+        prototype = Object.getPrototypeOf(prototype);
     }
-    propSetterCache.set(cacheKey, null);
+    propertiesSetterCache.set(cacheKey, null);
     return null;
 };
 
@@ -73,7 +75,7 @@ const getPropSetter = (element, key) => {
  * @param {unknown} value
  * @returns {void}
  */
-const applyProp = (element, key, value) => {
+const applyProperty = (element, key, value) => {
     if (key.startsWith('prop:')) {
         /** @type {Record<string, unknown>} */ (/** @type {unknown} */ (element))[key.slice(5)] = value;
         return;
@@ -84,7 +86,7 @@ const applyProp = (element, key, value) => {
         else element.setAttribute(k, value === true ? '' : String(value));
         return;
     }
-    const setter = getPropSetter(element, key);
+    const setter = getPropertySetter(element, key);
     if (setter !== null) {
         setter.call(element, value);
     } else if (value === false || value == null) {
@@ -108,8 +110,7 @@ const setProp = (element, key, value) => {
         if (typeof value === 'function') {
             const listener = /** @type {EventListener} */ (value);
             element.addEventListener(eventName, listener);
-            if (currentOnDispose !== null)
-                currentOnDispose(() => element.removeEventListener(eventName, listener));
+            currentOnDispose?.(() => element.removeEventListener(eventName, listener));
         }
         return;
     }
@@ -117,7 +118,7 @@ const setProp = (element, key, value) => {
         if (typeof value === 'function') {
             const refFn = /** @type {(e: Element | null) => void} */ (value);
             refFn(element);
-            if (currentOnDispose !== null) currentOnDispose(() => refFn(null));
+            currentOnDispose?.(() => refFn(null));
         }
         return;
     }
@@ -125,11 +126,11 @@ const setProp = (element, key, value) => {
         const reactive = /** @type {() => unknown} */ (value);
         // effect() auto-registers with the active store scope.
         effect(() => {
-            applyProp(element, key, reactive());
+            applyProperty(element, key, reactive());
         });
         return;
     }
-    applyProp(element, key, value);
+    applyProperty(element, key, value);
 };
 
 /**
