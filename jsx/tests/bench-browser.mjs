@@ -34,11 +34,9 @@ await build({
     target: 'es2022',
     sourcemap: 'inline',
     logLevel: 'warning',
-    // happy-dom is referenced behind `if (typeof window === 'undefined')` via
-    // a dynamic import — esbuild will produce a chunk it never loads in the
-    // browser. Mark it external as a belt-and-suspenders so the bundle stays
-    // small and we never fault on a node-only dep at import time.
-    external: ['happy-dom', 'bun:jsc', 'node:os', 'node:v8', 'node:process', 'node:fs/promises', 'node:url'],
+    // mitata reaches for these runtime-detection modules transitively; stub
+    // them out so the browser bundle never faults on a node/bun-only dep.
+    external: ['bun:jsc', 'node:os', 'node:v8', 'node:process'],
 });
 
 await writeFile(
@@ -48,13 +46,10 @@ await writeFile(
 <body>
 <script type="importmap">
 { "imports": {
-  "happy-dom": "data:text/javascript,export const Window = class {};",
   "bun:jsc":   "data:text/javascript,export const memoryUsage = () => ({});",
   "node:os":   "data:text/javascript,export default {};",
   "node:v8":   "data:text/javascript,export default {};",
-  "node:process": "data:text/javascript,export default {};",
-  "node:fs/promises": "data:text/javascript,export const writeFile = () => {};",
-  "node:url": "data:text/javascript,export const fileURLToPath = (x) => String(x);"
+  "node:process": "data:text/javascript,export default {};"
 } }
 </script>
 <script type="module" src="./bundle.mjs"></script>

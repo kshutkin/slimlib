@@ -16,28 +16,8 @@
  *   2. update-1000          — pre-render 1000 items, then patch every text node
  *   3. custom-element-mount — define a small custom element once, mount 100 of it
  *
- * Run with: node tests/benchmark-mitata.mjs
+ * Run with: pnpm bench:browser
  */
-
-// In Node we need a DOM via happy-dom; in a real browser we already have one.
-// The import is dynamic so esbuild can dead-code-strip it for browser bundles.
-if (typeof window === 'undefined') {
-    const { Window } = await import('happy-dom');
-    const win = new Window();
-    globalThis.window = win;
-    globalThis.document = win.document;
-    globalThis.customElements = win.customElements;
-    globalThis.HTMLElement = win.HTMLElement;
-    globalThis.Node = win.Node;
-    globalThis.Element = win.Element;
-    globalThis.Text = win.Text;
-    globalThis.DocumentFragment = win.DocumentFragment;
-    globalThis.Event = win.Event;
-    globalThis.CustomEvent = win.CustomEvent;
-    globalThis.MutationObserver = win.MutationObserver;
-    globalThis.requestAnimationFrame = cb => setTimeout(() => cb(performance.now()), 0);
-    globalThis.cancelAnimationFrame = id => clearTimeout(id);
-}
 
 const { bench, group, run, summary } = await import('mitata');
 
@@ -1734,8 +1714,8 @@ const solidKeyed =
               const { createSignal, For } = solid;
               const render = solidWeb.render;
               const h = solidH.default ?? solidH;
-              // Probe: solid's For under happy-dom trips "Client-only API called on the
-              // server side". Skip cleanly there; real browser passes the probe.
+              // Probe: solid's For can trip "Client-only API called on the server side"
+              // in some DOM environments. Skip cleanly there; real Chromium passes.
               try {
                   const probe = document.createElement('div');
                   const [items] = createSignal([{ id: 0, label: 'p' }]);
@@ -2257,20 +2237,6 @@ for (const scenario of scenarioOrder) {
 }
 const csv = rows.join('\n') + '\n';
 
-// We're in Node iff `process` looks real. The browser bundle stubs
-// node:process to `{}` via the importmap, but `globalThis.process` itself
-// isn't defined there; in Node it always is, even though we've also set
-// globalThis.window to happy-dom for the DOM polyfill.
-const isNodeRuntime = typeof process !== 'undefined' && !!process?.versions?.node;
-
-if (isNodeRuntime) {
-    const { writeFile } = await import('node:fs/promises');
-    const { fileURLToPath } = await import('node:url');
-    const outPath = fileURLToPath(new URL('../results-mitata.csv', import.meta.url));
-    await writeFile(outPath, csv);
-    console.log(`[bench] wrote results-mitata.csv (${scenarioCount} scenarios x ${libOrder.length} libs)`);
-} else {
-    console.log(`[bench-results] ${JSON.stringify({ scenarioOrder, libOrder, csv, scenarioCount })}`);
-}
+console.log(`[bench-results] ${JSON.stringify({ scenarioOrder, libOrder, csv, scenarioCount })}`);
 
 console.log('[bench-done]');
