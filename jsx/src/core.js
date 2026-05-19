@@ -25,31 +25,14 @@ export const Fragment = props => props.children;
  * and clears it after. Non-effect cleanups (ref-null callbacks, event listener removal)
  * register through here. Effects register with the active store scope automatically.
  *
+ * Manipulated via inlined `prev = currentOnDispose; currentOnDispose = …` swaps at
+ * render(), appendChild() function-child, and forEach() per-item sites; restored in a
+ * `finally` block for nesting safety. Cleanup registration is inlined as well:
+ * `if (currentOnDispose !== null) currentOnDispose(cb);`.
+ *
  * @type {((cb: () => void) => void) | null}
  */
 let currentOnDispose = null;
-
-/**
- * Internal: set the current dispose register; returns the previous one (for nesting).
- * Not exported from the package — only used by render() and forEach() within this
- * module to route non-effect cleanups into the correct sub-scope.
- *
- * @param {((cb: () => void) => void) | null} cb
- * @returns {((cb: () => void) => void) | null}
- */
-const setOnDispose = cb => {
-    const prev = currentOnDispose;
-    currentOnDispose = cb;
-    return prev;
-};
-
-/**
- * @param {() => void} cb
- * @returns {void}
- */
-const registerCleanup = cb => {
-    if (currentOnDispose !== null) currentOnDispose(cb);
-};
 
 /**
  * Cache of resolved property setters keyed by "tagName,propName". Stored unbound; bound per-call.
@@ -125,7 +108,8 @@ const setProp = (element, key, value) => {
         if (typeof value === 'function') {
             const listener = /** @type {EventListener} */ (value);
             element.addEventListener(eventName, listener);
-            registerCleanup(() => element.removeEventListener(eventName, listener));
+            if (currentOnDispose !== null)
+                currentOnDispose(() => element.removeEventListener(eventName, listener));
         }
         return;
     }
@@ -133,7 +117,7 @@ const setProp = (element, key, value) => {
         if (typeof value === 'function') {
             const refFn = /** @type {(e: Element | null) => void} */ (value);
             refFn(element);
-            registerCleanup(() => refFn(null));
+            if (currentOnDispose !== null) currentOnDispose(() => refFn(null));
         }
         return;
     }
@@ -188,11 +172,12 @@ const appendChild = (parent, child) => {
                 nextSibling = nextNextSibling;
             }
             scopeInstance = scope(onDispose => {
-                const prev = setOnDispose(onDispose);
+                const prev = currentOnDispose;
+                currentOnDispose = onDispose;
                 try {
                     insertBefore(parent, child(), end);
                 } finally {
-                    setOnDispose(prev);
+                    currentOnDispose = prev;
                 }
             }, parentScope);
             return () => scopeInstance();
@@ -315,11 +300,12 @@ export const createElement = (type, props, ...children) => createElementArray(ty
  */
 export const render = (factory, container) => {
     return scope(onDispose => {
-        const prev = setOnDispose(onDispose);
+        const prev = currentOnDispose;
+        currentOnDispose = onDispose;
         try {
             container.appendChild(createElement(factory, null));
         } finally {
-            setOnDispose(prev);
+            currentOnDispose = prev;
         }
     });
 };
@@ -415,7 +401,8 @@ export const forEach = (each, key, body) => {
                         // sub-scope so they tear down when the item is removed. Without
                         // this, the renderer's module-level dispose register still points
                         // at the surrounding scope and listeners outlive the item.
-                        const prev = setOnDispose(onDispose);
+                        const prev = currentOnDispose;
+                        currentOnDispose = onDispose;
                         try {
                             const built = body(itemSig, idxSig);
                             if (!(built instanceof Node)) {
@@ -423,7 +410,7 @@ export const forEach = (each, key, body) => {
                             }
                             node = built;
                         } finally {
-                            setOnDispose(prev);
+                            currentOnDispose = prev;
                         }
                     }, parentScope);
                     entry = { node: /** @type {Node} */ (node), itemSig, idxSig, dispose };
