@@ -300,12 +300,12 @@ export const createElement = (type, props, ...children) => createElementArray(ty
  */
 export const render = (factory, container) => {
     return scope(onDispose => {
-        const prev = currentOnDispose;
+        const prevOnDispose = currentOnDispose;
         currentOnDispose = onDispose;
         try {
             container.appendChild(createElement(factory, null));
         } finally {
-            currentOnDispose = prev;
+            currentOnDispose = prevOnDispose;
         }
     });
 };
