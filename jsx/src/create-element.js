@@ -57,16 +57,16 @@ const registerCleanup = cb => {
 const propSetterCache = new Map();
 
 /**
- * @param {Element} el
+ * @param {Element} element
  * @param {string} key
  * @returns {((value: unknown) => void) | null}
  */
-const getPropSetter = (el, key) => {
-    const cacheKey = `${el.tagName},${key}`;
+const getPropSetter = (element, key) => {
+    const cacheKey = `${element.tagName},${key}`;
     let setter = propSetterCache.get(cacheKey);
     if (setter !== undefined) return setter;
     /** @type {object | null} */
-    let proto = Object.getPrototypeOf(el);
+    let proto = Object.getPrototypeOf(element);
     while (proto !== null) {
         const desc = Object.getOwnPropertyDescriptor(proto, key);
         if (desc !== undefined) {
@@ -83,54 +83,54 @@ const getPropSetter = (el, key) => {
 /**
  * Apply a single prop value (static).
  *
- * @param {Element} el
+ * @param {Element} element
  * @param {string} key
  * @param {unknown} value
  * @returns {void}
  */
-const applyProp = (el, key, value) => {
+const applyProp = (element, key, value) => {
     if (key.startsWith('prop:')) {
-        /** @type {Record<string, unknown>} */ (/** @type {unknown} */ (el))[key.slice(5)] = value;
+        /** @type {Record<string, unknown>} */ (/** @type {unknown} */ (element))[key.slice(5)] = value;
         return;
     }
     if (key.startsWith('attr:')) {
         const k = key.slice(5);
-        if (value === false || value == null) el.removeAttribute(k);
-        else el.setAttribute(k, value === true ? '' : String(value));
+        if (value === false || value == null) element.removeAttribute(k);
+        else element.setAttribute(k, value === true ? '' : String(value));
         return;
     }
-    const setter = getPropSetter(el, key);
+    const setter = getPropSetter(element, key);
     if (setter !== null) {
-        setter.call(el, value);
+        setter.call(element, value);
     } else if (value === false || value == null) {
-        el.removeAttribute(key);
+        element.removeAttribute(key);
     } else {
-        el.setAttribute(key, value === true ? '' : String(value));
+        element.setAttribute(key, value === true ? '' : String(value));
     }
 };
 
 /**
  * Set a prop, wiring up reactivity when value is a function.
  *
- * @param {Element} el
+ * @param {Element} element
  * @param {string} key
  * @param {unknown} value
  * @returns {void}
  */
-const setProp = (el, key, value) => {
+const setProp = (element, key, value) => {
     if (key.startsWith('on:')) {
         const eventName = key.slice(3);
         if (typeof value === 'function') {
             const listener = /** @type {EventListener} */ (value);
-            el.addEventListener(eventName, listener);
-            registerCleanup(() => el.removeEventListener(eventName, listener));
+            element.addEventListener(eventName, listener);
+            registerCleanup(() => element.removeEventListener(eventName, listener));
         }
         return;
     }
     if (key === 'ref') {
         if (typeof value === 'function') {
             const refFn = /** @type {(e: Element | null) => void} */ (value);
-            refFn(el);
+            refFn(element);
             registerCleanup(() => refFn(null));
         }
         return;
@@ -139,11 +139,11 @@ const setProp = (el, key, value) => {
         const reactive = /** @type {() => unknown} */ (value);
         // effect() auto-registers with the active store scope.
         effect(() => {
-            applyProp(el, key, reactive());
+            applyProp(element, key, reactive());
         });
         return;
     }
-    applyProp(el, key, value);
+    applyProp(element, key, value);
 };
 
 /**
