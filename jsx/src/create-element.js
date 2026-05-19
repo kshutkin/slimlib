@@ -156,7 +156,9 @@ const setProp = (el, key, value) => {
 const appendChild = (parent, child) => {
     if (child == null || child === false || child === true) return;
     if (Array.isArray(child)) {
-        for (let i = 0; i < child.length; i++) appendChild(parent, child[i]);
+        for (let i = 0; i < child.length; ++i) {
+            appendChild(parent, child[i]);
+        }
         return;
     }
     if (typeof child === 'function') {
@@ -172,16 +174,16 @@ const appendChild = (parent, child) => {
         // and ref(null) cleanups registered by the previous subtree are disposed
         // when the function-child swaps content. The effect cleanup disposes the
         // sub-scope before each re-run and on final disposal.
-        /** @type {() => void} */
-        let sub;
+        /** @type {import('@slimlib/store').Scope} */
+        let scopeInstance;
         effect(() => {
-            let n = start.nextSibling;
-            while (n !== null && n !== end) {
-                const nx = n.nextSibling;
-                parent.removeChild(n);
-                n = nx;
+            let nextSibling = start.nextSibling;
+            while (nextSibling !== null && nextSibling !== end) {
+                const nextNextSibling = nextSibling.nextSibling;
+                parent.removeChild(nextSibling);
+                nextSibling = nextNextSibling;
             }
-            sub = scope(onDispose => {
+            scopeInstance = scope(onDispose => {
                 const prev = setOnDispose(onDispose);
                 try {
                     insertBefore(parent, child(), end);
@@ -189,7 +191,7 @@ const appendChild = (parent, child) => {
                     setOnDispose(prev);
                 }
             }, parentScope);
-            return () => sub();
+            return () => scopeInstance();
         });
         return;
     }
@@ -211,7 +213,9 @@ const appendChild = (parent, child) => {
 const insertBefore = (parent, child, anchor) => {
     if (child == null || child === false || child === true) return;
     if (Array.isArray(child)) {
-        for (let i = 0; i < child.length; ++i) insertBefore(parent, child[i], anchor);
+        for (let i = 0; i < child.length; ++i) {
+            insertBefore(parent, child[i], anchor);
+        }
         return;
     }
     if (child instanceof Node) {
