@@ -205,6 +205,22 @@ describe('Reactive children', () => {
         flushEffects();
         expect(div.textContent).toBe('0');
     });
+
+    it('bare signal works as a child and as a prop value (no wrapper closure)', () => {
+        // Signals are callable, so they're accepted directly anywhere the
+        // renderer accepts a reactive function — no `() => sig()` wrapper.
+        const cls = signal('a');
+        const text = signal('hello');
+        mount(() => createElement('div', { className: cls }, text));
+        const div = document.querySelector('div');
+        expect(div.className).toBe('a');
+        expect(div.textContent).toBe('hello');
+        cls.set('b');
+        text.set('world');
+        flushEffects();
+        expect(div.className).toBe('b');
+        expect(div.textContent).toBe('world');
+    });
 });
 
 describe('jsx-runtime', () => {

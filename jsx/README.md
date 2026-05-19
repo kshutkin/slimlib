@@ -10,7 +10,7 @@ const Counter = () => {
     const count = signal(0);
     return (
         <button on:click={() => count.set(count() + 1)}>
-            Count: {() => count()}
+            Count: {count}
         </button>
     );
 };
@@ -63,20 +63,20 @@ Updates flow exclusively through reactive primitives from `@slimlib/store`:
 - `computed(fn)` — derived value.
 - `effect(fn)` — side-effect that re-runs on dependency change.
 
-When you put a **function** in a JSX expression, the renderer wraps it in an `effect()` automatically:
+When you put a **function** in a JSX expression, the renderer wraps it in an `effect()` automatically. Signals from `@slimlib/store` are themselves callable functions, so you pass them in directly — no wrapper closure needed for a single-signal read:
 
 ```jsx
 const name = signal('World');
 
 <div>
-    Hello, {() => name()}                            {/* reactive text */}
-    <span class={() => active() ? 'on' : 'off'} />   {/* reactive attr */}
+    Hello, {name}                                    {/* reactive text */}
+    <span class={() => active() ? 'on' : 'off'} />   {/* reactive attr — derived */}
 </div>
 
 name.set('there');                       // text updates
 ```
 
-Same model as SolidJS, but without the JSX-compiler magic — you explicitly write `{() => signal()}` rather than `{signal()}`.
+Same model as SolidJS, but without the JSX-compiler magic. The wrapper form `{() => sig()}` is only needed when you combine multiple signals, do a ternary, or compute a derived value — anything beyond a single signal read. For per-property reactivity inside `forEach`, see [Gotchas](#gotchas).
 
 ## API
 
@@ -214,12 +214,14 @@ const items = signal([{ id: 1, label: 'A' }, { id: 2, label: 'B' }]);
 
 <ul>
     {forEach(
-        () => items(),
+        items,
         (item) => item.id,
         (item, index) => <li>{() => item().label}</li>,
     )}
 </ul>
 ```
+
+`each` accepts a bare signal directly (it's a function). Inside `body`, `item()` returns the **whole entry** — so reading a single property reactively still needs the wrapper form `{() => item().prop}`.
 
 Signature: `forEach<T>(each: () => readonly T[], key: (item, index) => string | number, body: (item: () => T, index: () => number) => Node): DocumentFragment`.
 
@@ -242,7 +244,7 @@ class XCounter extends HTMLElement {
         this._dispose = render(
             () => (
                 <button on:click={() => count.set(count() + 1)}>
-                    Count: {() => count()}
+                    Count: {count}
                 </button>
             ),
             this,
@@ -258,6 +260,33 @@ customElements.define('x-counter', XCounter);
 Custom element properties are detected by the prototype-setter heuristic — pass typed values straight through JSX.
 
 The element body is populated on the next microtask after `render()` returns (see [Commit timing](#commit-timing)). This is fine for the usual case of a freshly-attached element with no consumer reading its children synchronously; install a sync scheduler if your tests need to inspect children inside the same microtask as `connectedCallback`.
+
+## Gotchas
+
+**`on:event={sig}` and `ref={sig}` are NOT reactive.** Both paths bail out before the reactive-function check: the renderer always treats `on:*` values as event listeners and `ref` values as callbacks. Pass a literal handler/ref function — not a signal:
+
+```jsx
+{/* WRONG — sig becomes the click listener and fires with an Event arg */}
+<button on:click={mySignal}>...</button>
+
+{/* WRONG — sig is invoked once with the element, never re-invoked */}
+<div ref={mySignal}>...</div>
+
+{/* OK */}
+<button on:click={() => mySignal.set(mySignal() + 1)}>...</button>
+```
+
+**`forEach` body: `item()` is the whole entry.** Reading a single property is a derived value, so it needs the wrapper form:
+
+```jsx
+{forEach(items, it => it.id, item => (
+    <li class={() => item().done ? 'done' : ''}>
+        {() => item().text}
+    </li>
+))}
+```
+
+**Reuse the closure when binding multiple slots to the same signal.** `{sig}` allocates nothing extra at the call site, but if you write `{() => sig()}` repeatedly each instance is its own closure. Hoist or just pass `sig` directly.
 
 ## Benchmarks
 

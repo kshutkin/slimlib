@@ -8,7 +8,7 @@ const Counter = () => {
     return (
         <div class="row">
             <button on:click={() => count.set(count() - 1)}>−</button>
-            <output>{() => count()}</output>
+            <output>{count}</output>
             <button on:click={() => count.set(count() + 1)}>+</button>
             <button on:click={() => count.set(0)}>reset</button>
         </div>
@@ -46,11 +46,11 @@ const Greeter = () => {
         <div class="row">
             <input
                 type="text"
-                value={() => name()}
+                value={name}
                 on:input={e => name.set(e.currentTarget.value)}
             />
             <span>
-                Hello, <strong>{() => name()}</strong>! ({() => upper()})
+                Hello, <strong>{name}</strong>! ({upper})
             </span>
         </div>
     );
@@ -85,7 +85,7 @@ const TodoList = () => {
             <div class="row">
                 <input
                     type="text"
-                    value={() => draft()}
+                    value={draft}
                     on:input={e => draft.set(e.currentTarget.value)}
                     on:keydown={e => e.key === 'Enter' && add()}
                     placeholder="New item…"
@@ -95,7 +95,7 @@ const TodoList = () => {
             </div>
             <ul class="todo">
                 {forEach(
-                    () => items(),
+                    items,
                     it => it.id,
                     it => (
                         <li class={() => (it().done ? 'done' : '')}>
