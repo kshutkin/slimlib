@@ -186,6 +186,57 @@ function w6() {
     w6state.items.set(W6_SHUFFLES[w6tick++ & 3]);
 }
 
+// W7/W8/W9: head-trim / tail-trim sweet-spot workloads. 1000-item list,
+// then mutate at one end. Toggle between two snapshots so the workload is
+// stable per iteration (avoids unbounded id growth that would break GC stats).
+const W789_BASE = Array.from({ length: 1000 }, (_, i) => ({ id: i, label: `n${i}` }));
+function w789factory() {
+    const container = document.createElement('div');
+    const items = signal(W789_BASE);
+    const dispose = render(
+        () =>
+            h(
+                'ul',
+                null,
+                forEach(
+                    () => items(),
+                    item => item.id,
+                    item => h('li', null, () => item().label)
+                )
+            ),
+        container
+    );
+    flushEffects();
+    return { items, dispose };
+}
+
+// W7 append-tail: toggle between base and base + one extra row at the end.
+const W7_ALT = W789_BASE.concat({ id: 1000, label: 'n1000' });
+let w7state;
+let w7tick = 0;
+function w7() {
+    w7state.items.set(++w7tick & 1 ? W7_ALT : W789_BASE);
+}
+
+// W8 prepend-head: toggle between base and one new row at the front.
+const W8_ALT = [{ id: -1, label: 'n-1' }, ...W789_BASE];
+let w8state;
+let w8tick = 0;
+function w8() {
+    w8state.items.set(++w8tick & 1 ? W8_ALT : W789_BASE);
+}
+
+// W9 update-tail-label: keep ordering identical; mutate only the LAST row's
+// label so head-trim should skip 999 entries and the last row stays in place
+// (only its reactive text effect re-runs).
+const W9_BASE = W789_BASE.slice(0, 999).concat({ id: 999, label: 'A' });
+const W9_ALT  = W789_BASE.slice(0, 999).concat({ id: 999, label: 'B' });
+let w9state;
+let w9tick = 0;
+function w9() {
+    w9state.items.set(++w9tick & 1 ? W9_ALT : W9_BASE);
+}
+
 // ----- driver ---------------------------------------------------------------
 
 const results = [];
@@ -206,6 +257,20 @@ results.push(runWorkload('W5 forEach-mount-100', w5));
 w6state = w6factory();
 results.push(runWorkload('W6 forEach-shuffle-100', w6));
 w6state.dispose();
+
+w7state = w789factory();
+results.push(runWorkload('W7 forEach-append-tail-1000', w7));
+w7state.dispose();
+
+w8state = w789factory();
+// Prime w8state with W8_ALT so the first toggle does meaningful work.
+results.push(runWorkload('W8 forEach-prepend-head-1000', w8));
+w8state.dispose();
+
+w9state = w789factory();
+w9state.items.set(W9_BASE); flushEffects();
+results.push(runWorkload('W9 forEach-update-tail-1000', w9));
+w9state.dispose();
 
 // ----- report ---------------------------------------------------------------
 

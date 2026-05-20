@@ -50,6 +50,7 @@
         "build": "dts-buddy -m @slimlib/jsx:./src/index.js -m @slimlib/jsx/jsx-runtime:./src/jsx-runtime.js -m @slimlib/jsx/for-each:./src/for-each.js",
         "test": "vitest run --coverage --config ../vitest.config.mjs",
         "bench": "node tests/bench-browser.mjs",
+        "bench:fakedom": "node tests/bench-fakedom.mjs",
         "size": "node tests/bundle-size.mjs",
         "play": "node playground/serve.mjs",
         "prepack": "pkgprn-internal --strip-comments --flatten=src,types"

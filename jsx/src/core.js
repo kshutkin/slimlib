@@ -470,11 +470,28 @@ export const forEach = (each, key, body) => {
             parent.removeChild(entry.node);
         }
 
-        // Reorder + insert. Walk new order in reverse so each step's anchor
-        // (the node that should follow `i`) is already in its final position.
+        // Reorder + insert. Trim already-correct head/tail, then walk the
+        // remaining middle in reverse so each step's anchor (the node that
+        // should follow `i`) is already in its final position.
+        let lo = 0;
+        let hi = length - 1;
+        // Head trim: advance past entries already at the correct DOM slot.
+        let headRef = start.nextSibling;
+        while (lo <= hi && /** @type {Entry<T>} */ (newEntries[lo]).node === headRef) {
+            headRef = /** @type {Node} */ (headRef).nextSibling;
+            lo++;
+        }
+        // Tail trim: retreat past entries already at the correct DOM slot.
         /** @type {Node} */
-        let nextRef = end;
-        for (let i = length - 1; i >= 0; --i) {
+        let tailRef = end;
+        while (hi >= lo) {
+            const expected = tailRef.previousSibling;
+            if (/** @type {Entry<T>} */ (newEntries[hi]).node !== expected) break;
+            tailRef = /** @type {Node} */ (expected);
+            hi--;
+        }
+        let nextRef = tailRef;
+        for (let i = hi; i >= lo; --i) {
             const entry = /** @type {Entry<T>} */ (newEntries[i]);
             if (entry.node.nextSibling !== nextRef) {
                 parent.insertBefore(entry.node, nextRef);

@@ -1453,6 +1453,9 @@ const slimlibAdapter =
             // Keyed scenarios not yet supported (no list-reconciliation algorithm).
             swapRows: null,
             shuffle1000: null,
+            appendTail: null,
+            prependHead: null,
+            updateTail: null,
         };
     })();
 
@@ -1503,6 +1506,12 @@ function makeShuffledOrder(items) {
 const baseItems = makeKeyedItems();
 const swappedOrder = makeSwappedOrder(baseItems);
 const shuffledOrder = makeShuffledOrder(baseItems);
+const appendTailOrder = baseItems.concat({ id: 1000, label: 'row 1000' });
+const prependHeadOrder = [{ id: -1, label: 'row -1' }, ...baseItems];
+// updateTailOrder shares 999 element identities with baseItems; only the last
+// item is a fresh object with a different label so reactive text updates fire
+// while keys stay stable.
+const updateTailOrder = baseItems.slice(0, KEYED_N - 1).concat({ id: KEYED_N - 1, label: 'updated' });
 
 // Generic shape: init(c) -> ctx; apply(ctx, items) re-renders that order.
 function makeKeyedAdapter(name, init, apply) {
@@ -1519,7 +1528,14 @@ function makeKeyedAdapter(name, init, apply) {
             },
         };
     }
-    return { name, swapRows: build(swappedOrder), shuffle1000: build(shuffledOrder) };
+    return {
+        name,
+        swapRows: build(swappedOrder),
+        shuffle1000: build(shuffledOrder),
+        appendTail: build(appendTailOrder),
+        prependHead: build(prependHeadOrder),
+        updateTail: build(updateTailOrder),
+    };
 }
 
 // Probe: render initial items, capture node, render reordered items, check
@@ -1608,7 +1624,14 @@ const lighterKeyed =
                       },
                   };
               }
-              return { name: 'lighterhtml', swapRows: build(swappedOrder), shuffle1000: build(shuffledOrder) };
+              return {
+                  name: 'lighterhtml',
+                  swapRows: build(swappedOrder),
+                  shuffle1000: build(shuffledOrder),
+                  appendTail: build(appendTailOrder),
+                  prependHead: build(prependHeadOrder),
+                  updateTail: build(updateTailOrder),
+              };
           })()
         : null;
 
@@ -1703,7 +1726,14 @@ const vobyKeyed =
                       },
                   };
               }
-              return { name: 'voby', swapRows: build(swappedOrder), shuffle1000: build(shuffledOrder) };
+              return {
+                  name: 'voby',
+                  swapRows: build(swappedOrder),
+                  shuffle1000: build(shuffledOrder),
+                  appendTail: build(appendTailOrder),
+                  prependHead: build(prependHeadOrder),
+                  updateTail: build(updateTailOrder),
+              };
           })()
         : null;
 
@@ -1739,7 +1769,14 @@ const solidKeyed =
                       },
                   };
               }
-              return { name: 'solid-js', swapRows: build(swappedOrder), shuffle1000: build(shuffledOrder) };
+              return {
+                  name: 'solid-js',
+                  swapRows: build(swappedOrder),
+                  shuffle1000: build(shuffledOrder),
+                  appendTail: build(appendTailOrder),
+                  prependHead: build(prependHeadOrder),
+                  updateTail: build(updateTailOrder),
+              };
           })()
         : null;
 
@@ -1805,7 +1842,14 @@ const snabbdomKeyed = snabbdom
                   },
               };
           }
-          return { name: 'snabbdom', swapRows: build(swappedOrder), shuffle1000: build(shuffledOrder) };
+          return {
+              name: 'snabbdom',
+              swapRows: build(swappedOrder),
+              shuffle1000: build(shuffledOrder),
+              appendTail: build(appendTailOrder),
+              prependHead: build(prependHeadOrder),
+              updateTail: build(updateTailOrder),
+          };
       })()
     : null;
 
@@ -1856,6 +1900,9 @@ const slimlibForEachKeyed =
                   name: '@slimlib/jsx',
                   swapRows: build(swappedOrder),
                   shuffle1000: build(shuffledOrder),
+                  appendTail: build(appendTailOrder),
+                  prependHead: build(prependHeadOrder),
+                  updateTail: build(updateTailOrder),
               };
           })()
         : null;
@@ -2153,11 +2200,16 @@ for (const [scenarioName, entries] of scenarios) {
     });
 }
 
-for (const scenarioName of ['swap-rows', 'shuffle-1000']) {
+for (const scenarioName of ['swap-rows', 'shuffle-1000', 'append-tail-1000', 'prepend-head-1000', 'update-tail-1000']) {
     group(scenarioName, () => {
         summary(() => {
             for (const adapter of keyedAdapters) {
-                const spec = scenarioName === 'swap-rows' ? adapter.swapRows : adapter.shuffle1000;
+                const spec =
+                    scenarioName === 'swap-rows' ? adapter.swapRows :
+                    scenarioName === 'shuffle-1000' ? adapter.shuffle1000 :
+                    scenarioName === 'append-tail-1000' ? adapter.appendTail :
+                    scenarioName === 'prepend-head-1000' ? adapter.prependHead :
+                    adapter.updateTail;
                 if (!spec) continue;
                 bench(adapter.name, function* () {
                     const state = spec.setup();
@@ -2192,7 +2244,7 @@ const runResult = await run();
 // is the scenario group label. `stats.samples` and `stats.avg` are in
 // nanoseconds — we convert to milliseconds to match store/results.csv.
 
-const scenarioOrder = ['create-1000', 'update-1000', 'custom-element-mount', 'deep-tree', 'deep-tree-update', 'swap-rows', 'shuffle-1000'];
+const scenarioOrder = ['create-1000', 'update-1000', 'custom-element-mount', 'deep-tree', 'deep-tree-update', 'swap-rows', 'shuffle-1000', 'append-tail-1000', 'prepend-head-1000', 'update-tail-1000'];
 const libOrder = allAdapters.map(a => a.name);
 
 // scenario -> lib -> { mean, variance, n } (all in ms / ms²)
