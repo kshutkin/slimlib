@@ -169,6 +169,29 @@ describe('Reactive props', () => {
         flushEffects();
         expect(div.className).toBe('a');
     });
+
+    it('does not poison cache with null when element is rendered before customElements.define', () => {
+        const tag = 'my-upgrade-el';
+        const foo = signal('initial');
+        mount(() => createElement(tag, { foo }));
+        const el = document.querySelector(tag);
+        // Pre-upgrade: no IDL setter on HTMLElement.prototype, so falls back to setAttribute.
+        expect(el.getAttribute('foo')).toBe('initial');
+
+        class MyUpgradeEl extends HTMLElement {
+            set foo(v) { this._foo = v; }
+            get foo() { return this._foo; }
+        }
+        customElements.define(tag, MyUpgradeEl);
+        // happy-dom may not auto-upgrade existing nodes; ensure the prototype is swapped so
+        // the IDL setter is reachable on the existing element.
+        if (!(el instanceof MyUpgradeEl)) Object.setPrototypeOf(el, MyUpgradeEl.prototype);
+
+        foo.set('after-upgrade');
+        flushEffects();
+        // The fix: post-upgrade, the reactive update must hit the IDL setter, not the stale null cache.
+        expect(el._foo).toBe('after-upgrade');
+    });
 });
 
 describe('Reactive children', () => {

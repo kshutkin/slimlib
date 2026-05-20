@@ -63,7 +63,6 @@ const getPropertySetter = (element, key) => {
         }
         prototype = Object.getPrototypeOf(prototype);
     }
-    propertiesSetterCache.set(cacheKey, null);
     return null;
 };
 
