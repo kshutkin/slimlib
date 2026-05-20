@@ -339,22 +339,22 @@ export const forEach = (each, key, body) => {
     // orphaned (not reachable from any parent) and survive `render()` dispose.
     const parentScope = activeScope;
 
-    const frag = document.createDocumentFragment();
+    const fragment = document.createDocumentFragment();
     const start = document.createComment('');
     const end = document.createComment('');
-    frag.appendChild(start);
-    frag.appendChild(end);
+    fragment.appendChild(start);
+    fragment.appendChild(end);
 
     /** @type {Map<string | number, Entry<T>>} */
-    let prevMap = new Map();
+    let previousMap = new Map();
 
     effect(() => {
-        const arr = each();
-        const len = arr.length;
+        const array = each();
+        const length = array.length;
         /** @type {Map<string | number, Entry<T>>} */
         const newMap = new Map();
         /** @type {(string | number)[]} */
-        const newKeys = new Array(len);
+        const newKeys = new Array(length);
 
         // Reconciliation runs untracked so that signal reads performed by `body`
         // during item construction (and by per-item function-child effects when
@@ -363,21 +363,21 @@ export const forEach = (each, key, body) => {
         // item via `itemSig.set` from within this run would re-schedule the
         // outer effect — triggering the store's cycle guard.
         untracked(() => {
-            for (let i = 0; i < len; i++) {
-                const item = /** @type {T} */ (arr[i]);
+            for (let i = 0; i < length; ++i) {
+                const item = /** @type {T} */ (array[i]);
                 const k = key(item, i);
                 newKeys[i] = k;
-                const existing = prevMap.get(k);
+                const existing = previousMap.get(k);
                 /** @type {Entry<T>} */
                 let entry;
                 if (existing !== undefined) {
                     if (!Object.is(existing.itemSig(), item)) existing.itemSig.set(item);
                     if (existing.idxSig() !== i) existing.idxSig.set(i);
-                    prevMap.delete(k);
+                    previousMap.delete(k);
                     entry = existing;
                 } else {
-                    const itemSig = signal(item);
-                    const idxSig = signal(i);
+                    const itemSignal = signal(item);
+                    const indexSignal = signal(i);
                     /** @type {Node | undefined} */
                     let node;
                     const dispose = scope(onDispose => {
@@ -385,19 +385,19 @@ export const forEach = (each, key, body) => {
                         // sub-scope so they tear down when the item is removed. Without
                         // this, the renderer's module-level dispose register still points
                         // at the surrounding scope and listeners outlive the item.
-                        const prev = currentOnDispose;
+                        const previousOnDispose = currentOnDispose;
                         currentOnDispose = onDispose;
                         try {
-                            const built = body(itemSig, idxSig);
+                            const built = body(itemSignal, indexSignal);
                             if (!(built instanceof Node)) {
                                 throw new Error('forEach: body must return a single Node');
                             }
                             node = built;
                         } finally {
-                            currentOnDispose = prev;
+                            currentOnDispose = previousOnDispose;
                         }
                     }, parentScope);
-                    entry = { node: /** @type {Node} */ (node), itemSig, idxSig, dispose };
+                    entry = { node: /** @type {Node} */ (node), itemSig: itemSignal, idxSig: indexSignal, dispose };
                 }
                 newMap.set(k, entry);
             }
@@ -405,7 +405,7 @@ export const forEach = (each, key, body) => {
             const parent = /** @type {Node} */ (end.parentNode);
 
             // Remove entries that vanished from the new list.
-            for (const entry of prevMap.values()) {
+            for (const entry of previousMap.values()) {
                 entry.dispose();
                 parent.removeChild(entry.node);
             }
@@ -414,7 +414,7 @@ export const forEach = (each, key, body) => {
             // (the node that should follow `i`) is already in its final position.
             /** @type {Node} */
             let nextRef = end;
-            for (let i = len - 1; i >= 0; i--) {
+            for (let i = length - 1; i >= 0; --i) {
                 const entry = /** @type {Entry<T>} */ (newMap.get(/** @type {string | number} */ (newKeys[i])));
                 if (entry.node.nextSibling !== nextRef) {
                     parent.insertBefore(entry.node, nextRef);
@@ -422,9 +422,9 @@ export const forEach = (each, key, body) => {
                 nextRef = entry.node;
             }
 
-            prevMap = newMap;
+            previousMap = newMap;
         });
     });
 
-    return frag;
+    return fragment;
 };
