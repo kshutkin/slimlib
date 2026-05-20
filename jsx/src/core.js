@@ -1,4 +1,5 @@
 import { activeScope, effect, scope, signal, untracked } from '@slimlib/store';
+import { DEV } from 'esm-env';
 
 /** @typedef {import('./types.js').Child} Child */
 /** @typedef {import('./types.js').Primitive} Primitive */
@@ -149,27 +150,63 @@ const appendChild = (parent, child) => {
         // and ref(null) cleanups registered by the previous subtree are disposed
         // when the function-child swaps content. The effect cleanup disposes the
         // sub-scope before each re-run and on final disposal.
-        /** @type {import('@slimlib/store').Scope} */
+        /** @type {import('@slimlib/store').Scope | undefined} */
         let scopeInstance;
+        // Fast path: when the function-child resolves to a primitive we keep a
+        // single Text node across re-runs and mutate `.data` in place instead
+        // of paying for removeChild + createTextNode + insertBefore.
+        /** @type {Text | null} */
+        let textNode = null;
         effect(() => {
+            let value;
+            /** @type {import('@slimlib/store').Scope} */
+            const newScope = scope(onDispose => {
+                const prev = currentOnDispose;
+                currentOnDispose = onDispose;
+                try {
+                    value = child();
+                } finally {
+                    currentOnDispose = prev;
+                }
+            }, parentScope);
+            const isPrimitive =
+                value != null &&
+                value !== false &&
+                value !== true &&
+                typeof value !== 'object' &&
+                typeof value !== 'function';
+            if (isPrimitive && textNode !== null) {
+                // Text fast path: reuse existing node, no DOM thrash.
+                const str = String(value);
+                if (textNode.data !== str) textNode.data = str;
+                newScope();
+                return;
+            }
+            // Slow path: dispose previous scope + clear sibling range.
+            if (scopeInstance !== undefined) scopeInstance();
             let nextSibling = start.nextSibling;
-            // `end` is always reached before the sibling chain runs out, so no
-            // null guard is needed (start and end live in `parent` together).
             while (nextSibling !== end) {
                 const nextNextSibling = /** @type {ChildNode} */ (nextSibling).nextSibling;
                 parent.removeChild(/** @type {ChildNode} */ (nextSibling));
                 nextSibling = nextNextSibling;
             }
-            scopeInstance = scope(onDispose => {
-                const prev = currentOnDispose;
-                currentOnDispose = onDispose;
-                try {
-                    insertBefore(parent, child(), end);
-                } finally {
-                    currentOnDispose = prev;
+            if (isPrimitive) {
+                textNode = document.createTextNode(String(/** @type {Primitive} */ (value)));
+                parent.insertBefore(textNode, end);
+                newScope();
+                scopeInstance = undefined;
+            } else {
+                textNode = null;
+                scopeInstance = newScope;
+                insertBefore(parent, value, end);
+            }
+            return () => {
+                if (scopeInstance !== undefined) {
+                    const s = scopeInstance;
+                    scopeInstance = undefined;
+                    s();
                 }
-            }, parentScope);
-            return () => scopeInstance();
+            };
         });
     } else if (child instanceof Node) {
         parent.appendChild(child);
@@ -298,8 +335,10 @@ export const render = (factory, container) => {
  * @template T
  * @typedef {{
  *     node: Node,
+ *     item: T,
+ *     idx: number,
  *     itemSig: import('@slimlib/store').Signal<T>,
- *     idxSig: import('@slimlib/store').Signal<number>,
+ *     idxSig: import('@slimlib/store').Signal<number> | null,
  *     dispose: () => void
  * }} Entry
  */
@@ -319,6 +358,7 @@ export const render = (factory, container) => {
  * - `key` MUST return a stable id per logical row.
  * - `body` is called ONCE per item per lifetime; it receives reactive getters
  *   `item()` / `index()` whose values update in place on reorder / value swap.
+ *   `index()` lazily allocates its backing signal on first call.
  * - `body` must return a single DOM Node (typically a JSX element).
  *
  * The returned DocumentFragment carries two comment anchors; the effect
@@ -353,8 +393,8 @@ export const forEach = (each, key, body) => {
         const length = array.length;
         /** @type {Map<string | number, Entry<T>>} */
         const newMap = new Map();
-        /** @type {(string | number)[]} */
-        const newKeys = new Array(length);
+        /** @type {Entry<T>[]} */
+        const newEntries = new Array(length);
 
         // Reconciliation runs untracked so that signal reads performed by `body`
         // during item construction (and by per-item function-child effects when
@@ -366,21 +406,38 @@ export const forEach = (each, key, body) => {
             for (let i = 0; i < length; ++i) {
                 const item = /** @type {T} */ (array[i]);
                 const k = key(item, i);
-                newKeys[i] = k;
                 const existing = previousMap.get(k);
                 /** @type {Entry<T>} */
                 let entry;
                 if (existing !== undefined) {
-                    if (!Object.is(existing.itemSig(), item)) existing.itemSig.set(item);
-                    if (existing.idxSig() !== i) existing.idxSig.set(i);
+                    // Cached fields short-circuit the signal getter calls.
+                    if (existing.item !== item) {
+                        existing.item = item;
+                        existing.itemSig.set(item);
+                    }
+                    if (existing.idx !== i) {
+                        existing.idx = i;
+                        if (existing.idxSig !== null) existing.idxSig.set(i);
+                    }
                     previousMap.delete(k);
                     entry = existing;
                 } else {
                     const itemSignal = signal(item);
-                    const indexSignal = signal(i);
-                    /** @type {Node | undefined} */
-                    let node;
-                    const dispose = scope(onDispose => {
+                    /** @type {Entry<T>} */
+                    const newEntry = {
+                        node: /** @type {Node} */ (/** @type {unknown} */ (null)),
+                        item,
+                        idx: i,
+                        itemSig: itemSignal,
+                        idxSig: null,
+                        dispose: /** @type {() => void} */ (/** @type {unknown} */ (null)),
+                    };
+                    // Lazy index signal: most lists never read `index()`.
+                    const indexFn = () => {
+                        if (newEntry.idxSig === null) newEntry.idxSig = signal(newEntry.idx);
+                        return newEntry.idxSig();
+                    };
+                    newEntry.dispose = scope(onDispose => {
                         // Route non-effect cleanups (on:* listeners, ref(null)) into THIS
                         // sub-scope so they tear down when the item is removed. Without
                         // this, the renderer's module-level dispose register still points
@@ -388,42 +445,44 @@ export const forEach = (each, key, body) => {
                         const previousOnDispose = currentOnDispose;
                         currentOnDispose = onDispose;
                         try {
-                            const built = body(itemSignal, indexSignal);
-                            if (!(built instanceof Node)) {
+                            const built = body(itemSignal, indexFn);
+                            if (DEV && !(built instanceof Node)) {
                                 throw new Error('forEach: body must return a single Node');
                             }
-                            node = built;
+                            newEntry.node = /** @type {Node} */ (built);
                         } finally {
                             currentOnDispose = previousOnDispose;
                         }
                     }, parentScope);
-                    entry = { node: /** @type {Node} */ (node), itemSig: itemSignal, idxSig: indexSignal, dispose };
+                    entry = newEntry;
                 }
                 newMap.set(k, entry);
+                newEntries[i] = entry;
             }
-
-            const parent = /** @type {Node} */ (end.parentNode);
-
-            // Remove entries that vanished from the new list.
-            for (const entry of previousMap.values()) {
-                entry.dispose();
-                parent.removeChild(entry.node);
-            }
-
-            // Reorder + insert. Walk new order in reverse so each step's anchor
-            // (the node that should follow `i`) is already in its final position.
-            /** @type {Node} */
-            let nextRef = end;
-            for (let i = length - 1; i >= 0; --i) {
-                const entry = /** @type {Entry<T>} */ (newMap.get(/** @type {string | number} */ (newKeys[i])));
-                if (entry.node.nextSibling !== nextRef) {
-                    parent.insertBefore(entry.node, nextRef);
-                }
-                nextRef = entry.node;
-            }
-
-            previousMap = newMap;
         });
+
+        const parent = /** @type {Node} */ (end.parentNode);
+
+        // Remove entries that vanished from the new list. Pure DOM + scope
+        // disposal, no signal reads — safe to run outside untracked().
+        for (const entry of previousMap.values()) {
+            entry.dispose();
+            parent.removeChild(entry.node);
+        }
+
+        // Reorder + insert. Walk new order in reverse so each step's anchor
+        // (the node that should follow `i`) is already in its final position.
+        /** @type {Node} */
+        let nextRef = end;
+        for (let i = length - 1; i >= 0; --i) {
+            const entry = /** @type {Entry<T>} */ (newEntries[i]);
+            if (entry.node.nextSibling !== nextRef) {
+                parent.insertBefore(entry.node, nextRef);
+            }
+            nextRef = entry.node;
+        }
+
+        previousMap = newMap;
     });
 
     return fragment;

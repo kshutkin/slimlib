@@ -55,7 +55,8 @@
         "prepack": "pkgprn-internal --strip-comments --flatten=src,types"
     },
     "dependencies": {
-        "@slimlib/store": "workspace:^"
+        "@slimlib/store": "workspace:^",
+        "esm-env": "^1.2.1"
     },
     "devDependencies": {
         "@mastrojs/reactive": "jsr:^0.4.1",
