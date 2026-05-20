@@ -97,7 +97,7 @@ const applyProperty = (element, key, value) => {
  * @param {unknown} value
  * @returns {void}
  */
-const setProp = (element, key, value) => {
+const setProperty = (element, key, value) => {
     if (key.startsWith('on:')) {
         const eventName = key.slice(3);
         if (typeof value === 'function') {
@@ -241,7 +241,7 @@ export const createElementArray = (type, props, children) => {
     }
     const element = document.createElement(type);
     for (const key in props) {
-        setProp(element, key, /** @type {Record<string, unknown>} */ (props)[key]);
+        setProperty(element, key, /** @type {Record<string, unknown>} */ (props)[key]);
     }
     for (let i = 0; i < childrenLength; ++i) {
         appendChild(element, children[i]);
