@@ -51,7 +51,7 @@
         "build-compress": "BUILD_COMPRESS=true rollup -c && dts-buddy -m @slimlib/jsx:./src/index.ts -m @slimlib/jsx/jsx-runtime:./src/jsx-runtime.ts -m @slimlib/jsx/for-each:./src/for-each.ts",
         "test": "vitest run --coverage --config ../vitest.config.mjs",
         "bench": "node tests/bench-browser.mjs",
-        "bench:fakedom": "node tests/bench-fakedom.mjs",
+        "bench:fakedom": "pnpm build && node tests/bench-fakedom.mjs",
         "bench:deopt": "node --trace-deopt tests/bench-deopt.mjs",
         "size": "node tests/bundle-size.mjs",
         "play": "node playground/serve.mjs",
