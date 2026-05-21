@@ -52,6 +52,7 @@
         "test": "vitest run --coverage --config ../vitest.config.mjs",
         "bench": "node tests/bench-browser.mjs",
         "bench:fakedom": "node tests/bench-fakedom.mjs",
+        "bench:deopt": "node --trace-deopt tests/bench-deopt.mjs",
         "size": "node tests/bundle-size.mjs",
         "play": "node playground/serve.mjs",
         "prepack": "pkgprn-internal --remove-sourcemaps --strip-comments --flatten=dist,types"
