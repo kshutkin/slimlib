@@ -407,7 +407,7 @@ export const forEach = <T>(
         let headReference = start.nextSibling;
         while (firstUnplaced <= lastUnplaced && (newEntries[firstUnplaced] as Entry<T>).$_node === headReference) {
             headReference = (headReference as Node).nextSibling;
-            firstUnplaced++;
+            ++firstUnplaced;
         }
         // Tail trim: retreat past entries already at the correct DOM slot.
         let tailReference: Node = end;
@@ -415,7 +415,7 @@ export const forEach = <T>(
             const expected = tailReference.previousSibling;
             if ((newEntries[lastUnplaced] as Entry<T>).$_node !== expected) break;
             tailReference = expected as Node;
-            lastUnplaced--;
+            --lastUnplaced;
         }
         let nextReference: Node = tailReference;
         for (let i = lastUnplaced; i >= firstUnplaced; --i) {
