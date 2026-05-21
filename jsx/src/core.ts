@@ -24,27 +24,26 @@ export const Fragment: Component<{ children?: Child }> = props => props.children
 let currentOnDispose: ((cb: () => void) => void) | null = null;
 
 /**
- * Cache of resolved property setters keyed by "tagName,propName". Stored unbound; bound per-call.
+ * Dispatch table keyed by "tagName,propName". `true` = writable DOM property
+ * (use `element[key] = value`), `false` = read-only / no descriptor (fall back
+ * to `setAttribute`/`removeAttribute`). Resolved lazily on first access.
  */
-const propertiesSetterCache = new Map<string, ((value: unknown) => void) | null>();
+const propertiesSetterCache = new Map<string, boolean>();
 
-const getPropertySetter = (element: Element, key: string): ((value: unknown) => void) | null => {
-    const cacheKey = `${element.tagName},${key}`;
-    let setter = propertiesSetterCache.get(cacheKey);
-    if (setter !== undefined) {
-        return setter;
-    }
+const resolveProperty = (element: Element, key: string, cacheKey: string): boolean => {
     let prototype: object | null = Object.getPrototypeOf(element);
     while (prototype !== null) {
         const desc = Object.getOwnPropertyDescriptor(prototype, key);
         if (desc !== undefined) {
-            setter = desc.set !== undefined ? (desc.set as (value: unknown) => void) : null;
-            propertiesSetterCache.set(cacheKey, setter);
-            return setter;
+            const writable = desc.set !== undefined;
+            propertiesSetterCache.set(cacheKey, writable);
+            return writable;
         }
         prototype = Object.getPrototypeOf(prototype);
     }
-    return null;
+    // Do not cache "no descriptor anywhere" — element may be a custom element
+    // that hasn't been upgraded yet; later upgrades add IDL setters to the proto.
+    return false;
 };
 
 /**
@@ -58,8 +57,9 @@ const applyProperty = (element: Element, key: string, value: unknown): void => {
         if (value === false || value == null) element.removeAttribute(k);
         else element.setAttribute(k, value === true ? '' : String(value));
     } else {
-        const setter = getPropertySetter(element, key);
-        if (setter !== null) setter.call(element, value);
+        const cacheKey = `${element.tagName},${key}`;
+        const writable = propertiesSetterCache.get(cacheKey) ?? resolveProperty(element, key, cacheKey);
+        if (writable) (element as unknown as Record<string, unknown>)[key] = value;
         else if (value === false || value == null) element.removeAttribute(key);
         else element.setAttribute(key, value === true ? '' : String(value));
     }
