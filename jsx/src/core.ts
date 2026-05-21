@@ -97,11 +97,10 @@ const setProperty = (element: Element, key: string, value: unknown): void => {
  * Append a Child into a parent Node, creating reactive bindings as needed.
  */
 const appendChild = (parent: Node, child: Child): void => {
-    if (child == null || child === false || child === true) {
-        // skip
-    } else if (Array.isArray(child)) {
-        const length = child.length;
-        appendChildren(parent, child, length);
+    if (child instanceof Node) {
+        parent.appendChild(child);
+    } else if (typeof child === 'string') {
+        parent.appendChild(document.createTextNode(child));
     } else if (typeof child === 'function') {
         const start = document.createComment('');
         const end = document.createComment('');
@@ -166,9 +165,10 @@ const appendChild = (parent: Node, child: Child): void => {
                 }
             };
         });
-    } else if (child instanceof Node) {
-        parent.appendChild(child);
-    } else {
+    } else if (Array.isArray(child)) {
+        const length = child.length;
+        appendChildren(parent, child, length);
+    } else if (child != null && child !== false && child !== true) {
         parent.appendChild(document.createTextNode(String(child as Primitive)));
     }
 };
