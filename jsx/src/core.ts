@@ -100,9 +100,8 @@ const appendChild = (parent: Node, child: Child): void => {
     if (child == null || child === false || child === true) {
         // skip
     } else if (Array.isArray(child)) {
-        for (let i = 0; i < child.length; ++i) {
-            appendChild(parent, child[i] as Child);
-        }
+        const length = child.length;
+        appendChildren(parent, child, length);
     } else if (typeof child === 'function') {
         const start = document.createComment('');
         const end = document.createComment('');
@@ -181,7 +180,8 @@ const insertBefore = (parent: Node, child: Child, anchor: Node): void => {
     if (child == null || child === false || child === true) {
         // skip
     } else if (Array.isArray(child)) {
-        for (let i = 0; i < child.length; ++i) {
+        const length = child.length;
+        for (let i = 0; i < length; ++i) {
             insertBefore(parent, child[i] as Child, anchor);
         }
     } else if (child instanceof Node) {
@@ -227,10 +227,14 @@ export const createElementArray = <P extends Props>(type: ElementType<P>, props:
     for (const key in props) {
         setProperty(element, key, (props as Record<string, unknown>)[key]);
     }
-    for (let i = 0; i < childrenLength; ++i) {
-        appendChild(element, children[i] as Child);
-    }
+    appendChildren(element, children, childrenLength);
     return element;
+};
+
+const appendChildren = (parent: Node, children: readonly Child[], length: number): void => {
+    for (let i = 0; i < length; ++i) {
+        appendChild(parent, children[i] as Child);
+    }
 };
 
 /**
