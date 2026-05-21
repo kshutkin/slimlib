@@ -384,4 +384,35 @@ describe('forEach — keyed list renderer', () => {
             document.body.innerHTML = '';
         }
     });
+
+    it('15. prepend exercises tail-trim retreat (unchanged tail stays in place)', () => {
+        // Reconciler tail trim: with [b, c] → [a, b, c], head trim cannot
+        // advance (newEntries[0] is the freshly-created `a`) but the tail trim
+        // retreats past `c` then `b` because both are already in their final
+        // DOM slots. Only `a` is left to insert.
+        const items = signal([{ id: 'b' }, { id: 'c' }]);
+        mount(() =>
+            createElement(
+                'ul',
+                null,
+                forEach(
+                    () => items(),
+                    item => item.id,
+                    item => createElement('li', null, () => item().id)
+                )
+            )
+        );
+        expect(liNodes().map(n => n.textContent)).toEqual(['b', 'c']);
+        const [bNode, cNode] = liNodes();
+
+        items.set([{ id: 'a' }, { id: 'b' }, { id: 'c' }]);
+        flushEffects();
+
+        const after = liNodes();
+        expect(after.map(n => n.textContent)).toEqual(['a', 'b', 'c']);
+        // Tail-trim invariant: existing nodes are not moved, only `a` is
+        // inserted before them.
+        expect(after[1]).toBe(bNode);
+        expect(after[2]).toBe(cNode);
+    });
 });

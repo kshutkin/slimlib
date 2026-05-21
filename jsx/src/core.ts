@@ -141,8 +141,8 @@ const appendChild = (parent: Node, child: Child): void => {
                 newScope();
                 return;
             }
-            // Slow path: dispose previous scope + clear sibling range.
-            if (scopeInstance !== undefined) scopeInstance();
+            // Slow path: clear sibling range. The previous scope (if any) was
+            // already torn down by this effect's cleanup before re-run.
             let nextSibling = start.nextSibling;
             while (nextSibling !== end) {
                 const nextNextSibling = (nextSibling as ChildNode).nextSibling;
