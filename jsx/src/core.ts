@@ -401,29 +401,29 @@ export const forEach = <T>(
         // Reorder + insert. Trim already-correct head/tail, then walk the
         // remaining middle in reverse so each step's anchor (the node that
         // should follow `i`) is already in its final position.
-        let lo = 0;
-        let hi = length - 1;
+        let firstUnplaced = 0;
+        let lastUnplaced = length - 1;
         // Head trim: advance past entries already at the correct DOM slot.
-        let headRef = start.nextSibling;
-        while (lo <= hi && (newEntries[lo] as Entry<T>).$_node === headRef) {
-            headRef = (headRef as Node).nextSibling;
-            lo++;
+        let headReference = start.nextSibling;
+        while (firstUnplaced <= lastUnplaced && (newEntries[firstUnplaced] as Entry<T>).$_node === headReference) {
+            headReference = (headReference as Node).nextSibling;
+            firstUnplaced++;
         }
         // Tail trim: retreat past entries already at the correct DOM slot.
-        let tailRef: Node = end;
-        while (hi >= lo) {
-            const expected = tailRef.previousSibling;
-            if ((newEntries[hi] as Entry<T>).$_node !== expected) break;
-            tailRef = expected as Node;
-            hi--;
+        let tailReference: Node = end;
+        while (lastUnplaced >= firstUnplaced) {
+            const expected = tailReference.previousSibling;
+            if ((newEntries[lastUnplaced] as Entry<T>).$_node !== expected) break;
+            tailReference = expected as Node;
+            lastUnplaced--;
         }
-        let nextRef: Node = tailRef;
-        for (let i = hi; i >= lo; --i) {
+        let nextReference: Node = tailReference;
+        for (let i = lastUnplaced; i >= firstUnplaced; --i) {
             const entry = newEntries[i] as Entry<T>;
-            if (entry.$_node.nextSibling !== nextRef) {
-                parent.insertBefore(entry.$_node, nextRef);
+            if (entry.$_node.nextSibling !== nextReference) {
+                parent.insertBefore(entry.$_node, nextReference);
             }
-            nextRef = entry.$_node;
+            nextReference = entry.$_node;
         }
 
         previousMap = newMap;
