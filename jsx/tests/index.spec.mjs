@@ -4,8 +4,8 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import { flushEffects, setScheduler, signal } from '@slimlib/store';
 
-import { createElement, Fragment, render } from '../src/index.js';
-import { jsx, jsxDEV, jsxs, Fragment as RuntimeFragment } from '../src/jsx-runtime.js';
+import { createElement, Fragment, render } from '../src/index.ts';
+import { jsx, jsxDEV, jsxs, Fragment as RuntimeFragment } from '../src/jsx-runtime.ts';
 
 // JSX itself does not schedule — it relies entirely on @slimlib/store's scheduler.
 // Install a synchronous scheduler so effects run on creation/write inline; this

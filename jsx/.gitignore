@@ -107,8 +107,9 @@ dist
 types
 
 # results
-results-browser.csv
-results-mitata.csv
+results.csv
 size-results.json
 
 .DS_Store
+.bundle-size
+results-browser.csv

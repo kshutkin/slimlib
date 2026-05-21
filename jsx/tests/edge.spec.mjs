@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 
 import { effect, flushEffects, setScheduler, signal } from '@slimlib/store';
 
-import { createElement, render } from '../src/index.js';
+import { createElement, render } from '../src/index.ts';
 
 // Synchronous scheduler: effects run inline on creation/write. JSX itself no
 // longer calls flushEffects() (full async-commit contract); tests opt into
@@ -180,7 +180,7 @@ describe('branch coverage', () => {
 // jsx-runtime branch coverage: array children vs single child vs undefined.
 describe('jsx-runtime branches', () => {
     it('handles array, single, and missing children', async () => {
-        const { jsx } = await import('../src/jsx-runtime.js');
+        const { jsx } = await import('../src/jsx-runtime.ts');
 
         // Array children branch.
         const a = jsx('div', { children: [jsx('span', { children: '1' }), jsx('span', { children: '2' })] });
@@ -230,7 +230,7 @@ describe('attribute prefix + children-in-props', () => {
     // for-in over props. Reached when calling createElement with an
     // explicit 'children' prop (as JSX runtime does).
     it('skips children entry when iterating props', async () => {
-        const { jsx } = await import('../src/jsx-runtime.js');
+        const { jsx } = await import('../src/jsx-runtime.ts');
         // jsx passes the full props object (including 'children') to
         // createElement; the for-in loop must NOT try to set 'children'
         // as a DOM attribute.

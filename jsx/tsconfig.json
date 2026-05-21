@@ -6,13 +6,18 @@
         "module": "esnext",
         "esModuleInterop": true,
         "strict": true,
+        "sourceMap": true,
         "noUncheckedIndexedAccess": true,
-        "declaration": true,
         "moduleResolution": "node",
         "skipLibCheck": true,
-        "allowJs": true,
-        "checkJs": true,
+        "declaration": true,
         "noEmit": true,
-        "composite": true
+        "composite": true,
+        "baseUrl": ".",
+        "paths": {
+            "@slimlib/jsx": ["./types/index.d.ts"],
+            "@slimlib/jsx/jsx-runtime": ["./types/index.d.ts"],
+            "@slimlib/jsx/for-each": ["./types/index.d.ts"]
+        }
     }
 }

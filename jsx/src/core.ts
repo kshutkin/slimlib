@@ -1,25 +1,15 @@
-import { activeScope, effect, scope, signal, untracked } from '@slimlib/store';
 import { DEV } from 'esm-env';
 
-/** @typedef {import('./types.js').Child} Child */
-/** @typedef {import('./types.js').Primitive} Primitive */
-/** @typedef {import('./types.js').Props} Props */
-/**
- * @template {Props} [P=Props]
- * @typedef {import('./types.js').Component<P>} Component
- */
-/**
- * @template {Props} [P=Props]
- * @typedef {import('./types.js').ElementType<P>} ElementType
- */
+import { activeScope, effect, scope, signal, untracked } from '@slimlib/store';
+
+import type { Scope, Signal } from '@slimlib/store';
+import type { Child, Component, ElementType, Primitive, Props } from './types';
 
 /**
  * Fragment is a no-op component that simply returns its children.
  * No special-case in the renderer; treated as any other component.
- *
- * @type {Component<{ children?: Child }>}
  */
-export const Fragment = props => props.children;
+export const Fragment: Component<{ children?: Child }> = props => props.children;
 
 /**
  * Module-level "current dispose register". `render()` sets this before building the tree
@@ -30,35 +20,25 @@ export const Fragment = props => props.children;
  * render(), appendChild() function-child, and forEach() per-item sites; restored in a
  * `finally` block for nesting safety. Cleanup registration is inlined as well:
  * `if (currentOnDispose !== null) currentOnDispose(cb);`.
- *
- * @type {((cb: () => void) => void) | null}
  */
-let currentOnDispose = null;
+let currentOnDispose: ((cb: () => void) => void) | null = null;
 
 /**
  * Cache of resolved property setters keyed by "tagName,propName". Stored unbound; bound per-call.
- *
- * @type {Map<string, ((value: unknown) => void) | null>}
  */
-const propertiesSetterCache = new Map();
+const propertiesSetterCache = new Map<string, ((value: unknown) => void) | null>();
 
-/**
- * @param {Element} element
- * @param {string} key
- * @returns {((value: unknown) => void) | null}
- */
-const getPropertySetter = (element, key) => {
+const getPropertySetter = (element: Element, key: string): ((value: unknown) => void) | null => {
     const cacheKey = `${element.tagName},${key}`;
     let setter = propertiesSetterCache.get(cacheKey);
     if (setter !== undefined) {
         return setter;
     }
-    /** @type {object | null} */
-    let prototype = Object.getPrototypeOf(element);
+    let prototype: object | null = Object.getPrototypeOf(element);
     while (prototype !== null) {
         const desc = Object.getOwnPropertyDescriptor(prototype, key);
         if (desc !== undefined) {
-            setter = desc.set !== undefined ? /** @type {(value: unknown) => void} */ (desc.set) : null;
+            setter = desc.set !== undefined ? (desc.set as (value: unknown) => void) : null;
             propertiesSetterCache.set(cacheKey, setter);
             return setter;
         }
@@ -69,15 +49,10 @@ const getPropertySetter = (element, key) => {
 
 /**
  * Apply a single prop value (static).
- *
- * @param {Element} element
- * @param {string} key
- * @param {unknown} value
- * @returns {void}
  */
-const applyProperty = (element, key, value) => {
+const applyProperty = (element: Element, key: string, value: unknown): void => {
     if (key.startsWith('prop:')) {
-        /** @type {Record<string, unknown>} */ (/** @type {unknown} */ (element))[key.slice(5)] = value;
+        (element as unknown as Record<string, unknown>)[key.slice(5)] = value;
     } else if (key.startsWith('attr:')) {
         const k = key.slice(5);
         if (value === false || value == null) element.removeAttribute(k);
@@ -92,28 +67,23 @@ const applyProperty = (element, key, value) => {
 
 /**
  * Set a prop, wiring up reactivity when value is a function.
- *
- * @param {Element} element
- * @param {string} key
- * @param {unknown} value
- * @returns {void}
  */
-const setProperty = (element, key, value) => {
+const setProperty = (element: Element, key: string, value: unknown): void => {
     if (key.startsWith('on:')) {
         const eventName = key.slice(3);
         if (typeof value === 'function') {
-            const listener = /** @type {EventListener} */ (value);
+            const listener = value as EventListener;
             element.addEventListener(eventName, listener);
             currentOnDispose?.(() => element.removeEventListener(eventName, listener));
         }
     } else if (key === 'ref') {
         if (typeof value === 'function') {
-            const refFn = /** @type {(e: Element | null) => void} */ (value);
+            const refFn = value as (e: Element | null) => void;
             refFn(element);
             currentOnDispose?.(() => refFn(null));
         }
     } else if (typeof value === 'function') {
-        const reactive = /** @type {() => unknown} */ (value);
+        const reactive = value as () => unknown;
         // effect() auto-registers with the active store scope.
         effect(() => {
             applyProperty(element, key, reactive());
@@ -125,17 +95,13 @@ const setProperty = (element, key, value) => {
 
 /**
  * Append a Child into a parent Node, creating reactive bindings as needed.
- *
- * @param {Node} parent
- * @param {Child} child
- * @returns {void}
  */
-const appendChild = (parent, child) => {
+const appendChild = (parent: Node, child: Child): void => {
     if (child == null || child === false || child === true) {
         // skip
     } else if (Array.isArray(child)) {
         for (let i = 0; i < child.length; ++i) {
-            appendChild(parent, child[i]);
+            appendChild(parent, child[i] as Child);
         }
     } else if (typeof child === 'function') {
         const start = document.createComment('');
@@ -150,31 +116,24 @@ const appendChild = (parent, child) => {
         // and ref(null) cleanups registered by the previous subtree are disposed
         // when the function-child swaps content. The effect cleanup disposes the
         // sub-scope before each re-run and on final disposal.
-        /** @type {import('@slimlib/store').Scope | undefined} */
-        let scopeInstance;
+        let scopeInstance: Scope | undefined;
         // Fast path: when the function-child resolves to a primitive we keep a
         // single Text node across re-runs and mutate `.data` in place instead
         // of paying for removeChild + createTextNode + insertBefore.
-        /** @type {Text | null} */
-        let textNode = null;
+        let textNode: Text | null = null;
         effect(() => {
-            let value;
-            /** @type {import('@slimlib/store').Scope} */
-            const newScope = scope(onDispose => {
+            let value!: Child;
+            const newScope: Scope = scope(onDispose => {
                 const prev = currentOnDispose;
                 currentOnDispose = onDispose;
                 try {
-                    value = child();
+                    value = (child as () => Child)();
                 } finally {
                     currentOnDispose = prev;
                 }
             }, parentScope);
             const isPrimitive =
-                value != null &&
-                value !== false &&
-                value !== true &&
-                typeof value !== 'object' &&
-                typeof value !== 'function';
+                value != null && value !== false && value !== true && typeof value !== 'object' && typeof value !== 'function';
             if (isPrimitive && textNode !== null) {
                 // Text fast path: reuse existing node, no DOM thrash.
                 const str = String(value);
@@ -186,12 +145,12 @@ const appendChild = (parent, child) => {
             if (scopeInstance !== undefined) scopeInstance();
             let nextSibling = start.nextSibling;
             while (nextSibling !== end) {
-                const nextNextSibling = /** @type {ChildNode} */ (nextSibling).nextSibling;
-                parent.removeChild(/** @type {ChildNode} */ (nextSibling));
+                const nextNextSibling = (nextSibling as ChildNode).nextSibling;
+                parent.removeChild(nextSibling as ChildNode);
                 nextSibling = nextNextSibling;
             }
             if (isPrimitive) {
-                textNode = document.createTextNode(String(/** @type {Primitive} */ (value)));
+                textNode = document.createTextNode(String(value as Primitive));
                 parent.insertBefore(textNode, end);
                 newScope();
                 scopeInstance = undefined;
@@ -211,24 +170,19 @@ const appendChild = (parent, child) => {
     } else if (child instanceof Node) {
         parent.appendChild(child);
     } else {
-        parent.appendChild(document.createTextNode(String(/** @type {Primitive} */ (child))));
+        parent.appendChild(document.createTextNode(String(child as Primitive)));
     }
 };
 
 /**
  * Insert a Child immediately before `anchor`.
- *
- * @param {Node} parent
- * @param {Child} child
- * @param {Node} anchor
- * @returns {void}
  */
-const insertBefore = (parent, child, anchor) => {
+const insertBefore = (parent: Node, child: Child, anchor: Node): void => {
     if (child == null || child === false || child === true) {
         // skip
     } else if (Array.isArray(child)) {
         for (let i = 0; i < child.length; ++i) {
-            insertBefore(parent, child[i], anchor);
+            insertBefore(parent, child[i] as Child, anchor);
         }
     } else if (child instanceof Node) {
         parent.insertBefore(child, anchor);
@@ -237,9 +191,9 @@ const insertBefore = (parent, child, anchor) => {
         // is unwrapped here without creating an effect. No re-runs → no leak,
         // so no sub-scope is needed. The outer effect (set up by appendChild)
         // owns reactivity for this slot.
-        insertBefore(parent, child(), anchor);
+        insertBefore(parent, (child as () => Child)(), anchor);
     } else {
-        parent.insertBefore(document.createTextNode(String(/** @type {Primitive} */ (child))), anchor);
+        parent.insertBefore(document.createTextNode(String(child as Primitive)), anchor);
     }
 };
 
@@ -247,26 +201,19 @@ const insertBefore = (parent, child, anchor) => {
  * Internal: build a Node from an already-arrayed children list. Shared by both
  * the public varargs `createElement` and the JSX automatic-runtime entry points
  * (`jsx` / `jsxs`) to avoid the array → spread → rest → array roundtrip.
- *
- * @template {Props} P
- * @param {ElementType<P>} type
- * @param {P | null} props
- * @param {readonly Child[]} children
- * @returns {Node}
  */
-export const createElementArray = (type, props, children) => {
+export const createElementArray = <P extends Props>(type: ElementType<P>, props: P | null, children: readonly Child[]): Node => {
     const childrenLength = children.length;
     if (typeof type === 'function') {
         // Inject children into props only when present; avoid spread allocation otherwise.
-        /** @type {Props} */
-        const compProps =
+        const compProps: Props =
             childrenLength === 0
-                ? /** @type {Props} */ (props ?? {})
-                : /** @type {Props} */ ({
-                      .../** @type {Props} */ (props),
+                ? ((props ?? {}) as Props)
+                : ({
+                      ...(props as Props),
                       children: childrenLength === 1 ? children[0] : children,
-                  });
-        const result = /** @type {Component<Props>} */ (type)(compProps);
+                  } as Props);
+        const result = (type as Component<Props>)(compProps);
         // Fast path: component returned a single Node — no fragment wrapping needed.
         if (result instanceof Node) {
             return result;
@@ -278,24 +225,19 @@ export const createElementArray = (type, props, children) => {
     }
     const element = document.createElement(type);
     for (const key in props) {
-        setProperty(element, key, /** @type {Record<string, unknown>} */ (props)[key]);
+        setProperty(element, key, (props as Record<string, unknown>)[key]);
     }
     for (let i = 0; i < childrenLength; ++i) {
-        appendChild(element, children[i]);
+        appendChild(element, children[i] as Child);
     }
     return element;
 };
 
 /**
  * Build a Node for a JSX element (classic varargs signature).
- *
- * @template {Props} P
- * @param {ElementType<P>} type
- * @param {P | null} props
- * @param {...Child} children
- * @returns {Node}
  */
-export const createElement = (type, props, ...children) => createElementArray(type, props, children);
+export const createElement = <P extends Props>(type: ElementType<P>, props: P | null, ...children: Child[]): Node =>
+    createElementArray(type, props, children);
 
 /**
  * Mount JSX into `container`. The first argument must be a function that produces
@@ -314,12 +256,8 @@ export const createElement = (type, props, ...children) => createElementArray(ty
  * or remove the specific nodes) after calling dispose.
  *
  * Usage: `render(() => <App />, document.body)`
- *
- * @param {() => Child} factory
- * @param {Element | DocumentFragment} container
- * @returns {() => void}
  */
-export const render = (factory, container) => {
+export const render = (factory: () => Child, container: Element | DocumentFragment): (() => void) => {
     return scope(onDispose => {
         const prevOnDispose = currentOnDispose;
         currentOnDispose = onDispose;
@@ -331,17 +269,14 @@ export const render = (factory, container) => {
     });
 };
 
-/**
- * @template T
- * @typedef {{
- *     node: Node,
- *     item: T,
- *     idx: number,
- *     itemSig: import('@slimlib/store').Signal<T>,
- *     idxSig: import('@slimlib/store').Signal<number> | null,
- *     dispose: () => void
- * }} Entry
- */
+type Entry<T> = {
+    $_node: Node;
+    $_item: T;
+    $_index: number;
+    $_itemSignal: Signal<T>;
+    $_indexSignal: Signal<number> | null;
+    $_dispose: () => void;
+};
 
 /**
  * Keyed list renderer.
@@ -365,14 +300,12 @@ export const render = (factory, container) => {
  * inserts / moves / removes item nodes between them. Per-item sub-scopes are
  * children of the surrounding scope, so they tear down on item removal or
  * when the outer scope is disposed.
- *
- * @template T
- * @param {() => readonly T[]} each
- * @param {(item: T, index: number) => string | number} key
- * @param {(item: () => T, index: () => number) => Child} body
- * @returns {DocumentFragment}
  */
-export const forEach = (each, key, body) => {
+export const forEach = <T>(
+    each: () => readonly T[],
+    key: (item: T, index: number) => string | number,
+    body: (item: () => T, index: () => number) => Child
+): DocumentFragment => {
     // Capture the surrounding scope at construction time. The reconciler effect
     // below runs later via the flush queue, at which point `activeScope` is
     // typically undefined — so per-item `scope(...)` calls would otherwise be
@@ -385,16 +318,13 @@ export const forEach = (each, key, body) => {
     fragment.appendChild(start);
     fragment.appendChild(end);
 
-    /** @type {Map<string | number, Entry<T>>} */
-    let previousMap = new Map();
+    let previousMap = new Map<string | number, Entry<T>>();
 
     effect(() => {
         const array = each();
         const length = array.length;
-        /** @type {Map<string | number, Entry<T>>} */
-        const newMap = new Map();
-        /** @type {Entry<T>[]} */
-        const newEntries = new Array(length);
+        const newMap = new Map<string | number, Entry<T>>();
+        const newEntries: Entry<T>[] = new Array(length);
 
         // Reconciliation runs untracked so that signal reads performed by `body`
         // during item construction (and by per-item function-child effects when
@@ -404,40 +334,38 @@ export const forEach = (each, key, body) => {
         // outer effect — triggering the store's cycle guard.
         untracked(() => {
             for (let i = 0; i < length; ++i) {
-                const item = /** @type {T} */ (array[i]);
+                const item = array[i] as T;
                 const k = key(item, i);
                 const existing = previousMap.get(k);
-                /** @type {Entry<T>} */
-                let entry;
+                let entry: Entry<T>;
                 if (existing !== undefined) {
                     // Cached fields short-circuit the signal getter calls.
-                    if (existing.item !== item) {
-                        existing.item = item;
-                        existing.itemSig.set(item);
+                    if (existing.$_item !== item) {
+                        existing.$_item = item;
+                        existing.$_itemSignal.set(item);
                     }
-                    if (existing.idx !== i) {
-                        existing.idx = i;
-                        if (existing.idxSig !== null) existing.idxSig.set(i);
+                    if (existing.$_index !== i) {
+                        existing.$_index = i;
+                        if (existing.$_indexSignal !== null) existing.$_indexSignal.set(i);
                     }
                     previousMap.delete(k);
                     entry = existing;
                 } else {
                     const itemSignal = signal(item);
-                    /** @type {Entry<T>} */
-                    const newEntry = {
-                        node: /** @type {Node} */ (/** @type {unknown} */ (null)),
-                        item,
-                        idx: i,
-                        itemSig: itemSignal,
-                        idxSig: null,
-                        dispose: /** @type {() => void} */ (/** @type {unknown} */ (null)),
+                    const newEntry: Entry<T> = {
+                        $_node: null as unknown as Node,
+                        $_item: item,
+                        $_index: i,
+                        $_itemSignal: itemSignal,
+                        $_indexSignal: null,
+                        $_dispose: null as unknown as () => void,
                     };
                     // Lazy index signal: most lists never read `index()`.
                     const indexFn = () => {
-                        if (newEntry.idxSig === null) newEntry.idxSig = signal(newEntry.idx);
-                        return newEntry.idxSig();
+                        if (newEntry.$_indexSignal === null) newEntry.$_indexSignal = signal(newEntry.$_index);
+                        return newEntry.$_indexSignal();
                     };
-                    newEntry.dispose = scope(onDispose => {
+                    newEntry.$_dispose = scope(onDispose => {
                         // Route non-effect cleanups (on:* listeners, ref(null)) into THIS
                         // sub-scope so they tear down when the item is removed. Without
                         // this, the renderer's module-level dispose register still points
@@ -449,7 +377,7 @@ export const forEach = (each, key, body) => {
                             if (DEV && !(built instanceof Node)) {
                                 throw new Error('forEach: body must return a single Node');
                             }
-                            newEntry.node = /** @type {Node} */ (built);
+                            newEntry.$_node = built as Node;
                         } finally {
                             currentOnDispose = previousOnDispose;
                         }
@@ -461,13 +389,13 @@ export const forEach = (each, key, body) => {
             }
         });
 
-        const parent = /** @type {Node} */ (end.parentNode);
+        const parent = end.parentNode as Node;
 
         // Remove entries that vanished from the new list. Pure DOM + scope
         // disposal, no signal reads — safe to run outside untracked().
         for (const entry of previousMap.values()) {
-            entry.dispose();
-            parent.removeChild(entry.node);
+            entry.$_dispose();
+            parent.removeChild(entry.$_node);
         }
 
         // Reorder + insert. Trim already-correct head/tail, then walk the
@@ -477,26 +405,25 @@ export const forEach = (each, key, body) => {
         let hi = length - 1;
         // Head trim: advance past entries already at the correct DOM slot.
         let headRef = start.nextSibling;
-        while (lo <= hi && /** @type {Entry<T>} */ (newEntries[lo]).node === headRef) {
-            headRef = /** @type {Node} */ (headRef).nextSibling;
+        while (lo <= hi && (newEntries[lo] as Entry<T>).$_node === headRef) {
+            headRef = (headRef as Node).nextSibling;
             lo++;
         }
         // Tail trim: retreat past entries already at the correct DOM slot.
-        /** @type {Node} */
-        let tailRef = end;
+        let tailRef: Node = end;
         while (hi >= lo) {
             const expected = tailRef.previousSibling;
-            if (/** @type {Entry<T>} */ (newEntries[hi]).node !== expected) break;
-            tailRef = /** @type {Node} */ (expected);
+            if ((newEntries[hi] as Entry<T>).$_node !== expected) break;
+            tailRef = expected as Node;
             hi--;
         }
-        let nextRef = tailRef;
+        let nextRef: Node = tailRef;
         for (let i = hi; i >= lo; --i) {
-            const entry = /** @type {Entry<T>} */ (newEntries[i]);
-            if (entry.node.nextSibling !== nextRef) {
-                parent.insertBefore(entry.node, nextRef);
+            const entry = newEntries[i] as Entry<T>;
+            if (entry.$_node.nextSibling !== nextRef) {
+                parent.insertBefore(entry.$_node, nextRef);
             }
-            nextRef = entry.node;
+            nextRef = entry.$_node;
         }
 
         previousMap = newMap;

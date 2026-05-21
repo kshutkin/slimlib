@@ -12,8 +12,8 @@
 
 import './fake-dom.mjs';
 
-const { createElement, render } = await import('../src/index.js');
-const { forEach } = await import('../src/for-each.js');
+const { createElement, render } = await import('../src/index.ts');
+const { forEach } = await import('../src/for-each.ts');
 const { signal, setScheduler, flushEffects } = await import('@slimlib/store');
 
 // Synchronous scheduler: each signal write -> immediate effect flush.

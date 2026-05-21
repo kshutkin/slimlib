@@ -14,10 +14,10 @@ const aliasPlugin = {
     name: 'slimlib-alias',
     setup(build) {
         const aliases = [
-            { filter: /^@slimlib\/jsx\/jsx-runtime$/, target: resolve(repoRoot, 'src/jsx-runtime.js') },
-            { filter: /^@slimlib\/jsx\/jsx-dev-runtime$/, target: resolve(repoRoot, 'src/jsx-runtime.js') },
-            { filter: /^@slimlib\/jsx\/for-each$/, target: resolve(repoRoot, 'src/for-each.js') },
-            { filter: /^@slimlib\/jsx$/, target: resolve(repoRoot, 'src/index.js') },
+            { filter: /^@slimlib\/jsx\/jsx-runtime$/, target: resolve(repoRoot, 'src/jsx-runtime.ts') },
+            { filter: /^@slimlib\/jsx\/jsx-dev-runtime$/, target: resolve(repoRoot, 'src/jsx-runtime.ts') },
+            { filter: /^@slimlib\/jsx\/for-each$/, target: resolve(repoRoot, 'src/for-each.ts') },
+            { filter: /^@slimlib\/jsx$/, target: resolve(repoRoot, 'src/index.ts') },
             { filter: /^@slimlib\/store$/, target: resolve(storeRoot, 'src/index.ts') },
         ];
         for (const { filter, target } of aliases) {
