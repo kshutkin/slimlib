@@ -65,6 +65,10 @@
             "linter": { "enabled": false },
             "formatter": { "enabled": false },
             "assist": { "enabled": false }
+        },
+        {
+            "includes": ["jsx/src/core.ts"],
+            "linter": { "rules": { "style": { "useTemplate": "off" } } }
         }
     ]
 }

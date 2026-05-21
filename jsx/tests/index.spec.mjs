@@ -179,8 +179,12 @@ describe('Reactive props', () => {
         expect(el.getAttribute('foo')).toBe('initial');
 
         class MyUpgradeEl extends HTMLElement {
-            set foo(v) { this._foo = v; }
-            get foo() { return this._foo; }
+            set foo(v) {
+                this._foo = v;
+            }
+            get foo() {
+                return this._foo;
+            }
         }
         customElements.define(tag, MyUpgradeEl);
         // happy-dom may not auto-upgrade existing nodes; ensure the prototype is swapped so

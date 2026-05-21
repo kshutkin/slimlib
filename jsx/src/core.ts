@@ -52,7 +52,7 @@ const applyAttribute = (element: Element, key: string, value: unknown): void => 
     } else {
         element.setAttribute(key, value === true ? '' : '' + value);
     }
-}
+};
 
 /**
  * Apply a single prop value (static). A colon at index 4 is a cheap gate for

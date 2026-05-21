@@ -38,12 +38,7 @@ function getOutputPlugins() {
 
 // Build input plugins based on mode
 function getInputPlugins() {
-    const plugins = [
-        rollupPluginJson(),
-        rollupExtrasPluginExternals(
-            (id) => id === '@slimlib/store' || id.startsWith('@slimlib/store/'),
-        ),
-    ];
+    const plugins = [rollupPluginJson(), rollupExtrasPluginExternals(id => id === '@slimlib/store' || id.startsWith('@slimlib/store/'))];
 
     plugins.push(
         rollupPluginNodeResolve(),
@@ -73,7 +68,7 @@ export default [
                 plugins: getOutputPlugins(),
                 sourcemap: !isCompress,
                 chunkFileNames: '[name].mjs',
-                manualChunks: (id) => {
+                manualChunks: id => {
                     if (id.endsWith('/src/core.ts')) return 'core';
                 },
             },

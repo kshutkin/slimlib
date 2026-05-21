@@ -2,8 +2,9 @@
 // Bundles main.jsx in-memory and serves the playground directory.
 // Run with: pnpm play
 
-import { resolve, dirname } from 'node:path';
+import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+
 import { context } from 'esbuild';
 
 const here = dirname(fileURLToPath(import.meta.url));

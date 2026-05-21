@@ -6,11 +6,17 @@ import { computed, signal } from '@slimlib/store';
 const Counter = () => {
     const count = signal(0);
     return (
-        <div class="row">
-            <button on:click={() => count.set(count() - 1)}>−</button>
+        <div class='row'>
+            <button type='button' on:click={() => count.set(count() - 1)}>
+                −
+            </button>
             <output>{count}</output>
-            <button on:click={() => count.set(count() + 1)}>+</button>
-            <button on:click={() => count.set(0)}>reset</button>
+            <button type='button' on:click={() => count.set(count() + 1)}>
+                +
+            </button>
+            <button type='button' on:click={() => count.set(0)}>
+                reset
+            </button>
         </div>
     );
 };
@@ -21,7 +27,7 @@ const Toggle = () => {
     const open = signal(false);
     return (
         <div>
-            <button on:click={() => open.set(!open())}>
+            <button type='button' on:click={() => open.set(!open())}>
                 {() => (open() ? 'Hide details' : 'Show details')}
             </button>
             <div>
@@ -43,12 +49,8 @@ const Greeter = () => {
     const name = signal('world');
     const upper = computed(() => name().toUpperCase());
     return (
-        <div class="row">
-            <input
-                type="text"
-                value={name}
-                on:input={e => name.set(e.currentTarget.value)}
-            />
+        <div class='row'>
+            <input type='text' value={name} on:input={e => name.set(e.currentTarget.value)} />
             <span>
                 Hello, <strong>{name}</strong>! ({upper})
             </span>
@@ -78,36 +80,38 @@ const TodoList = () => {
             items()
                 .map(it => [Math.random(), it])
                 .sort((a, b) => a[0] - b[0])
-                .map(([, it]) => it),
+                .map(([, it]) => it)
         );
     return (
         <div>
-            <div class="row">
+            <div class='row'>
                 <input
-                    type="text"
+                    type='text'
                     value={draft}
                     on:input={e => draft.set(e.currentTarget.value)}
                     on:keydown={e => e.key === 'Enter' && add()}
-                    placeholder="New item…"
+                    placeholder='New item…'
                 />
-                <button on:click={add}>add</button>
-                <button on:click={shuffle}>shuffle</button>
+                <button type='button' on:click={add}>
+                    add
+                </button>
+                <button type='button' on:click={shuffle}>
+                    shuffle
+                </button>
             </div>
-            <ul class="todo">
+            <ul class='todo'>
                 {forEach(
                     items,
                     it => it.id,
                     it => (
                         <li class={() => (it().done ? 'done' : '')}>
-                            <input
-                                type="checkbox"
-                                checked={() => it().done}
-                                on:change={() => toggle(it().id)}
-                            />
+                            <input type='checkbox' checked={() => it().done} on:change={() => toggle(it().id)} />
                             <span>{() => it().text}</span>
-                            <button on:click={() => remove(it().id)}>×</button>
+                            <button type='button' on:click={() => remove(it().id)}>
+                                ×
+                            </button>
                         </li>
-                    ),
+                    )
                 )}
             </ul>
             <p>
@@ -126,19 +130,19 @@ const App = () => (
             Edit <code>main.jsx</code> and refresh — esbuild rebuilds on request. JSX is compiled with{' '}
             <code>jsxImportSource: "@slimlib/jsx"</code>.
         </p>
-        <section class="demo">
+        <section class='demo'>
             <h2>Counter (signal + on:click)</h2>
             <Counter />
         </section>
-        <section class="demo">
+        <section class='demo'>
             <h2>Conditional (sub-scope cleanup)</h2>
             <Toggle />
         </section>
-        <section class="demo">
+        <section class='demo'>
             <h2>Reactive text + computed</h2>
             <Greeter />
         </section>
-        <section class="demo">
+        <section class='demo'>
             <h2>Keyed list (forEach)</h2>
             <TodoList />
         </section>
