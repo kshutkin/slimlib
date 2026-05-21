@@ -50,7 +50,7 @@ const applyAttribute = (element: Element, key: string, value: unknown): void => 
     if (value === false || value == null) {
         element.removeAttribute(key);
     } else {
-        element.setAttribute(key, value === true ? '' : String(value));
+        element.setAttribute(key, value === true ? '' : '' + value);
     }
 }
 
@@ -151,7 +151,7 @@ const appendChild = (parent: Node, child: Child): void => {
                 value != null && value !== false && value !== true && typeof value !== 'object' && typeof value !== 'function';
             if (isPrimitive && textNode !== null) {
                 // Text fast path: reuse existing node, no DOM thrash.
-                const str = String(value);
+                const str = '' + value;
                 if (textNode.data !== str) textNode.data = str;
                 newScope();
                 return;
@@ -165,7 +165,7 @@ const appendChild = (parent: Node, child: Child): void => {
                 nextSibling = nextNextSibling;
             }
             if (isPrimitive) {
-                textNode = document.createTextNode(String(value as Primitive));
+                textNode = document.createTextNode('' + (value as Primitive));
                 parent.insertBefore(textNode, end);
                 newScope();
                 scopeInstance = undefined;
@@ -186,7 +186,7 @@ const appendChild = (parent: Node, child: Child): void => {
         const length = child.length;
         appendChildren(parent, child, length);
     } else if (child != null && child !== false && child !== true) {
-        parent.appendChild(document.createTextNode(String(child as Primitive)));
+        parent.appendChild(document.createTextNode('' + (child as Primitive)));
     }
 };
 
@@ -210,7 +210,7 @@ const insertBefore = (parent: Node, child: Child, anchor: Node): void => {
         // owns reactivity for this slot.
         insertBefore(parent, (child as () => Child)(), anchor);
     } else {
-        parent.insertBefore(document.createTextNode(String(child as Primitive)), anchor);
+        parent.insertBefore(document.createTextNode('' + (child as Primitive)), anchor);
     }
 };
 
@@ -361,13 +361,15 @@ export const forEach = <T>(
                 let entry: Entry<T>;
                 if (existing !== undefined) {
                     // Cached fields short-circuit the signal getter calls.
-                    if (existing.$_item !== item) {
+                    if (!Object.is(existing.$_item, item)) {
                         existing.$_item = item;
                         existing.$_itemSignal.set(item);
                     }
                     if (existing.$_index !== i) {
                         existing.$_index = i;
-                        if (existing.$_indexSignal !== null) existing.$_indexSignal.set(i);
+                        if (existing.$_indexSignal !== null) {
+                            existing.$_indexSignal.set(i);
+                        }
                     }
                     previousMap.delete(k);
                     entry = existing;
@@ -383,7 +385,9 @@ export const forEach = <T>(
                     };
                     // Lazy index signal: most lists never read `index()`.
                     const indexFn = () => {
-                        if (newEntry.$_indexSignal === null) newEntry.$_indexSignal = signal(newEntry.$_index);
+                        if (newEntry.$_indexSignal === null) {
+                            newEntry.$_indexSignal = signal(newEntry.$_index);
+                        }
                         return newEntry.$_indexSignal();
                     };
                     newEntry.$_dispose = scope(onDispose => {
@@ -434,7 +438,9 @@ export const forEach = <T>(
         let tailReference: Node = end;
         while (lastUnplaced >= firstUnplaced) {
             const expected = tailReference.previousSibling;
-            if ((newEntries[lastUnplaced] as Entry<T>).$_node !== expected) break;
+            if ((newEntries[lastUnplaced] as Entry<T>).$_node !== expected) {
+                break;
+            }
             tailReference = expected as Node;
             --lastUnplaced;
         }
