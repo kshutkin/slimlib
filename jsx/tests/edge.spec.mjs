@@ -80,6 +80,19 @@ describe('function-child transitions', () => {
 
 // Branch-coverage tests using only the public API.
 describe('branch coverage', () => {
+    // applyProperty key[4]===':' gate but prefix is neither `prop` nor `attr`.
+    // Such keys (e.g. `data:foo`) must fall through to the setter cache and
+    // ultimately reach setAttribute, not be treated as prop:/attr:.
+    it('falls through to setter cache when key has colon at index 4 but unknown prefix', () => {
+        const root = document.createElement('div');
+        // `data:` — looks like a namespace but is none of the known ones.
+        // No proto setter exists for `data:foo` on a div, so the fallback
+        // setAttribute path runs.
+        const dispose = render(() => createElement('div', { 'data:foo': 'bar' }), root);
+        expect(root.firstChild.getAttribute('data:foo')).toBe('bar');
+        dispose();
+    });
+
     // create-element.ts line 66: setAttrOrProp fallback path —
     // when no prototype setter is found AND value is false/null.
     // The prop must be one the proto-setter heuristic cannot resolve.

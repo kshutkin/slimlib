@@ -46,22 +46,39 @@ const resolveProperty = (element: Element, key: string, cacheKey: string): boole
     return false;
 };
 
+const applyAttribute = (element: Element, key: string, value: unknown): void => {
+    if (value === false || value == null) {
+        element.removeAttribute(key);
+    } else {
+        element.setAttribute(key, value === true ? '' : String(value));
+    }
+}
+
 /**
- * Apply a single prop value (static).
+ * Apply a single prop value (static). A colon at index 4 is a cheap gate for
+ * the `prop:` / `attr:` namespaces; we then confirm the prefix explicitly so
+ * unrelated keys (e.g. `data:foo`) still fall through to the setter cache.
  */
 const applyProperty = (element: Element, key: string, value: unknown): void => {
-    if (key.startsWith('prop:')) {
-        (element as unknown as Record<string, unknown>)[key.slice(5)] = value;
-    } else if (key.startsWith('attr:')) {
+    if (key[4] === ':') {
+        const prefix = key.slice(0, 4);
         const k = key.slice(5);
-        if (value === false || value == null) element.removeAttribute(k);
-        else element.setAttribute(k, value === true ? '' : String(value));
-    } else {
-        const cacheKey = `${element.tagName},${key}`;
-        const writable = propertiesSetterCache.get(cacheKey) ?? resolveProperty(element, key, cacheKey);
-        if (writable) (element as unknown as Record<string, unknown>)[key] = value;
-        else if (value === false || value == null) element.removeAttribute(key);
-        else element.setAttribute(key, value === true ? '' : String(value));
+        if (prefix === 'prop') {
+            (element as unknown as Record<string, unknown>)[k] = value;
+            return;
+        }
+        if (prefix === 'attr') {
+            applyAttribute(element, k, value);
+            return;
+        }
+    }
+    const cacheKey = `${element.tagName},${key}`;
+    const writable = propertiesSetterCache.get(cacheKey) ?? resolveProperty(element, key, cacheKey);
+    if (writable) {
+        (element as unknown as Record<string, unknown>)[key] = value;
+    }
+    else {
+        applyAttribute(element, key, value);
     }
 };
 
