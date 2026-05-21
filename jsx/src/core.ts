@@ -76,8 +76,7 @@ const applyProperty = (element: Element, key: string, value: unknown): void => {
     const writable = propertiesSetterCache.get(cacheKey) ?? resolveProperty(element, key, cacheKey);
     if (writable) {
         (element as unknown as Record<string, unknown>)[key] = value;
-    }
-    else {
+    } else {
         applyAttribute(element, key, value);
     }
 };
