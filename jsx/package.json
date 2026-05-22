@@ -57,8 +57,10 @@
         "play": "node playground/serve.mjs",
         "prepack": "pkgprn-internal --remove-sourcemaps --strip-comments --flatten=dist,types"
     },
-    "dependencies": {
-        "@slimlib/store": "workspace:^",
+    "peerDependencies": {
+        "@slimlib/store": "workspace:^"
+    },
+    "dependencies": {        
         "esm-env": "^1.2.1"
     },
     "devDependencies": {
