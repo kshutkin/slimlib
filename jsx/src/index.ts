@@ -1,1 +1,1 @@
-export { createElement, Fragment, render } from './core';
+export { createElement, Fragment, html, render, svg } from './core';

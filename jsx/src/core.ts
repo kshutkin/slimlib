@@ -24,6 +24,13 @@ export const Fragment: Component<{ children?: Child }> = props => props.children
 let currentOnDispose: ((cb: () => void) => void) | null = null;
 
 /**
+ * Module-level current XML namespace. When set, `createElementArray` uses
+ * `createElementNS` instead of `createElement`. Toggled by the opt-in `svg()` /
+ * `html()` factory wrappers; `undefined` means the default HTML path.
+ */
+let currentNamespace: string | undefined;
+
+/**
  * Dispatch table keyed by "tagName,propName". `true` = writable DOM property
  * (use `element[key] = value`), `false` = read-only / no descriptor (fall back
  * to `setAttribute`/`removeAttribute`). Resolved lazily on first access.
@@ -239,7 +246,9 @@ export const createElementArray = <P extends Props>(type: ElementType<P>, props:
         appendChild(fragment, result);
         return fragment;
     }
-    const element = document.createElement(type);
+    const element = currentNamespace !== undefined
+        ? document.createElementNS(currentNamespace, type)
+        : document.createElement(type);
     for (const key in props) {
         setProperty(element, key, (props as Record<string, unknown>)[key]);
     }
@@ -258,6 +267,33 @@ const appendChildren = (parent: Node, children: readonly Child[], length: number
  */
 export const createElement = <P extends Props>(type: ElementType<P>, props: P | null, ...children: Child[]): Node =>
     createElementArray(type, props, children);
+
+/**
+ * Opt-in factory: run `fn` with the SVG namespace active so any JSX elements
+ * created inside use `createElementNS`. Nesting safe (restores previous ns).
+ */
+export const svg = <T>(fn: () => T): T => {
+    const prev = currentNamespace;
+    currentNamespace = 'http://www.w3.org/2000/svg';
+    try {
+        return fn();
+    } finally {
+        currentNamespace = prev;
+    }
+};
+
+/**
+ * Inverse of `svg()`: forces the HTML namespace (used inside `<foreignObject>`).
+ */
+export const html = <T>(fn: () => T): T => {
+    const prev = currentNamespace;
+    currentNamespace = undefined;
+    try {
+        return fn();
+    } finally {
+        currentNamespace = prev;
+    }
+};
 
 /**
  * Mount JSX into `container`. The first argument must be a function that produces
