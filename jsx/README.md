@@ -1,6 +1,6 @@
 # @slimlib/jsx
 
-Tiny JSX renderer (~2.7 KB gzip) with reactive primitives. Real DOM nodes, no virtual DOM, no scheduler.
+Tiny JSX renderer (6KiB minified, ~2.8 KiB gzip) with reactive primitives. Real DOM nodes, no virtual DOM.
 
 ```jsx
 import { signal } from '@slimlib/store';
@@ -20,19 +20,10 @@ render(() => <Counter />, document.body);
 
 [Changelog](./CHANGELOG.md)
 
-## Status
-
-**v0.1.0-pre.** API is locked, 62 tests passing, 100% branch coverage, benchmarks wired in.
-
-New in v0.1:
-- Keyed list reconciliation via [`forEach`](#keyed-lists-foreach) (sub-entry, opt-in).
-- Per-boundary dispose for conditional sub-trees (effects, `on:`, `ref` torn down when a function-child re-runs).
-- `setOnDispose` is now public for users implementing custom list/conditional helpers.
-
 ## Installation
 
 ```bash
-npm install @slimlib/jsx @slimlib/store
+npm install @slimlib/jsx
 ```
 
 Configure tsconfig (or your bundler) to use the automatic JSX runtime:
@@ -233,33 +224,33 @@ Signature: `forEach<T>(each: () => readonly T[], key: (item, index) => string | 
 
 Bundle cost: **610 B gzip** (sub-entry, separate from core).
 
-## Web Components
+## SVG (and other namespaces)
 
-Define a custom element with `render()` in `connectedCallback`:
+JSX is evaluated bottom-up: children are constructed before their parent, so the renderer can't infer a namespace from the surrounding `<svg>` tag. Use the `svg()` factory to enter the SVG namespace for a sub-tree:
 
 ```jsx
-class XCounter extends HTMLElement {
-    connectedCallback() {
-        const count = signal(0);
-        this._dispose = render(
-            () => (
-                <button on:click={() => count.set(count() + 1)}>
-                    Count: {count}
-                </button>
-            ),
-            this,
-        );
-    }
-    disconnectedCallback() {
-        this._dispose?.();
-    }
-}
-customElements.define('x-counter', XCounter);
+import { svg, html } from '@slimlib/jsx';
+
+const Icon = () => svg(() => (
+    <svg viewBox="0 0 24 24" width="24" height="24">
+        <circle cx="12" cy="12" r="10" fill="currentColor" />
+    </svg>
+));
 ```
 
-Custom element properties are detected by the prototype-setter heuristic — pass typed values straight through JSX.
+Every element created inside the `svg()` callback uses `createElementNS('http://www.w3.org/2000/svg', …)`. Nesting works as expected — call `html()` to switch back inside `<foreignObject>`:
 
-The element body is populated on the next microtask after `render()` returns (see [Commit timing](#commit-timing)). This is fine for the usual case of a freshly-attached element with no consumer reading its children synchronously; install a sync scheduler if your tests need to inspect children inside the same microtask as `connectedCallback`.
+```jsx
+svg(() => (
+    <svg>
+        <foreignObject x="0" y="0" width="100" height="50">
+            {html(() => <div>HTML inside SVG</div>)}
+        </foreignObject>
+    </svg>
+))
+```
+
+The factory only affects elements created during the callback; once it returns, the previous namespace is restored. Generic signature: `svg<T>(fn: () => T): T`, same for `html`.
 
 ## Gotchas
 
@@ -288,38 +279,6 @@ The element body is populated on the next microtask after `render()` returns (se
 
 **Reuse the closure when binding multiple slots to the same signal.** `{sig}` allocates nothing extra at the call site, but if you write `{() => sig()}` repeatedly each instance is its own closure. Hoist or just pass `sig` directly.
 
-## Benchmarks
-
-Real-DOM benchmarks (Chromium via Playwright with `--expose-gc`, M1 Mac, mitata `.gc('inner')` to isolate GC pauses; median of 3 runs; lower is better):
-
-| Scenario | @slimlib/jsx | lit-html | voby | preact | solid-js |
-|---|---:|---:|---:|---:|---:|
-| create-1000 (1000 children mount) | **0.60 ms** | 0.06 ms | 1.13 ms | 0.70 ms | 0.74 ms |
-| update-1000 (reactive text update) | 0.53 ms | 0.14 ms | 0.50 ms | 0.35 ms | 0.57 ms |
-| custom-element-mount (100×) | 0.33 ms | 0.30 ms | 0.35 ms | 0.31 ms | 0.36 ms |
-| deep-tree (4096 leaves) | **2.49 ms** | 0.48 ms | 6.17 ms | 4.42 ms | 5.46 ms |
-| deep-tree-update (reactive label) | 1.72 ms | 0.87 ms | 1.27 ms | 2.30 ms | 0.98 ms |
-| swap-rows (keyed) | **0.70 ms** | 0.21 ms | 0.27 ms | 0.39 ms | 0.32 ms |
-| shuffle-1000 (keyed) | **0.85 ms** | 0.83 ms | 0.59 ms | 2.27 ms | 0.57 ms |
-
-Keyed scenarios use `forEach` from `@slimlib/jsx/for-each`. The bench harness drives `@slimlib/jsx` with the default microtask scheduler and explicitly calls `flushEffects()` after each signal write to make commit cost visible in the timed window. Reproduce: `pnpm bench:browser` (writes `results-browser.csv`).
-
-### Bundle size (esbuild minified, gzipped)
-
-| Library | Min | **Gzip** | Brotli |
-|---|---:|---:|---:|
-| vanjs-core | 2.29 KB | **1.13 KB** | 1.04 KB |
-| **@slimlib/jsx** | 5.87 KB | **2.70 KB** | 2.40 KB |
-| @slimlib/jsx + store | 6.71 KB | **3.06 KB** | 2.73 KB |
-| lit-html | 6.99 KB | 3.10 KB | 2.81 KB |
-| snabbdom | 8.85 KB | 3.40 KB | 3.06 KB |
-| preact | 10.13 KB | 4.32 KB | 3.95 KB |
-| solid-js | 20.43 KB | 7.93 KB | 7.20 KB |
-| mithril | 25.88 KB | 9.80 KB | 8.77 KB |
-| voby | 29.92 KB | 11.14 KB | 10.09 KB |
-
-`@slimlib/jsx` + full reactive system fits in **3.06 KB gzip** — smaller than lit-html alone. Reproduce: `pnpm size`.
-
 ## Design Notes
 
 - **One scope per `render()` call, with sub-scopes per dynamic boundary.** Components do NOT create their own scopes. Every function-child boundary (`{() => ...}`) and every `forEach` row gets a sub-scope that is disposed and replaced on re-run, so `on:` listeners, `ref` callbacks, and inner `effect()` calls don't leak when conditionals flip or list rows are removed.
@@ -330,4 +289,4 @@ Keyed scenarios use `forEach` from `@slimlib/jsx/for-each`. The bench harness dr
 
 ## License
 
-MIT
+[MIT](https://github.com/kshutkin/slimlib/blob/main/LICENSE)
