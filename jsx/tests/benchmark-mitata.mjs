@@ -55,15 +55,21 @@ const slimlibJsx = await safeImport('@slimlib/jsx', () => import('../src/index.t
 const slimlibForEach = await safeImport('@slimlib/jsx/for-each', () => import('../src/for-each.ts'));
 const slimlibStore = await safeImport('@slimlib/store', () => import('@slimlib/store'));
 
-// @slimlib/jsx does not call flushEffects() internally — the library is
-// scheduler-agnostic and leaves commit timing to @slimlib/store's scheduler
-// (default: queueMicrotask). In a synchronous benchmark we must drain effects
-// manually. `drainSlimlib` is `let` so the sync-scheduler wrapper can swap it
-// for a no-op while it owns the scheduler; the default adapter always sees
-// the real drain function.
-let drainSlimlib = slimlibStore?.flushEffects ? () => slimlibStore.flushEffects() : () => {};
-const realDrainSlimlib = drainSlimlib;
-const noopDrainSlimlib = () => {};
+// @slimlib/jsx commits via @slimlib/store's scheduler (default:
+// queueMicrotask). The scheduler probe intercepts queueMicrotask and
+// drains queued effects inside the timed body, so commit cost is included
+// in every measurement without bypassing the scheduler.
+//
+// store/globals.ts captures `scheduler = queueMicrotask` as a direct function
+// reference at module load — before the probe patches globalThis. Rebind to a
+// live closure while the probe is armed so calls go through the patched global.
+const _originalSlimlibScheduler = cb => queueMicrotask(cb);
+function bindSlimlibSchedulerToLiveGlobal() {
+    slimlibStore?.setScheduler?.(cb => globalThis.queueMicrotask(cb));
+}
+function restoreSlimlibScheduler() {
+    slimlibStore?.setScheduler?.(_originalSlimlibScheduler);
+}
 
 const reactMod = await safeImport('react', () => import('react'));
 const reactDomClient = await safeImport('react-dom/client', () => import('react-dom/client'));
@@ -1362,7 +1368,6 @@ const slimlibAdapter =
                         },
                         state.c,
                     );
-                    drainSlimlib();
                 },
             },
             update1000: {
@@ -1382,12 +1387,10 @@ const slimlibAdapter =
                         },
                         c,
                     );
-                    drainSlimlib();
                     return { c, v, dispose };
                 },
                 run(state) {
                     state.v.set(state.v() + 1);
-                    drainSlimlib();
                 },
                 teardown(state) {
                     state.dispose?.();
@@ -1412,7 +1415,6 @@ const slimlibAdapter =
                     state.dispose?.();
                     resetContainer(state.c);
                     state.dispose = render(() => h(SlimDeepNode, { depth: DEEP_DEPTH, label: '0' }), state.c);
-                    drainSlimlib();
                 },
             },
             // deep-tree-update: Strategy B — reactive label at the root signal feeds every leaf.
@@ -1430,12 +1432,10 @@ const slimlibAdapter =
                         return h('div', null, children);
                     }
                     const dispose = render(() => h(DeepReactive, { depth: DEEP_DEPTH, suffix: '' }), c);
-                    drainSlimlib();
                     return { c, label, dispose };
                 },
                 run(state) {
                     state.label.set(state.label() === 'A' ? 'B' : 'A');
-                    drainSlimlib();
                 },
                 teardown(state) {
                     state.dispose?.();
@@ -1461,16 +1461,15 @@ const slimlibSyncAdapter =
     slimlibStore &&
     (() => {
         const { setScheduler } = slimlibStore;
-        // Capture the original queueMicrotask before the probe ever patches it.
-        const defaultSched = queueMicrotask.bind(globalThis);
+        // Restore via live-global closure so the probe (if armed) still observes
+        // microtasks scheduled by slimlib after a sync run completes.
+        const defaultSched = cb => globalThis.queueMicrotask(cb);
         const syncSched = fn => fn();
         function withSync(fn) {
             return function (...args) {
                 setScheduler(syncSched);
-                drainSlimlib = noopDrainSlimlib;
                 const restore = () => {
                     setScheduler(defaultSched);
-                    drainSlimlib = realDrainSlimlib;
                 };
                 let returnedPromise = false;
                 try {
@@ -2376,13 +2375,11 @@ const slimlibForEachKeyed =
                                   ),
                               c
                           );
-                          drainSlimlib();
                           return { ctx: { items, dispose }, toggle: false };
                       },
                       run(state) {
                           state.toggle = !state.toggle;
                           state.ctx.items.set(state.toggle ? orderB : baseItems);
-                          drainSlimlib();
                       },
                       teardown(state) {
                           state.ctx.dispose?.();
@@ -2405,15 +2402,13 @@ const slimlibForEachKeyedSync =
     slimlibForEachKeyed && slimlibStore
         ? (() => {
               const { setScheduler } = slimlibStore;
-              const defaultSched = queueMicrotask.bind(globalThis);
+              const defaultSched = cb => globalThis.queueMicrotask(cb);
               const syncSched = fn => fn();
               function withSync(fn) {
                   return function (...args) {
                       setScheduler(syncSched);
-                      drainSlimlib = noopDrainSlimlib;
                       const restore = () => {
                           setScheduler(defaultSched);
-                          drainSlimlib = realDrainSlimlib;
                       };
                       let returnedPromise = false;
                       try {
@@ -2675,6 +2670,9 @@ for (const adapter of allAdapters) {
         const state = spec.setup();
         const maybe = spec.run(state);
         if (maybe && typeof maybe.then === 'function') await maybe;
+        // Flush any microtasks (slimlib's default scheduler is queueMicrotask);
+        // without this the probe reads pre-commit DOM for reactive adapters.
+        await Promise.resolve();
         const spans = state.c.querySelectorAll('span');
         const text = spans[0]?.textContent ?? '';
         const leavesOk = spans.length === DEEP_LEAVES;
@@ -2774,6 +2772,7 @@ const scenarios = [
 // changed. Failures are warnings — they signal probe.drain() didn't catch
 // the lib's scheduler and its numbers may be unfair.
 probe.arm();
+bindSlimlibSchedulerToLiveGlobal();
 try {
     for (const adapter of allAdapters) {
         const spec = adapter.update1000;
@@ -2801,6 +2800,7 @@ try {
     }
 } finally {
     probe.disarm();
+    restoreSlimlibScheduler();
 }
 
 // Arm the scheduler probe for the duration of the bench. Every timed body
@@ -2809,6 +2809,7 @@ try {
 // work in the measurement. We also snapshot per-(scenario, lib) call counts
 // on the first armed run as a fairness fingerprint, emitted alongside the CSV.
 probe.arm();
+bindSlimlibSchedulerToLiveGlobal();
 
 function makeBenchBody(adapter, scenarioName, spec) {
     const key = `${scenarioName}:${adapter.name}`;
@@ -2885,6 +2886,7 @@ for (const scenarioName of ['swap-rows', 'shuffle-1000', 'append-tail-1000', 'pr
 
 const runResult = await run();
 probe.disarm();
+restoreSlimlibScheduler();
 
 // ---- Scheduler probe fingerprint (per scenario × lib call counts) -------
 console.log('[probe] scheduler call fingerprint (first armed run of each lib×scenario):');
