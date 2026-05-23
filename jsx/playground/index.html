@@ -60,6 +60,40 @@
                 align-items: center;
                 flex-wrap: wrap;
             }
+            .cells {
+                display: grid;
+                grid-template-columns: repeat(100, 10px);
+                gap: 1px;
+                margin-block: 0.5rem;
+                font: 8px/10px monospace;
+            }
+            .cells .cell {
+                width: 10px;
+                height: 10px;
+                background: color-mix(in srgb, currentColor 8%, transparent);
+                text-align: center;
+                overflow: hidden;
+                color: color-mix(in srgb, currentColor 70%, transparent);
+            }
+            .stage {
+                position: relative;
+                width: 420px;
+                height: 220px;
+                margin-block: 0.5rem;
+                border: 1px dashed color-mix(in srgb, currentColor 20%, transparent);
+                border-radius: 0.25rem;
+                overflow: hidden;
+            }
+            .stage .box {
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 6px;
+                height: 6px;
+                background: tomato;
+                border-radius: 50%;
+                will-change: transform;
+            }
         </style>
     </head>
     <body>

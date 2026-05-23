@@ -16,6 +16,7 @@ import { extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { build } from 'esbuild';
+import sveltePlugin from 'esbuild-svelte';
 
 const outDir = new URL('../.bench-browser/', import.meta.url);
 await mkdir(outDir, { recursive: true });
@@ -37,6 +38,7 @@ await build({
     // mitata reaches for these runtime-detection modules transitively; stub
     // them out so the browser bundle never faults on a node/bun-only dep.
     external: ['bun:jsc', 'node:os', 'node:v8', 'node:process'],
+    plugins: [sveltePlugin({ compilerOptions: { runes: true } })],
 });
 
 await writeFile(
@@ -126,7 +128,7 @@ page.on('pageerror', err => {
 
 await page.goto(`http://127.0.0.1:${port}/`);
 
-const deadline = Date.now() + 5 * 60_000;
+const deadline = Date.now() + 15 * 60_000;
 while (!done && Date.now() < deadline) {
     await new Promise(r => setTimeout(r, 200));
 }
@@ -135,7 +137,7 @@ await browser.close();
 server.close();
 
 if (!done) {
-    console.error('[bench-browser] bench did not complete within 5 minutes');
+    console.error('[bench-browser] bench did not complete within 15 minutes');
     process.exit(1);
 }
 

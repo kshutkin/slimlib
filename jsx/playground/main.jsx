@@ -1,6 +1,6 @@
 import { render } from '@slimlib/jsx';
 import { forEach } from '@slimlib/jsx/for-each';
-import { computed, signal } from '@slimlib/store';
+import { computed, setScheduler, signal } from '@slimlib/store';
 
 // Counter — signals + on:click + reactive text
 const Counter = () => {
@@ -123,6 +123,172 @@ const TodoList = () => {
     );
 };
 
+// Scheduler bench — burst writes + steady-state animation.
+// Open DevTools → Performance, click Record, hit the buttons, stop, and inspect
+// scripting / rendering bands for each scheduler.
+const SCHEDULERS = {
+    microtask: queueMicrotask,
+    raf: cb => requestAnimationFrame(cb),
+    sync: cb => cb(),
+};
+const CELLS = 5000;
+const BOXES = 200;
+
+const SchedulerBench = () => {
+    const mode = signal('microtask');
+    setScheduler(SCHEDULERS.microtask);
+    const pick = m => {
+        mode.set(m);
+        setScheduler(SCHEDULERS[m]);
+    };
+
+    // --- Burst panel ---
+    const mounted = signal(false);
+    const cells = Array.from({ length: CELLS }, () => signal(0));
+    const lastBurst = signal('—');
+    const runBurst = (label, fn) => {
+        const t0 = performance.now();
+        fn();
+        const dt = (performance.now() - t0).toFixed(2);
+        lastBurst.set(`${label}: ${dt} ms (sync portion)`);
+    };
+    const tick1 = () => runBurst('tick ×1', () => {
+        for (let i = 0; i < CELLS; i++) cells[i].set(cells[i]() + 1);
+    });
+    const tick10 = () => runBurst('tick ×10', () => {
+        for (let r = 0; r < 10; r++) for (let i = 0; i < CELLS; i++) cells[i].set(cells[i]() + 1);
+    });
+
+    // --- Animation panel ---
+    const boxes = Array.from({ length: BOXES }, (_, i) => ({
+        x: signal(0),
+        y: signal(0),
+        s: i,
+    }));
+    const fps = signal(0);
+    let driver = null; // 'raf' | 'interval' | null
+    let rafId = 0;
+    let intervalId = 0;
+    let frames = 0;
+    let lastFpsT = 0;
+    const tickFrame = t => {
+        for (let i = 0; i < BOXES; i++) {
+            const b = boxes[i];
+            b.x.set(200 + 180 * Math.sin(t / 600 + b.s * 0.1));
+            b.y.set(100 + 80 * Math.cos(t / 500 + b.s * 0.13));
+        }
+        frames++;
+        if (t - lastFpsT > 500) {
+            fps.set(Math.round((frames * 1000) / (t - lastFpsT)));
+            frames = 0;
+            lastFpsT = t;
+        }
+    };
+    const startRaf = () => {
+        if (driver) return;
+        driver = 'raf';
+        lastFpsT = performance.now();
+        const loop = t => {
+            if (driver !== 'raf') return;
+            tickFrame(t);
+            rafId = requestAnimationFrame(loop);
+        };
+        rafId = requestAnimationFrame(loop);
+    };
+    const startInterval = () => {
+        if (driver) return;
+        driver = 'interval';
+        lastFpsT = performance.now();
+        intervalId = setInterval(() => tickFrame(performance.now()), 0);
+    };
+    const stop = () => {
+        driver = null;
+        cancelAnimationFrame(rafId);
+        clearInterval(intervalId);
+        fps.set(0);
+    };
+
+    return (
+        <div>
+            <div class='row'>
+                <strong>scheduler:</strong>
+                {['microtask', 'raf', 'sync'].map(m => (
+                    <label class='row'>
+                        <input
+                            type='radio'
+                            name='sched'
+                            checked={() => mode() === m}
+                            on:change={() => pick(m)}
+                        />
+                        {m}
+                    </label>
+                ))}
+                <small>
+                    microtask = default (queueMicrotask), raf = requestAnimationFrame, sync = inline flush.
+                </small>
+            </div>
+
+            <h3>Burst writes ({CELLS} reactive cells)</h3>
+            <p>
+                <small>
+                    Each cell is its own signal + reactive text node. <code>tick ×1</code> issues one
+                    <code> set()</code> per cell; <code>tick ×10</code> issues ten. With microtask/raf the
+                    repeats collapse into one flush per effect; with sync each <code>set()</code> re-runs
+                    the effect immediately.
+                </small>
+            </p>
+            <div class='row'>
+                {() =>
+                    mounted()
+                        ? (
+                            <button type='button' on:click={() => mounted.set(false)}>
+                                unmount {CELLS} cells
+                            </button>
+                        )
+                        : (
+                            <button type='button' on:click={() => mounted.set(true)}>
+                                mount {CELLS} cells
+                            </button>
+                        )
+                }
+                <button type='button' on:click={tick1}>tick ×1</button>
+                <button type='button' on:click={tick10}>tick ×10</button>
+                <small>{lastBurst}</small>
+            </div>
+            <div class='cells'>
+                {() =>
+                    mounted()
+                        ? cells.map(c => <div class='cell'>{c}</div>)
+                        : null
+                }
+            </div>
+
+            <h3>Animation ({BOXES} boxes, steady-state)</h3>
+            <p>
+                <small>
+                    The <em>driver</em> chooses how often <code>set()</code> fires. The <em>scheduler</em>
+                    chooses when DOM writes flush. Try every combination — sync + setInterval is the
+                    worst case (synchronous reflow per box per tick); raf + raf is the smoothest.
+                </small>
+            </p>
+            <div class='row'>
+                <button type='button' on:click={startRaf}>start (rAF driver)</button>
+                <button type='button' on:click={startInterval}>start (setInterval 0)</button>
+                <button type='button' on:click={stop}>stop</button>
+                <span>fps: <strong>{fps}</strong></span>
+            </div>
+            <div class='stage'>
+                {boxes.map(b => (
+                    <div
+                        class='box'
+                        attr:style={() => `transform: translate(${b.x()}px, ${b.y()}px)`}
+                    />
+                ))}
+            </div>
+        </div>
+    );
+};
+
 const App = () => (
     <>
         <h1>@slimlib/jsx playground</h1>
@@ -145,6 +311,10 @@ const App = () => (
         <section class='demo'>
             <h2>Keyed list (forEach)</h2>
             <TodoList />
+        </section>
+        <section class='demo'>
+            <h2>Scheduler bench (microtask vs rAF vs sync)</h2>
+            <SchedulerBench />
         </section>
     </>
 );
