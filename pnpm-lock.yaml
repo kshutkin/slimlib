@@ -50,21 +50,6 @@ importers:
         specifier: ^1.2.1
         version: 1.2.2
     devDependencies:
-      '@angular/common':
-        specifier: ^19.0.0
-        version: 19.2.22(@angular/core@19.2.22(rxjs@7.8.2)(zone.js@0.15.1))(rxjs@7.8.2)
-      '@angular/compiler':
-        specifier: ^19.0.0
-        version: 19.2.22
-      '@angular/core':
-        specifier: ^19.0.0
-        version: 19.2.22(rxjs@7.8.2)(zone.js@0.15.1)
-      '@angular/platform-browser':
-        specifier: ^19.0.0
-        version: 19.2.22(@angular/common@19.2.22(@angular/core@19.2.22(rxjs@7.8.2)(zone.js@0.15.1))(rxjs@7.8.2))(@angular/core@19.2.22(rxjs@7.8.2)(zone.js@0.15.1))
-      '@angular/platform-browser-dynamic':
-        specifier: ^19.0.0
-        version: 19.2.22(@angular/common@19.2.22(@angular/core@19.2.22(rxjs@7.8.2)(zone.js@0.15.1))(rxjs@7.8.2))(@angular/compiler@19.2.22)(@angular/core@19.2.22(rxjs@7.8.2)(zone.js@0.15.1))(@angular/platform-browser@19.2.22(@angular/common@19.2.22(@angular/core@19.2.22(rxjs@7.8.2)(zone.js@0.15.1))(rxjs@7.8.2))(@angular/core@19.2.22(rxjs@7.8.2)(zone.js@0.15.1)))
       '@mastrojs/reactive':
         specifier: jsr:^0.4.1
         version: '@jsr/mastrojs__reactive@0.4.1'
@@ -131,9 +116,6 @@ importers:
       rollup-plugin-typescript2:
         specifier: ^0.36.0
         version: 0.36.0(rollup@4.59.0)(typescript@5.9.3)
-      rxjs:
-        specifier: ^7.8.1
-        version: 7.8.2
       snabbdom:
         specifier: ^3.6.2
         version: 3.6.3
@@ -228,24 +210,6 @@ importers:
 
 packages:
 
-  '@angular/common@19.2.22':
-    resolution: {integrity: sha512-OGvJkK9xvlXF0LsM8T2NTgL6ehr+P4t493xztdIwiO7CzseDzHCBNZ8L1TwaVqqP3Xj0UhGTtWXp7YN4N9+u7Q==}
-    engines: {node: ^18.19.1 || ^20.11.1 || >=22.0.0}
-    peerDependencies:
-      '@angular/core': 19.2.22
-      rxjs: ^6.5.3 || ^7.4.0
-
-  '@angular/compiler@19.2.22':
-    resolution: {integrity: sha512-NO3q39TMq88MRyBM9E/cSn4KFEItPrp79izX3nRkWlGQ0D9nJPdzm2cHtZoB9dCZ3N6EOazTgBK+2jKylQrUFQ==}
-    engines: {node: ^18.19.1 || ^20.11.1 || >=22.0.0}
-
-  '@angular/core@19.2.22':
-    resolution: {integrity: sha512-ImujBPIrV9eetYl2GaEBRw9CetklFtXB11oVaxOjflE2z6juTjugzXhszo/khMLj6UFfS+Anvp7Vv/Ot6DJL7A==}
-    engines: {node: ^18.19.1 || ^20.11.1 || >=22.0.0}
-    peerDependencies:
-      rxjs: ^6.5.3 || ^7.4.0
-      zone.js: ~0.15.0
-
   '@angular/core@21.2.0':
     resolution: {integrity: sha512-VnTbmZq3g3Q+s3nCZ8VUDMLjMezOg/bqUxAJ/DrRWCrEcTP5JO3mrNPs3FHj+qlB0T+BQP7uQv6QTzPVKybwoA==}
     engines: {node: ^20.19.0 || ^22.12.0 || >=24.0.0}
@@ -257,26 +221,6 @@ packages:
       '@angular/compiler':
         optional: true
       zone.js:
-        optional: true
-
-  '@angular/platform-browser-dynamic@19.2.22':
-    resolution: {integrity: sha512-Ez0dbASephvR+ZNxIxvjTCM3PT5t/FHJw8X1DQ2kZiHdbqTO6eOicjk96uicXKDnkS7mBuUV7HP01qEa/XfPig==}
-    engines: {node: ^18.19.1 || ^20.11.1 || >=22.0.0}
-    peerDependencies:
-      '@angular/common': 19.2.22
-      '@angular/compiler': 19.2.22
-      '@angular/core': 19.2.22
-      '@angular/platform-browser': 19.2.22
-
-  '@angular/platform-browser@19.2.22':
-    resolution: {integrity: sha512-7OE80uM3DYDXa8D+1c3D231yzfqWz+2YaQElKK5MTPIDobSA9Dsu4YIFX80FRFxaopo3673RepZgxxFx3KzRzA==}
-    engines: {node: ^18.19.1 || ^20.11.1 || >=22.0.0}
-    peerDependencies:
-      '@angular/animations': 19.2.22
-      '@angular/common': 19.2.22
-      '@angular/core': 19.2.22
-    peerDependenciesMeta:
-      '@angular/animations':
         optional: true
 
   '@asamuzakjp/css-color@3.2.0':
@@ -2282,42 +2226,12 @@ packages:
 
 snapshots:
 
-  '@angular/common@19.2.22(@angular/core@19.2.22(rxjs@7.8.2)(zone.js@0.15.1))(rxjs@7.8.2)':
-    dependencies:
-      '@angular/core': 19.2.22(rxjs@7.8.2)(zone.js@0.15.1)
-      rxjs: 7.8.2
-      tslib: 2.8.1
-
-  '@angular/compiler@19.2.22':
-    dependencies:
-      tslib: 2.8.1
-
-  '@angular/core@19.2.22(rxjs@7.8.2)(zone.js@0.15.1)':
-    dependencies:
-      rxjs: 7.8.2
-      tslib: 2.8.1
-      zone.js: 0.15.1
-
   '@angular/core@21.2.0(rxjs@7.8.2)(zone.js@0.15.1)':
     dependencies:
       rxjs: 7.8.2
       tslib: 2.8.1
     optionalDependencies:
       zone.js: 0.15.1
-
-  '@angular/platform-browser-dynamic@19.2.22(@angular/common@19.2.22(@angular/core@19.2.22(rxjs@7.8.2)(zone.js@0.15.1))(rxjs@7.8.2))(@angular/compiler@19.2.22)(@angular/core@19.2.22(rxjs@7.8.2)(zone.js@0.15.1))(@angular/platform-browser@19.2.22(@angular/common@19.2.22(@angular/core@19.2.22(rxjs@7.8.2)(zone.js@0.15.1))(rxjs@7.8.2))(@angular/core@19.2.22(rxjs@7.8.2)(zone.js@0.15.1)))':
-    dependencies:
-      '@angular/common': 19.2.22(@angular/core@19.2.22(rxjs@7.8.2)(zone.js@0.15.1))(rxjs@7.8.2)
-      '@angular/compiler': 19.2.22
-      '@angular/core': 19.2.22(rxjs@7.8.2)(zone.js@0.15.1)
-      '@angular/platform-browser': 19.2.22(@angular/common@19.2.22(@angular/core@19.2.22(rxjs@7.8.2)(zone.js@0.15.1))(rxjs@7.8.2))(@angular/core@19.2.22(rxjs@7.8.2)(zone.js@0.15.1))
-      tslib: 2.8.1
-
-  '@angular/platform-browser@19.2.22(@angular/common@19.2.22(@angular/core@19.2.22(rxjs@7.8.2)(zone.js@0.15.1))(rxjs@7.8.2))(@angular/core@19.2.22(rxjs@7.8.2)(zone.js@0.15.1))':
-    dependencies:
-      '@angular/common': 19.2.22(@angular/core@19.2.22(rxjs@7.8.2)(zone.js@0.15.1))(rxjs@7.8.2)
-      '@angular/core': 19.2.22(rxjs@7.8.2)(zone.js@0.15.1)
-      tslib: 2.8.1
 
   '@asamuzakjp/css-color@3.2.0':
     dependencies:
@@ -4217,4 +4131,5 @@ snapshots:
 
   zimmerframe@1.1.4: {}
 
-  zone.js@0.15.1: {}
+  zone.js@0.15.1:
+    optional: true
