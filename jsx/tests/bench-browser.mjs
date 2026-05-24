@@ -10,10 +10,51 @@
  * If the chromium binary is missing, run:  npx playwright install chromium
  */
 
+import { existsSync } from 'node:fs';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+// Parse CSV into Map<test, Map<lib, {mean, variance, n}>>
+function parseCSV(content) {
+    const lines = content.trim().split('\n');
+    if (lines.length < 2) return new Map();
+    const header = lines[0].split(',');
+    const fwNames = header
+        .slice(1)
+        .filter((_, i) => i % 3 === 0)
+        .map(n => n.replace('_mean', ''));
+    const data = new Map();
+    for (let i = 1; i < lines.length; i++) {
+        const cols = lines[i].split(',');
+        const testName = cols[0];
+        const testData = new Map();
+        for (let j = 0; j < fwNames.length; j++) {
+            const meanVal = parseFloat(cols[1 + j * 3]) || 0;
+            const varVal = parseFloat(cols[2 + j * 3]) || 0;
+            const nVal = parseInt(cols[3 + j * 3], 10) || 1;
+            testData.set(fwNames[j], { mean: meanVal, variance: varVal, n: nVal });
+        }
+        data.set(testName, testData);
+    }
+    return data;
+}
+
+// Welch's t-test approximation, alpha=0.05 two-tailed.
+function isSignificant(m1, v1, n1, m2, v2, n2) {
+    if (n1 < 2 || n2 < 2) return false;
+    if (v1 === 0 && v2 === 0) return m1 !== m2;
+    const se = Math.sqrt(v1 / n1 + v2 / n2);
+    if (se === 0) return m1 !== m2;
+    const t = Math.abs(m1 - m2) / se;
+    const num = (v1 / n1 + v2 / n2) ** 2;
+    const denom = (v1 / n1) ** 2 / (n1 - 1) + (v2 / n2) ** 2 / (n2 - 1);
+    const df = denom > 0 ? num / denom : 1;
+    const z = 1.96;
+    const tCrit = z + (z * z * z + z) / (4 * df);
+    return t > tCrit;
+}
 
 import { build } from 'esbuild';
 import sveltePlugin from 'esbuild-svelte';
@@ -143,10 +184,54 @@ if (!done) {
 
 if (benchResultsPayload?.csv) {
     const csvPath = fileURLToPath(new URL('../results-browser.csv', import.meta.url));
-    await writeFile(csvPath, benchResultsPayload.csv);
     const sc = benchResultsPayload.scenarioCount ?? '?';
     const lc = benchResultsPayload.libOrder?.length ?? '?';
-    console.log(`[bench] wrote results-browser.csv (${sc} scenarios x ${lc} libs)`);
+    const fileExists = existsSync(csvPath);
+
+    if (fileExists) {
+        const existingContent = await readFile(csvPath, 'utf-8');
+        const existingData = parseCSV(existingContent);
+        const currentData = parseCSV(benchResultsPayload.csv);
+
+        console.log('');
+        console.log('='.repeat(70));
+        console.log('Statistically Significant Changes');
+        console.log('='.repeat(70));
+        console.log('');
+
+        let hasSignificantChanges = false;
+        for (const [testName, testStats] of currentData) {
+            const existingTest = existingData.get(testName);
+            if (!existingTest) {
+                console.log(`  NEW: ${testName}`);
+                hasSignificantChanges = true;
+                continue;
+            }
+            for (const [fwName, cur] of testStats) {
+                const prev = existingTest.get(fwName);
+                if (!prev) continue;
+                if (cur.mean === 0 && cur.n === 0) continue;
+                if (prev.mean === 0 && prev.n === 0) continue;
+                if (isSignificant(cur.mean, cur.variance, cur.n, prev.mean, prev.variance, prev.n)) {
+                    hasSignificantChanges = true;
+                    const diff = cur.mean - prev.mean;
+                    const pct = prev.mean !== 0 ? ((diff / prev.mean) * 100).toFixed(1) : 'N/A';
+                    const direction = diff > 0 ? 'SLOWER' : 'FASTER';
+                    console.log(
+                        `  ${direction}: ${testName} [${fwName}]: ${prev.mean.toFixed(4)} -> ${cur.mean.toFixed(4)} ms (${pct}%)`
+                    );
+                }
+            }
+        }
+        if (!hasSignificantChanges) {
+            console.log('  No statistically significant changes detected.');
+        }
+        console.log('');
+        console.log(`[bench] results-browser.csv exists; not overwriting (${sc} scenarios x ${lc} libs in this run)`);
+    } else {
+        await writeFile(csvPath, benchResultsPayload.csv);
+        console.log(`[bench] wrote results-browser.csv (${sc} scenarios x ${lc} libs)`);
+    }
 } else {
     console.error('[bench-browser] no [bench-results] payload received; results-browser.csv NOT written');
     process.exit(1);
