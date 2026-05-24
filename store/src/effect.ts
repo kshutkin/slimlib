@@ -6,6 +6,18 @@ import { trackSymbol } from './symbols';
 import type { ReactiveNode } from './internal-types';
 import type { EffectCleanup } from './types';
 
+const enum EffectOptionsValues {
+    DEFERRED = 0, // Default behavior: schedule effect to run in a microtask after the current execution context
+    EAGER = 1 << 0, // Run effect immediately during setup instead of scheduling a microtask
+}
+
+export const EffectOptions = {
+    DEFERRED: 0,
+    EAGER: 1,
+} as const;
+
+export type EffectOptions = typeof EffectOptions[keyof typeof EffectOptions];
+
 /**
  * Effect creation counter - increments on every effect creation
  * Used to maintain effect execution order by creation time
@@ -16,7 +28,7 @@ let effectCreationCounter = 0;
  * Creates a reactive effect that runs when dependencies change
  */
 // biome-ignore lint/suspicious/noConfusingVoidType: void is semantically correct here - callback may return nothing or a cleanup function
-export const effect = (callback: () => void | EffectCleanup): (() => void) => {
+export const effect = (callback: () => void | EffectCleanup, eager: EffectOptions = EffectOptionsValues.DEFERRED): (() => void) => {
     let disposed = false;
 
     // Register effect for GC tracking (only in DEV mode)
@@ -118,8 +130,14 @@ export const effect = (callback: () => void | EffectCleanup): (() => void) => {
     // Trigger first run via batched queue
     // node is already dirty
     // and effect is for sure with the latest id so we directly adding without the sort
-    batchedAddNew(node, effectId);
-    scheduleFlush();
+    if (eager === EffectOptionsValues.DEFERRED) {
+        batchedAddNew(node, effectId);
+        scheduleFlush();
+    } else {
+        // For eager effects, run immediately (in the same tick) instead of scheduling a microtask
+        // This is useful when you want the effect to run synchronously during setup, but still want it to be tracked and re-run on dependencies change
+        runner();
+    }
 
     return dispose;
 };
