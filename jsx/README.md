@@ -87,23 +87,38 @@ document.body.replaceChildren(); // remove DOM if needed
 
 #### Commit timing
 
-`@slimlib/jsx` is **scheduler-agnostic**: it never calls `flushEffects()` internally. Reactive bindings are scheduled by `@slimlib/store`'s scheduler, which defaults to `queueMicrotask`. As a result, `render()` returns with the comment-anchor structure in place but reactive children populate on the next microtask.
+`@slimlib/jsx` wires reactive bindings (attribute effects, function-child effects, `forEach` reconciler) as **eager** effects internally — they run synchronously during `render()` so the first paint is fully populated before `render()` returns. There is no microtask gap between mount and first render; tests and SSR-style code can read the DOM immediately.
 
-For synchronous observation (tests, SSR, or a `connectedCallback` that needs `this.children` immediately) pick one:
+```jsx
+const dispose = render(() => <App />, document.body);
+// document.body already contains the fully rendered tree.
+```
+
+Subsequent re-runs (triggered by signal/state writes) still go through `@slimlib/store`'s scheduler, which defaults to `queueMicrotask`. Multiple synchronous writes coalesce into one re-run as usual. To change that timing you have two options:
 
 ```js
 import { flushEffects, setScheduler } from '@slimlib/store';
 
-// 1) Drain manually after each commit point:
-render(() => <App />, document.body);
-flushEffects(); // may need to be called multiple times if effects schedule more effects
+// 1) Drive scheduling manually (drain after each write batch):
+setScheduler(fn => fn());     // sync — every write commits inline
+// or
+setScheduler(myQueue);        // your own — call flushEffects() when ready
 
-// 2) Install a synchronous scheduler globally (signal writes commit inline,
-//    at the cost of losing write batching):
-setScheduler(fn => fn());
+// 2) Stay on microtask scheduling, but force-drain at known sync points:
+write1();
+write2();
+flushEffects(); // commit both
 ```
 
-The library does not pick for you because the right answer depends on whether you value batched microtask updates (default) or strict synchronous commits.
+##### Internal use of `EffectOptions.EAGER`
+
+Internally, `@slimlib/jsx` calls `effect(fn, 1)` (the literal value of `EffectOptions.EAGER` from `@slimlib/store`) for the bindings it sets up. This has three consequences worth knowing:
+
+- **First-run errors propagate to `render()`.** A function-child that throws, or a `forEach` body that returns a non-Node, will throw synchronously from `render()` — you get a real stack trace at the call site and can wrap in `try/catch`. With the default `DEFERRED` mode those errors would be swallowed and logged by the scheduler's flush loop.
+- **`activeScope` is the render scope during initial wiring.** Function-child effects and per-item `forEach` scopes are parented correctly without any internal `activeScope` capture.
+- **No microtask gap.** Calls that observe the DOM right after `render()` (e.g. `connectedCallback`, integration tests, snapshot serializers) see the final tree without needing `flushEffects()` or `await Promise.resolve()`.
+
+User-land `effect()` calls inside your components remain deferred by default — only the renderer's internal wiring is eager.
 
 ### `createElement(type, props, ...children)`
 

@@ -11,11 +11,48 @@ const enum EffectOptionsValues {
     EAGER = 1 << 0, // Run effect immediately during setup instead of scheduling a microtask
 }
 
+/**
+ * Bitflag-style options controlling effect creation.
+ *
+ * Pass one of these values as the second argument to {@link effect}.
+ *
+ * Today only the first-run scheduling mode is encoded; future flags will be
+ * combinable via bitwise OR. Internal callers in @slimlib/* can also pass the
+ * raw numeric literals (`0` for DEFERRED, `1` for EAGER) to avoid pulling the
+ * enum-like struct into their bundle.
+ *
+ * | Member     | Value | First run                                              | Error handling                                                                                  |
+ * | ---------- | ----- | ------------------------------------------------------ | ----------------------------------------------------------------------------------------------- |
+ * | `DEFERRED` | `0`   | Scheduled on the active scheduler (default microtask). | Caught by the flush loop and logged via `console.error` — caller of `effect()` never sees them. |
+ * | `EAGER`    | `1`   | Runs synchronously inside the `effect()` call.         | Thrown synchronously to the caller — preserves the stack trace and is catchable with try/catch. |
+ *
+ * Behavior shared by both modes:
+ *  - Dependency tracking is identical: signals/state/computed reads inside the
+ *    callback subscribe the effect to re-run on change.
+ *  - Re-runs (after the first one) always go through the scheduler.
+ *  - The returned dispose function and the optional cleanup-function-return
+ *    contract are identical.
+ *
+ * Implications worth knowing:
+ *  - With `EAGER`, the surrounding scope and `activeScope` are valid during
+ *    the first run, so any sub-scopes created inside the callback are
+ *    parented correctly. With `DEFERRED`, `activeScope` is usually
+ *    `undefined` by the time the flush runs — capture it at setup if needed.
+ *  - `EAGER` makes signal mutations that synchronously trigger an effect
+ *    cycle visible at the call site. With `DEFERRED` they're noticed only
+ *    once the flush runs.
+ *  - Choosing `EAGER` does not change re-run semantics; only the first run is
+ *    promoted from a microtask to inline execution.
+ */
 export const EffectOptions = {
     DEFERRED: 0,
     EAGER: 1,
 } as const;
 
+/**
+ * Numeric union of the values in {@link EffectOptions} (`0 | 1`). Accepted as
+ * the second argument to {@link effect}.
+ */
 export type EffectOptions = typeof EffectOptions[keyof typeof EffectOptions];
 
 /**
@@ -25,7 +62,18 @@ export type EffectOptions = typeof EffectOptions[keyof typeof EffectOptions];
 let effectCreationCounter = 0;
 
 /**
- * Creates a reactive effect that runs when dependencies change
+ * Creates a reactive effect that runs when dependencies change.
+ *
+ * @param callback - Function to run; may return an {@link EffectCleanup} to be
+ *                   invoked before each re-run and on dispose.
+ * @param eager    - One of {@link EffectOptions}. Default `DEFERRED` schedules
+ *                   the first run on the active scheduler. `EAGER` runs the
+ *                   first invocation synchronously inside `effect()` — errors
+ *                   propagate to the caller (catchable with try/catch),
+ *                   whereas errors in deferred first runs are caught by the
+ *                   flush loop and reported via `console.error`.
+ * @returns        - Dispose function that stops re-runs and invokes the last
+ *                   cleanup.
  */
 // biome-ignore lint/suspicious/noConfusingVoidType: void is semantically correct here - callback may return nothing or a cleanup function
 export const effect = (callback: () => void | EffectCleanup, eager: EffectOptions = EffectOptionsValues.DEFERRED): (() => void) => {
@@ -134,8 +182,14 @@ export const effect = (callback: () => void | EffectCleanup, eager: EffectOption
         batchedAddNew(node, effectId);
         scheduleFlush();
     } else {
-        // For eager effects, run immediately (in the same tick) instead of scheduling a microtask
-        // This is useful when you want the effect to run synchronously during setup, but still want it to be tracked and re-run on dependencies change
+        // For eager effects, run immediately (in the same tick) instead of
+        // scheduling a microtask. Errors thrown by the first run propagate
+        // synchronously to the caller of effect() — by design: this gives a
+        // useful stack trace and lets surrounding code handle the failure
+        // with try/catch. (Deferred runs cannot do this because the runner
+        // executes inside a queueMicrotask callback, where thrown errors
+        // would become unhandled rejections; the flush loop logs them via
+        // console.error instead.)
         runner();
     }
 

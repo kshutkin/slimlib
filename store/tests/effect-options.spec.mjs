@@ -204,4 +204,43 @@ describe('effect — EffectOptions', () => {
             expect(deferredCb).toHaveBeenCalledTimes(2);
         });
     });
+
+    describe('error handling — documented semantics', () => {
+        it('EAGER: first-run errors propagate synchronously to the caller', () => {
+            expect(() =>
+                effect(() => {
+                    throw new Error('boom');
+                }, EffectOptions.EAGER)
+            ).toThrow(/boom/);
+        });
+
+        it('EAGER: caller can catch and recover with try/catch', () => {
+            let caught;
+            try {
+                effect(() => {
+                    throw new Error('boom');
+                }, EffectOptions.EAGER);
+            } catch (e) {
+                caught = e;
+            }
+            expect(caught).toBeInstanceOf(Error);
+            expect(caught.message).toBe('boom');
+        });
+
+        it('DEFERRED: first-run errors are caught by the flush loop and logged', async () => {
+            const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+            // Must not throw to caller.
+            expect(() =>
+                effect(() => {
+                    throw new Error('deferred-boom');
+                })
+            ).not.toThrow();
+
+            await flushAll();
+
+            const errs = errSpy.mock.calls.flat();
+            errSpy.mockRestore();
+            expect(errs.some(e => e instanceof Error && e.message === 'deferred-boom')).toBe(true);
+        });
+    });
 });

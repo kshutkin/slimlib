@@ -310,21 +310,23 @@ describe('forEach — keyed list renderer', () => {
     });
 
     it('13. body returning a non-Node is reported (effect error path)', () => {
-        const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-        mount(() =>
-            createElement(
-                'ul',
-                null,
-                forEach(
-                    () => [{ id: 'a' }],
-                    item => item.id,
-                    () => 'not a node'
+        // @slimlib/jsx uses EAGER effects internally: forEach's reconciler
+        // effect runs synchronously during render, so a non-Node returned by
+        // body propagates up to the caller (preserving the stack trace)
+        // instead of being swallowed by the deferred flush's console.error.
+        expect(() =>
+            mount(() =>
+                createElement(
+                    'ul',
+                    null,
+                    forEach(
+                        () => [{ id: 'a' }],
+                        item => item.id,
+                        () => 'not a node'
+                    )
                 )
             )
-        );
-        const errs = errSpy.mock.calls.flat();
-        errSpy.mockRestore();
-        expect(errs.some(e => e instanceof Error && /single Node/.test(e.message))).toBe(true);
+        ).toThrow(/single Node/);
     });
 
     it('14. render dispose tears down per-item reactive children (no orphan scopes)', () => {

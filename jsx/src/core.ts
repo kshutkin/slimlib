@@ -108,9 +108,11 @@ const setProperty = (element: Element, key: string, value: unknown): void => {
     } else if (typeof value === 'function') {
         const reactive = value as () => unknown;
         // effect() auto-registers with the active store scope.
+        // EAGER (1): first run must apply the property synchronously during
+        // render() so the DOM is fully populated before render() returns.
         effect(() => {
             applyProperty(element, key, reactive());
-        });
+        }, 1);
     } else {
         applyProperty(element, key, value);
     }
@@ -187,7 +189,7 @@ const appendChild = (parent: Node, child: Child): void => {
                     s();
                 }
             };
-        });
+        }, 1);
     } else if (Array.isArray(child)) {
         const length = child.length;
         appendChildren(parent, child, length);
@@ -489,7 +491,7 @@ export const forEach = <T>(
         }
 
         previousMap = newMap;
-    });
+    }, 1);
 
     return fragment;
 };

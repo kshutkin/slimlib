@@ -131,11 +131,12 @@ console.log(doubled()); // 10 - recomputes on demand
 
 Both patterns can coexist. A computed stays connected to its sources as long as it's referenced, regardless of whether any effect tracks it. This allows computeds to be used as derived getters in imperative code while still participating in the reactive graph when needed.
 
-#### `effect(callback: () => void | EffectCleanup): () => void`
+#### `effect(callback: () => void | EffectCleanup, eager?: EffectOptions): () => void`
 
 Creates a reactive effect that runs when its dependencies change. Returns a dispose function.
 
 - `callback` - Effect function that optionally returns a cleanup function (`EffectCleanup = () => void`)
+- `eager` - Optional. One of `EffectOptions.DEFERRED` (default, `0`) or `EffectOptions.EAGER` (`1`). Controls when and how the **first** run executes — see [Effect creation modes](#effect-creation-modes) below.
 - Effects run on the next microtask (not synchronously) by default
 - Multiple synchronous changes are automatically batched
 - The cleanup function runs before each re-execution and when the effect is disposed
@@ -160,6 +161,39 @@ store.count = 1; // Effect runs after microtask
 
 dispose(); // Stop the effect, run cleanup
 ```
+
+##### Effect creation modes
+
+```js
+import { effect, EffectOptions } from "@slimlib/store";
+
+effect(fn);                          // DEFERRED (default)
+effect(fn, EffectOptions.EAGER);     // first run is synchronous
+```
+
+| Mode       | Value | First run                                          | Errors on first run                                                        |
+| ---------- | ----- | -------------------------------------------------- | -------------------------------------------------------------------------- |
+| `DEFERRED` | `0`   | Scheduled on the active scheduler (default microtask). | Caught by the flush loop and logged via `console.error`. Caller never sees them — `queueMicrotask` callbacks have no `try/catch` boundary, so propagating them would surface as unhandled rejections. |
+| `EAGER`    | `1`   | Runs synchronously inside the `effect()` call.     | **Propagate synchronously to the caller** — preserves the stack trace, and you can wrap `effect()` in `try/catch` to recover. |
+
+Shared by both modes:
+
+- Dependency tracking is identical.
+- Re-runs (after the first one) always go through the scheduler.
+- The returned dispose function and optional cleanup-return contract are identical.
+
+When to choose `EAGER`:
+
+- You need the effect's side effects (DOM writes, signal initialisation, sub-scope setup) to be visible before `effect()` returns. This is how `@slimlib/jsx` wires reactive attributes and reactive children: the first paint must happen during `render()`, not on a later microtask.
+- You want errors in the initial run to be catchable at the call site, not silently logged.
+- You rely on `activeScope` being the surrounding scope during the first run (with `DEFERRED`, `activeScope` is typically `undefined` by the time the flush fires).
+
+When to stick with `DEFERRED`:
+
+- You want multiple synchronous signal mutations to coalesce into a single first run.
+- You explicitly want the queueMicrotask error-swallowing semantics.
+
+The constants are also available as raw numeric literals (`0`, `1`). Internal slimlib packages pass the literal to keep the `EffectOptions` struct out of their bundle; library consumers should prefer the named constants for readability.
 
 For managing multiple effects, use a `scope`:
 
