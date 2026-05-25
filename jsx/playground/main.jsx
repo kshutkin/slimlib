@@ -1,6 +1,6 @@
 import { render } from '@slimlib/jsx';
 import { forEach } from '@slimlib/jsx/for-each';
-import { computed, setScheduler, signal } from '@slimlib/store';
+import { computed, effect, setScheduler, signal } from '@slimlib/store';
 
 // Counter — signals + on:click + reactive text
 const Counter = () => {
@@ -141,6 +141,54 @@ const pickScheduler = m => {
 pickScheduler('microtask');
 const CELLS = 5000;
 const BOXES = 200;
+
+// Cascading tree — each level derived from the previous level via signals + effects.
+// Bump the root and every level recomputes; under the microtask scheduler each
+// level's writes are flushed in their own microtask, so the cascade unfolds as
+// a chain of microtasks (one per level) inside the same task.
+const CASCADE_DEPTH = 6;     // 6 levels under root => 7 rows
+const CASCADE_BRANCHING = 2; // binary tree
+
+const CascadingTree = () => {
+    const root = signal(0);
+    const levels = [[root]];
+    for (let lvl = 1; lvl <= CASCADE_DEPTH; lvl++) {
+        const prev = levels[lvl - 1];
+        const cur = [];
+        for (let i = 0; i < prev.length; i++) {
+            const parent = prev[i];
+            for (let b = 0; b < CASCADE_BRANCHING; b++) {
+                const child = signal(0);
+                const branchIdx = b;
+                effect(() => child.set(parent() * CASCADE_BRANCHING + branchIdx + 1));
+                cur.push(child);
+            }
+        }
+        levels.push(cur);
+    }
+    const bump = () => root.set(root() + 1);
+    const reset = () => root.set(0);
+    const totalNodes = levels.reduce((s, l) => s + l.length, 0);
+    return (
+        <div>
+            <div class='row'>
+                <button type='button' on:click={bump}>bump root</button>
+                <button type='button' on:click={reset}>reset</button>
+                <small>
+                    {CASCADE_DEPTH + 1} levels, {totalNodes} nodes. Each level is written by an effect
+                    that reads its parent — bumping the root cascades down via the scheduler.
+                </small>
+            </div>
+            <div class='cascade'>
+                {levels.map(level => (
+                    <div class='cascade-level'>
+                        {level.map(sig => <span class='cascade-node'>{sig}</span>)}
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+};
 
 const SchedulerBench = () => {
     const mode = schedulerMode;
@@ -418,6 +466,10 @@ const App = () => (
         <section class='demo'>
             <h2>Keyed list (forEach)</h2>
             <TodoList />
+        </section>
+        <section class='demo'>
+            <h2>Cascading tree (signals + effects)</h2>
+            <CascadingTree />
         </section>
         <section class='demo'>
             <h2>Scheduler bench (microtask vs rAF vs sync)</h2>

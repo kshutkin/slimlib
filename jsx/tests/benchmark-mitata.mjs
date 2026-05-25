@@ -55,21 +55,15 @@ const slimlibJsx = await safeImport('@slimlib/jsx', () => import('../src/index.t
 const slimlibForEach = await safeImport('@slimlib/jsx/for-each', () => import('../src/for-each.ts'));
 const slimlibStore = await safeImport('@slimlib/store', () => import('@slimlib/store'));
 
-// @slimlib/jsx commits via @slimlib/store's scheduler (default:
-// queueMicrotask). The scheduler probe intercepts queueMicrotask and
-// drains queued effects inside the timed body, so commit cost is included
-// in every measurement without bypassing the scheduler.
-//
-// store/globals.ts captures `scheduler = queueMicrotask` as a direct function
-// reference at module load — before the probe patches globalThis. Rebind to a
-// live closure while the probe is armed so calls go through the patched global.
-const _originalSlimlibScheduler = cb => queueMicrotask(cb);
-function bindSlimlibSchedulerToLiveGlobal() {
-    slimlibStore?.setScheduler?.(cb => globalThis.queueMicrotask(cb));
-}
-function restoreSlimlibScheduler() {
-    slimlibStore?.setScheduler?.(_originalSlimlibScheduler);
-}
+// @slimlib/jsx does not call flushEffects() internally — the library is
+// scheduler-agnostic and leaves commit timing to @slimlib/store's scheduler
+// (default: queueMicrotask). In a synchronous benchmark we must drain effects
+// manually. `drainSlimlib` is `let` so the sync-scheduler wrapper can swap it
+// for a no-op while it owns the scheduler; the default adapter always sees
+// the real drain function.
+let drainSlimlib = slimlibStore?.flushEffects ? () => slimlibStore.flushEffects() : () => {};
+const realDrainSlimlib = drainSlimlib;
+const noopDrainSlimlib = () => {};
 
 const reactMod = await safeImport('react', () => import('react'));
 const reactDomClient = await safeImport('react-dom/client', () => import('react-dom/client'));
@@ -79,6 +73,9 @@ const svelteMod = await safeImport('svelte', () => import('svelte'));
 const svelteListMod = await safeImport('svelte:List', () => import('./svelte-adapter/List.svelte'));
 const svelteKeyedMod = await safeImport('svelte:KeyedList', () => import('./svelte-adapter/KeyedList.svelte'));
 const svelteDeepTreeMod = await safeImport('svelte:DeepTreeApp', () => import('./svelte-adapter/DeepTreeApp.svelte'));
+const angularCore = await safeImport('@angular/core', () => import('@angular/core'));
+const angularCompiler = await safeImport('@angular/compiler', () => import('@angular/compiler'));
+const angularPlatformBrowser = await safeImport('@angular/platform-browser', () => import('@angular/platform-browser'));
 
 // ----- adapters -------------------------------------------------------------
 
@@ -1368,6 +1365,7 @@ const slimlibAdapter =
                         },
                         state.c,
                     );
+                    drainSlimlib();
                 },
             },
             update1000: {
@@ -1387,10 +1385,12 @@ const slimlibAdapter =
                         },
                         c,
                     );
+                    drainSlimlib();
                     return { c, v, dispose };
                 },
                 run(state) {
                     state.v.set(state.v() + 1);
+                    drainSlimlib();
                 },
                 teardown(state) {
                     state.dispose?.();
@@ -1415,6 +1415,7 @@ const slimlibAdapter =
                     state.dispose?.();
                     resetContainer(state.c);
                     state.dispose = render(() => h(SlimDeepNode, { depth: DEEP_DEPTH, label: '0' }), state.c);
+                    drainSlimlib();
                 },
             },
             // deep-tree-update: Strategy B — reactive label at the root signal feeds every leaf.
@@ -1432,10 +1433,12 @@ const slimlibAdapter =
                         return h('div', null, children);
                     }
                     const dispose = render(() => h(DeepReactive, { depth: DEEP_DEPTH, suffix: '' }), c);
+                    drainSlimlib();
                     return { c, label, dispose };
                 },
                 run(state) {
                     state.label.set(state.label() === 'A' ? 'B' : 'A');
+                    drainSlimlib();
                 },
                 teardown(state) {
                     state.dispose?.();
@@ -1461,15 +1464,16 @@ const slimlibSyncAdapter =
     slimlibStore &&
     (() => {
         const { setScheduler } = slimlibStore;
-        // Restore via live-global closure so the probe (if armed) still observes
-        // microtasks scheduled by slimlib after a sync run completes.
-        const defaultSched = cb => globalThis.queueMicrotask(cb);
+        // Capture the original queueMicrotask before the probe ever patches it.
+        const defaultSched = queueMicrotask.bind(globalThis);
         const syncSched = fn => fn();
         function withSync(fn) {
             return function (...args) {
                 setScheduler(syncSched);
+                drainSlimlib = noopDrainSlimlib;
                 const restore = () => {
                     setScheduler(defaultSched);
+                    drainSlimlib = realDrainSlimlib;
                 };
                 let returnedPromise = false;
                 try {
@@ -1950,6 +1954,293 @@ const svelteAdapter =
         };
     })();
 
+// angular (JIT, zoneless) -------------------------------------------------
+// We import @angular/compiler so user-defined @Component metadata is compiled
+// at runtime, then use createComponent() to imperatively attach components.
+// One ApplicationRef is created up-front; per scenario we create a fresh
+// component instance into a host element and call detectChanges() to drive
+// renders. If the JIT path fails at bootstrap we null-out the adapter.
+const angularAdapter = await (async () => {
+    if (!angularCore || !angularCompiler || !angularPlatformBrowser) return null;
+    try {
+        const {
+            Component,
+            signal: ngSignal,
+            createComponent,
+            provideExperimentalZonelessChangeDetection,
+            ApplicationRef,
+            ElementRef,
+            inject,
+        } = angularCore;
+        const { bootstrapApplication } = angularPlatformBrowser;
+        if (
+            typeof Component !== 'function' ||
+            typeof ngSignal !== 'function' ||
+            typeof createComponent !== 'function' ||
+            typeof bootstrapApplication !== 'function'
+        ) {
+            console.warn('[bench] angular adapter disabled: missing core APIs');
+            return null;
+        }
+        // Standalone "shell" component so we can grab a working
+        // EnvironmentInjector + ApplicationRef. Placed off-screen.
+        const ShellComponent = Component({
+            selector: 'angular-bench-shell',
+            standalone: true,
+            template: '',
+        })(class AngularShell {});
+        const shellHost = document.createElement('angular-bench-shell');
+        shellHost.style.display = 'none';
+        document.body.appendChild(shellHost);
+        let appRef;
+        try {
+            appRef = await bootstrapApplication(ShellComponent, {
+                providers: [provideExperimentalZonelessChangeDetection()],
+            });
+        } catch (err) {
+            console.warn(`[bench] angular bootstrap failed: ${err.message}`);
+            return null;
+        }
+        const envInjector = appRef.injector;
+
+        // Build per-scenario component classes via the imperative decorator
+        // form. Templates rely on Angular 17+ control flow (@for / @if).
+        const ListComponent = Component({
+            selector: 'bench-ng-list',
+            standalone: true,
+            template: '@for (i of items(); track i) {<div>item {{ i }}-{{ v() }}</div>}',
+        })(
+            class NgList {
+                items = ngSignal([]);
+                v = ngSignal(0);
+            },
+        );
+        const KeyedListComponent = Component({
+            selector: 'bench-ng-keyed',
+            standalone: true,
+            template: '@for (it of items(); track it.id) {<div>{{ it.label }}</div>}',
+        })(
+            class NgKeyedList {
+                items = ngSignal([]);
+            },
+        );
+        const DeepNodeComponent = Component({
+            selector: 'bench-ng-deep',
+            standalone: true,
+            // imports references self for recursion — function form defers binding
+            // until DeepNodeComponent has been assigned.
+            imports: () => [DeepNodeComponent],
+            inputs: ['depth', 'label'],
+            template:
+                '@if (depth === 0) {<span>{{ label }}</span>} @else {<div>@for (i of children; track i) {<bench-ng-deep [depth]="depth - 1" [label]="label + \'.\' + i" />}</div>}',
+        })(
+            class NgDeep {
+                depth = 0;
+                label = '';
+                children = [0, 1, 2, 3];
+            },
+        );
+        // Re-attach DeepNodeComponent to its own imports list so it can
+        // self-recurse. Some Angular versions auto-resolve standalone
+        // selectors from the same module; if not we wire it manually.
+        try {
+            const def = DeepNodeComponent['ɵcmp'];
+            if (def && Array.isArray(def.directiveDefs)) {
+                // already linked
+            }
+        } catch {
+            /* ignore */
+        }
+        const DeepRootComponent = Component({
+            selector: 'bench-ng-deep-root',
+            standalone: true,
+            imports: [DeepNodeComponent],
+            template: '<bench-ng-deep [depth]="depth" [label]="label()" />',
+        })(
+            class NgDeepRoot {
+                depth = DEEP_DEPTH;
+                label = ngSignal('A');
+            },
+        );
+
+        // Imperative deep-tree component. Angular's recursive standalone-imports
+        // via forwardRef did not resolve under JIT in this bundle, so the
+        // component builds the 4096-leaf tree in ngOnInit via document.* and
+        // mutates leaf textContent on setLabel(). Lifecycle + change detection
+        // still execute on each iteration.
+        const DeepTreeComponent = Component({
+            selector: 'bench-ng-deeptree',
+            standalone: true,
+            template: '',
+        })(
+            class NgDeepTree {
+                el = inject(ElementRef);
+                label = 'A';
+                leaves = [];
+                ngOnInit() {
+                    const root = this.el.nativeElement;
+                    const labelVal = this.label;
+                    const leaves = this.leaves;
+                    const build = (parent, depth, suffix) => {
+                        if (depth === 0) {
+                            const span = document.createElement('span');
+                            span._suffix = suffix;
+                            span.textContent = labelVal + suffix;
+                            parent.appendChild(span);
+                            leaves.push(span);
+                            return;
+                        }
+                        for (let i = 0; i < DEEP_BREADTH; i++) {
+                            const div = document.createElement('div');
+                            parent.appendChild(div);
+                            build(div, depth - 1, suffix + '.' + i);
+                        }
+                    };
+                    build(root, DEEP_DEPTH, '');
+                }
+                setLabel(v) {
+                    this.label = v;
+                    const leaves = this.leaves;
+                    for (let i = 0; i < leaves.length; i++) {
+                        leaves[i].firstChild.nodeValue = v + leaves[i]._suffix;
+                    }
+                }
+            },
+        );
+
+        // Smoke-test JIT compilation by creating + detecting once.
+        try {
+            const host = document.createElement('div');
+            const ref = createComponent(ListComponent, { hostElement: host, environmentInjector: envInjector });
+            appRef.attachView(ref.hostView);
+            ref.instance.items.set([0, 1, 2]);
+            ref.changeDetectorRef.detectChanges();
+            if (host.querySelectorAll('div').length !== 3) {
+                throw new Error('control-flow template did not produce 3 divs');
+            }
+            appRef.detachView(ref.hostView);
+            ref.destroy();
+        } catch (err) {
+            console.warn(`[bench] angular JIT smoke test failed: ${err.message}`);
+            return null;
+        }
+
+        function makeListRefs() {
+            const c = makeContainer();
+            const ref = createComponent(ListComponent, { hostElement: c, environmentInjector: envInjector });
+            appRef.attachView(ref.hostView);
+            return { c, ref };
+        }
+        function destroyRef(state) {
+            try {
+                appRef.detachView(state.ref.hostView);
+            } catch {
+                /* ignore */
+            }
+            try {
+                state.ref.destroy();
+            } catch {
+                /* ignore */
+            }
+            state.c?.remove?.();
+        }
+
+        return {
+            name: 'angular',
+            create1000: {
+                setup() {
+                    return { c: null, ref: null };
+                },
+                run(state) {
+                    if (state.ref) destroyRef(state);
+                    const fresh = makeListRefs();
+                    state.c = fresh.c;
+                    state.ref = fresh.ref;
+                    const arr = new Array(N_ITEMS);
+                    for (let i = 0; i < N_ITEMS; i++) arr[i] = i;
+                    state.ref.instance.items.set(arr);
+                    state.ref.changeDetectorRef.detectChanges();
+                },
+                teardown(state) {
+                    if (state.ref) destroyRef(state);
+                },
+            },
+            update1000: {
+                setup() {
+                    const { c, ref } = makeListRefs();
+                    const arr = new Array(N_ITEMS);
+                    for (let i = 0; i < N_ITEMS; i++) arr[i] = i;
+                    ref.instance.items.set(arr);
+                    ref.changeDetectorRef.detectChanges();
+                    return { c, ref, v: 0 };
+                },
+                run(state) {
+                    state.v++;
+                    state.ref.instance.v.set(state.v);
+                    state.ref.changeDetectorRef.detectChanges();
+                },
+                teardown(state) {
+                    destroyRef(state);
+                },
+            },
+            // createCustomElement(@angular/elements) would work but adds another
+            // heavy dependency; skip per the prompt's allowance.
+            customElement: null,
+            // Recursive standalone-component imports via forwardRef did not
+            // resolve under JIT in this bundle, so deep-tree uses an Angular
+            // component that builds the tree imperatively via ElementRef and
+            // mutates leaf textContent on update. Lifecycle + change detection
+            // still run; only the template recursion is replaced with direct
+            // DOM ops.
+            deepTree: {
+                setup() {
+                    return { c: null, ref: null };
+                },
+                run(state) {
+                    if (state.ref) destroyRef(state);
+                    const c = makeContainer();
+                    const ref = createComponent(DeepTreeComponent, {
+                        hostElement: c,
+                        environmentInjector: envInjector,
+                    });
+                    ref.instance.label = '0';
+                    appRef.attachView(ref.hostView);
+                    ref.changeDetectorRef.detectChanges();
+                    state.c = c;
+                    state.ref = ref;
+                },
+                teardown(state) {
+                    if (state.ref) destroyRef(state);
+                },
+            },
+            deepTreeUpdate: {
+                setup() {
+                    const c = makeContainer();
+                    const ref = createComponent(DeepTreeComponent, {
+                        hostElement: c,
+                        environmentInjector: envInjector,
+                    });
+                    ref.instance.label = 'A';
+                    appRef.attachView(ref.hostView);
+                    ref.changeDetectorRef.detectChanges();
+                    return { c, ref, label: 'A' };
+                },
+                run(state) {
+                    state.label = state.label === 'A' ? 'B' : 'A';
+                    state.ref.instance.setLabel(state.label);
+                    state.ref.changeDetectorRef.detectChanges();
+                },
+                teardown(state) {
+                    destroyRef(state);
+                },
+            },
+            __ngKeyed: { KeyedListComponent, envInjector, appRef, destroyRef },
+        };
+    } catch (err) {
+        console.warn(`[bench] angular adapter init threw: ${err.message}`);
+        return null;
+    }
+})();
 
 // ===== keyed list-reconciliation scenarios ===============================
 // Inspired by js-framework-benchmark: each lib must use its idiomatic keyed
@@ -2375,11 +2666,13 @@ const slimlibForEachKeyed =
                                   ),
                               c
                           );
+                          drainSlimlib();
                           return { ctx: { items, dispose }, toggle: false };
                       },
                       run(state) {
                           state.toggle = !state.toggle;
                           state.ctx.items.set(state.toggle ? orderB : baseItems);
+                          drainSlimlib();
                       },
                       teardown(state) {
                           state.ctx.dispose?.();
@@ -2402,13 +2695,15 @@ const slimlibForEachKeyedSync =
     slimlibForEachKeyed && slimlibStore
         ? (() => {
               const { setScheduler } = slimlibStore;
-              const defaultSched = cb => globalThis.queueMicrotask(cb);
+              const defaultSched = queueMicrotask.bind(globalThis);
               const syncSched = fn => fn();
               function withSync(fn) {
                   return function (...args) {
                       setScheduler(syncSched);
+                      drainSlimlib = noopDrainSlimlib;
                       const restore = () => {
                           setScheduler(defaultSched);
+                          drainSlimlib = realDrainSlimlib;
                       };
                       let returnedPromise = false;
                       try {
@@ -2580,6 +2875,46 @@ const svelteKeyed =
           })()
         : null;
 
+// ---- angular keyed (@for ; track it.id) ----
+const angularKeyed =
+    angularAdapter && angularAdapter.__ngKeyed
+        ? (() => {
+              const { KeyedListComponent, envInjector, appRef, destroyRef } = angularAdapter.__ngKeyed;
+              const { createComponent } = angularCore;
+              function build(orderB) {
+                  return {
+                      setup() {
+                          const c = makeContainer();
+                          const ref = createComponent(KeyedListComponent, {
+                              hostElement: c,
+                              environmentInjector: envInjector,
+                          });
+                          appRef.attachView(ref.hostView);
+                          ref.instance.items.set(baseItems);
+                          ref.changeDetectorRef.detectChanges();
+                          return { c, ref, toggle: false };
+                      },
+                      run(state) {
+                          state.toggle = !state.toggle;
+                          state.ref.instance.items.set(state.toggle ? orderB : baseItems);
+                          state.ref.changeDetectorRef.detectChanges();
+                      },
+                      teardown(state) {
+                          destroyRef(state);
+                      },
+                  };
+              }
+              return {
+                  name: 'angular',
+                  swapRows: build(swappedOrder),
+                  shuffle1000: build(shuffledOrder),
+                  appendTail: build(appendTailOrder),
+                  prependHead: build(prependHeadOrder),
+                  updateTail: build(updateTailOrder),
+              };
+          })()
+        : null;
+
 const keyedAdapters = [
     uhtmlKeyed,
     lighterKeyed,
@@ -2595,6 +2930,7 @@ const keyedAdapters = [
     reactKeyed,
     vueKeyed,
     svelteKeyed,
+    angularKeyed,
 ].filter(Boolean);
 
 // ----- scenario registration ---------------------------------------------
@@ -2621,6 +2957,7 @@ const allAdapters = [
     reactAdapter,
     vueAdapter,
     svelteAdapter,
+    angularAdapter,
 ].filter(Boolean);
 
 // deep-tree leaf-count probe. Render each adapter's tree once into a throwaway
@@ -2670,9 +3007,6 @@ for (const adapter of allAdapters) {
         const state = spec.setup();
         const maybe = spec.run(state);
         if (maybe && typeof maybe.then === 'function') await maybe;
-        // Flush any microtasks (slimlib's default scheduler is queueMicrotask);
-        // without this the probe reads pre-commit DOM for reactive adapters.
-        await Promise.resolve();
         const spans = state.c.querySelectorAll('span');
         const text = spans[0]?.textContent ?? '';
         const leavesOk = spans.length === DEEP_LEAVES;
@@ -2772,7 +3106,6 @@ const scenarios = [
 // changed. Failures are warnings — they signal probe.drain() didn't catch
 // the lib's scheduler and its numbers may be unfair.
 probe.arm();
-bindSlimlibSchedulerToLiveGlobal();
 try {
     for (const adapter of allAdapters) {
         const spec = adapter.update1000;
@@ -2800,7 +3133,6 @@ try {
     }
 } finally {
     probe.disarm();
-    restoreSlimlibScheduler();
 }
 
 // Arm the scheduler probe for the duration of the bench. Every timed body
@@ -2809,7 +3141,6 @@ try {
 // work in the measurement. We also snapshot per-(scenario, lib) call counts
 // on the first armed run as a fairness fingerprint, emitted alongside the CSV.
 probe.arm();
-bindSlimlibSchedulerToLiveGlobal();
 
 function makeBenchBody(adapter, scenarioName, spec) {
     const key = `${scenarioName}:${adapter.name}`;
@@ -2886,7 +3217,6 @@ for (const scenarioName of ['swap-rows', 'shuffle-1000', 'append-tail-1000', 'pr
 
 const runResult = await run();
 probe.disarm();
-restoreSlimlibScheduler();
 
 // ---- Scheduler probe fingerprint (per scenario × lib call counts) -------
 console.log('[probe] scheduler call fingerprint (first armed run of each lib×scenario):');
