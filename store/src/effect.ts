@@ -1,7 +1,7 @@
 import { batchedAddNew, checkComputedSources, clearSources, DepsSet, noopGetter, runWithTracking, scheduleFlush } from './core';
 import { cycleMessage, registerEffect, unregisterEffect, warnIfNoActiveScope } from './debug';
 import { Flag } from './flags';
-import { activeScope } from './globals';
+import { activeScope, setActiveScope } from './globals';
 import { trackSymbol } from './symbols';
 import type { ReactiveNode } from './internal-types';
 import type { EffectCleanup } from './types';
@@ -34,15 +34,16 @@ const enum EffectOptionsValues {
  *    contract are identical.
  *
  * Implications worth knowing:
- *  - With `EAGER`, the surrounding scope and `activeScope` are valid during
- *    the first run, so any sub-scopes created inside the callback are
- *    parented correctly. With `DEFERRED`, `activeScope` is usually
- *    `undefined` by the time the flush runs — capture it at setup if needed.
+ *  - Both modes run the callback with `activeScope` set to the scope that
+ *    was active when `effect()` was called. This holds for the first run
+ *    and every subsequent re-run, so sub-scopes and grandchild effects
+ *    default-parent to the creation scope consistently.
  *  - `EAGER` makes signal mutations that synchronously trigger an effect
  *    cycle visible at the call site. With `DEFERRED` they're noticed only
  *    once the flush runs.
  *  - Choosing `EAGER` does not change re-run semantics; only the first run is
- *    promoted from a microtask to inline execution.
+ *    promoted from a microtask to inline execution. The dispose function
+ *    and cleanup-return contract are identical between modes.
  */
 export const EffectOptions = {
     DEFERRED: 0,
@@ -89,6 +90,8 @@ export const effect = (callback: () => void | EffectCleanup, eager: EffectOption
     // The variable will be assigned before the runner is ever called.
     let node: ReactiveNode;
 
+    const effectScope = activeScope;
+
     // Define the runner function BEFORE creating the node so that $_fn
     // is a function from the start (Fix #1: avoids hidden class transition
     // from undefined → function on the $_fn field).
@@ -119,18 +122,25 @@ export const effect = (callback: () => void | EffectCleanup, eager: EffectOption
             }
         }
 
+        const previousScope = activeScope;
+        setActiveScope(effectScope);
+
         // ----------------------------------------------------------------
         // PULL PHASE: Execute effect and track dependencies
         // ----------------------------------------------------------------
-        runWithTracking(node, () => {
-            // Run previous cleanup if it exists (stored in $_value)
-            if (typeof node.$_value === 'function') {
-                (node.$_value as EffectCleanup)();
-            }
-            // Run the callback and store new cleanup in $_value
-            // (callback will PULL values from signals/state/computed)
-            node.$_value = callback();
-        });
+        try {
+            runWithTracking(node, () => {
+                // Run previous cleanup if it exists (stored in $_value)
+                if (typeof node.$_value === 'function') {
+                    (node.$_value as EffectCleanup)();
+                }
+                // Run the callback and store new cleanup in $_value
+                // (callback will PULL values from signals/state/computed)
+                node.$_value = callback();
+            });
+        } finally {
+            setActiveScope(previousScope);
+        }
     };
 
     // Create effect node as a plain object with IDENTICAL initial field types
@@ -168,8 +178,8 @@ export const effect = (callback: () => void | EffectCleanup, eager: EffectOption
     };
 
     // Track to appropriate scope
-    if (activeScope) {
-        (activeScope[trackSymbol] as (dispose: () => void) => void)(dispose);
+    if (effectScope) {
+        (effectScope[trackSymbol] as (dispose: () => void) => void)(dispose);
     }
 
     // ----------------------------------------------------------------

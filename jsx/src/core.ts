@@ -1,6 +1,6 @@
 import { DEV } from 'esm-env';
 
-import { activeScope, effect, scope, signal, untracked } from '@slimlib/store';
+import { effect, scope, signal, untracked } from '@slimlib/store';
 
 import type { Scope, Signal } from '@slimlib/store';
 import type { Child, Component, ElementType, Primitive, Props } from './types';
@@ -131,14 +131,12 @@ const appendChild = (parent: Node, child: Child): void => {
         const end = document.createComment('');
         parent.appendChild(start);
         parent.appendChild(end);
-        // Capture the surrounding scope at setup time. The effect below runs
-        // later via the flush queue, when `activeScope` is typically undefined —
-        // so the sub-scope created below would otherwise be orphaned.
-        const parentScope = activeScope;
         // Each re-render gets its own child scope so effects, on:* listeners,
         // and ref(null) cleanups registered by the previous subtree are disposed
         // when the function-child swaps content. The effect cleanup disposes the
-        // sub-scope before each re-run and on final disposal.
+        // sub-scope before each re-run and on final disposal. The store's effect
+        // runner restores activeScope to the effect's creation scope across all
+        // runs, so scope() default-parents correctly without an explicit parent.
         let scopeInstance: Scope | undefined;
         // Fast path: when the function-child resolves to a primitive we keep a
         // single Text node across re-runs and mutate `.data` in place instead
@@ -154,7 +152,7 @@ const appendChild = (parent: Node, child: Child): void => {
                 } finally {
                     currentOnDispose = prev;
                 }
-            }, parentScope);
+            });
             const isPrimitive =
                 value != null && value !== false && value !== true && typeof value !== 'object' && typeof value !== 'function';
             if (isPrimitive && textNode !== null) {
@@ -364,12 +362,6 @@ export const forEach = <T>(
     key: (item: T, index: number) => string | number,
     body: (item: () => T, index: () => number) => Child
 ): DocumentFragment => {
-    // Capture the surrounding scope at construction time. The reconciler effect
-    // below runs later via the flush queue, at which point `activeScope` is
-    // typically undefined — so per-item `scope(...)` calls would otherwise be
-    // orphaned (not reachable from any parent) and survive `render()` dispose.
-    const parentScope = activeScope;
-
     const fragment = document.createDocumentFragment();
     const start = document.createComment('');
     const end = document.createComment('');
@@ -443,7 +435,7 @@ export const forEach = <T>(
                         } finally {
                             currentOnDispose = previousOnDispose;
                         }
-                    }, parentScope);
+                    });
                     entry = newEntry;
                 }
                 newMap.set(k, entry);

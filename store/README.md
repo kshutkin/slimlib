@@ -186,12 +186,13 @@ When to choose `EAGER`:
 
 - You need the effect's side effects (DOM writes, signal initialisation, sub-scope setup) to be visible before `effect()` returns. This is how `@slimlib/jsx` wires reactive attributes and reactive children: the first paint must happen during `render()`, not on a later microtask.
 - You want errors in the initial run to be catchable at the call site, not silently logged.
-- You rely on `activeScope` being the surrounding scope during the first run (with `DEFERRED`, `activeScope` is typically `undefined` by the time the flush fires).
 
 When to stick with `DEFERRED`:
 
 - You want multiple synchronous signal mutations to coalesce into a single first run.
 - You explicitly want the queueMicrotask error-swallowing semantics.
+
+Scope is the same in both modes: the effect's callback always runs with `activeScope` restored to the scope that was active when `effect()` was called — both on the first run and on every re-run. Sub-scopes and grandchild effects created inside the callback default-parent to the creation scope consistently across runs.
 
 The constants are also available as raw numeric literals (`0`, `1`). Internal slimlib packages pass the literal to keep the `EffectOptions` struct out of their bundle; library consumers should prefer the named constants for readability.
 
