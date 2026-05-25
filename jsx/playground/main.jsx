@@ -1,6 +1,6 @@
 import { render } from '@slimlib/jsx';
 import { forEach } from '@slimlib/jsx/for-each';
-import { computed, effect, setScheduler, signal } from '@slimlib/store';
+import { computed, setScheduler, signal } from '@slimlib/store';
 
 // Counter — signals + on:click + reactive text
 const Counter = () => {
@@ -131,84 +131,21 @@ const SCHEDULERS = {
     raf: cb => requestAnimationFrame(cb),
     sync: cb => cb(),
 };
-const CELLS = 5000;
-const BOXES = 200;
-
-// Shared scheduler mode — switching in any panel reflects everywhere.
+// Module-level so other panels (RowsBench) can read the active mode for
+// accurate end-of-flush timing. setScheduler is global anyway.
 const schedulerMode = signal('microtask');
-setScheduler(SCHEDULERS.microtask);
 const pickScheduler = m => {
     schedulerMode.set(m);
     setScheduler(SCHEDULERS[m]);
 };
-const SchedulerRadios = ({ name }) => (
-    <div class='row'>
-        <strong>scheduler:</strong>
-        {['microtask', 'raf', 'sync'].map(m => (
-            <label class='row'>
-                <input
-                    type='radio'
-                    name={name}
-                    checked={() => schedulerMode() === m}
-                    on:change={() => pickScheduler(m)}
-                />
-                {m}
-            </label>
-        ))}
-        <small>(shared globally — affects every demo)</small>
-    </div>
-);
-
-// Cascading tree — each level derived from the previous level via signals + effects.
-// Bump the root and every level recomputes; under the microtask scheduler each
-// level's writes are flushed in their own microtask, so the cascade unfolds as
-// a chain of microtasks (one per level) inside the same task.
-const CASCADE_DEPTH = 6;     // 6 levels under root => 7 rows
-const CASCADE_BRANCHING = 2; // binary tree
-
-const CascadingTree = () => {
-    const root = signal(0);
-    const levels = [[root]];
-    for (let lvl = 1; lvl <= CASCADE_DEPTH; lvl++) {
-        const prev = levels[lvl - 1];
-        const cur = [];
-        for (let i = 0; i < prev.length; i++) {
-            const parent = prev[i];
-            for (let b = 0; b < CASCADE_BRANCHING; b++) {
-                const child = signal(0);
-                const branchIdx = b;
-                effect(() => child.set(parent() * CASCADE_BRANCHING + branchIdx + 1));
-                cur.push(child);
-            }
-        }
-        levels.push(cur);
-    }
-    const bump = () => root.set(root() + 1);
-    const reset = () => root.set(0);
-    const totalNodes = levels.reduce((s, l) => s + l.length, 0);
-    return (
-        <div>
-            <SchedulerRadios name='cascade-sched' />
-            <div class='row'>
-                <button type='button' on:click={bump}>bump root</button>
-                <button type='button' on:click={reset}>reset</button>
-                <small>
-                    {CASCADE_DEPTH + 1} levels, {totalNodes} nodes. Each level is written by an effect
-                    that reads its parent — bumping the root cascades down via the scheduler.
-                </small>
-            </div>
-            <div class='cascade'>
-                {levels.map(level => (
-                    <div class='cascade-level'>
-                        {level.map(sig => <span class='cascade-node'>{sig}</span>)}
-                    </div>
-                ))}
-            </div>
-        </div>
-    );
-};
+pickScheduler('microtask');
+const CELLS = 5000;
+const BOXES = 200;
 
 const SchedulerBench = () => {
+    const mode = schedulerMode;
+    const pick = pickScheduler;
+
     // --- Burst panel ---
     const mounted = signal(false);
     const cells = Array.from({ length: CELLS }, () => signal(0));
@@ -233,7 +170,7 @@ const SchedulerBench = () => {
         s: i,
     }));
     const fps = signal(0);
-    let driver = null; // 'raf' | 'interval' | 'microtask' | null
+    let driver = null; // 'raf' | 'interval' | null
     let rafId = 0;
     let intervalId = 0;
     let frames = 0;
@@ -268,23 +205,6 @@ const SchedulerBench = () => {
         lastFpsT = performance.now();
         intervalId = setInterval(() => tickFrame(performance.now()), 0);
     };
-    const startMicrotask = () => {
-        if (driver) return;
-        driver = 'microtask';
-        lastFpsT = performance.now();
-        // A pure queueMicrotask(loop) chain starves the event loop (no paint,
-        // no input). Yield via setTimeout each iteration so the browser can
-        // render between frames; the tick itself still runs inside a microtask.
-        const loop = () => {
-            if (driver !== 'microtask') return;
-            queueMicrotask(() => {
-                if (driver !== 'microtask') return;
-                tickFrame(performance.now());
-            });
-            setTimeout(loop, 0);
-        };
-        setTimeout(loop, 0);
-    };
     const stop = () => {
         driver = null;
         cancelAnimationFrame(rafId);
@@ -294,7 +214,23 @@ const SchedulerBench = () => {
 
     return (
         <div>
-            <SchedulerRadios name='bench-sched' />
+            <div class='row'>
+                <strong>scheduler:</strong>
+                {['microtask', 'raf', 'sync'].map(m => (
+                    <label class='row'>
+                        <input
+                            type='radio'
+                            name='sched'
+                            checked={() => mode() === m}
+                            on:change={() => pick(m)}
+                        />
+                        {m}
+                    </label>
+                ))}
+                <small>
+                    microtask = default (queueMicrotask), raf = requestAnimationFrame, sync = inline flush.
+                </small>
+            </div>
 
             <h3>Burst writes ({CELLS} reactive cells)</h3>
             <p>
@@ -342,7 +278,6 @@ const SchedulerBench = () => {
             <div class='row'>
                 <button type='button' on:click={startRaf}>start (rAF driver)</button>
                 <button type='button' on:click={startInterval}>start (setInterval 0)</button>
-                <button type='button' on:click={startMicrotask}>start (microtask driver)</button>
                 <button type='button' on:click={stop}>stop</button>
                 <span>fps: <strong>{fps}</strong></span>
             </div>
@@ -353,6 +288,109 @@ const SchedulerBench = () => {
                         attr:style={() => `transform: translate(${b.x()}px, ${b.y()}px)`}
                     />
                 ))}
+            </div>
+        </div>
+    );
+};
+
+// Rows bench — mirrors swap-rows / shuffle / update scenarios from the
+// js-framework-benchmark suite the browser bench uses. Each cell label is a
+// signal so updates re-run only the inner text effect (no row remount).
+const ADJ = ['pretty', 'large', 'big', 'small', 'tall', 'short', 'long', 'handsome', 'plain', 'quaint', 'clean', 'elegant', 'easy', 'angry', 'crazy', 'helpful', 'mushy', 'odd', 'unsightly', 'adorable', 'important', 'inexpensive', 'cheap', 'expensive', 'fancy'];
+const COLOR = ['red', 'yellow', 'blue', 'green', 'pink', 'brown', 'purple', 'brown', 'white', 'black', 'orange'];
+const NOUN = ['table', 'chair', 'house', 'bbq', 'desk', 'car', 'pony', 'cookie', 'sandwich', 'burger', 'pizza', 'mouse', 'keyboard'];
+const pick = arr => arr[(Math.random() * arr.length) | 0];
+let rowId = 1;
+const makeRows = n => {
+    const out = new Array(n);
+    for (let i = 0; i < n; i++) {
+        out[i] = { id: rowId++, label: signal(`${pick(ADJ)} ${pick(COLOR)} ${pick(NOUN)}`) };
+    }
+    return out;
+};
+
+const RowsBench = () => {
+    const rows = signal([]);
+    const selected = signal(-1);
+    const last = signal('—');
+    const measure = (label, fn) => {
+        const t0 = performance.now();
+        fn();
+        // End the measurement on the SAME scheduler the store is using, so dt
+        // includes the flush regardless of mode (microtask flushes before any
+        // rAF; rAF flush only fires on next frame).
+        const end = () => {
+            const dt = (performance.now() - t0).toFixed(2);
+            last.set(`${label}: ${dt} ms (${schedulerMode()})`);
+        };
+        const mode = schedulerMode();
+        if (mode === 'sync') end();
+        else if (mode === 'raf') requestAnimationFrame(() => queueMicrotask(end));
+        else queueMicrotask(end);
+    };
+    const create = n => measure(`create ${n}`, () => { rowId = 1; rows.set(makeRows(n)); });
+    const append = n => measure(`append ${n}`, () => rows.set(rows().concat(makeRows(n))));
+    const updateEvery10th = () => measure('update every 10th', () => {
+        const r = rows();
+        for (let i = 0; i < r.length; i += 10) r[i].label.set(`${r[i].label()} !!!`);
+    });
+    const swap = () => measure('swap rows 1 / 998', () => {
+        const r = rows();
+        if (r.length < 999) return;
+        const next = r.slice();
+        const a = next[1];
+        next[1] = next[998];
+        next[998] = a;
+        rows.set(next);
+    });
+    const shuffle = () => measure('shuffle', () => {
+        const r = rows().slice();
+        for (let i = r.length - 1; i > 0; i--) {
+            const j = (Math.random() * (i + 1)) | 0;
+            const t = r[i]; r[i] = r[j]; r[j] = t;
+        }
+        rows.set(r);
+    });
+    const clear = () => measure('clear', () => rows.set([]));
+    return (
+        <div>
+            <p>
+                <small>
+                    1000-row keyed table via <code>forEach</code>. Each label is its own signal — updates
+                    re-run a single text effect per row. Swap / shuffle trigger key-based reordering only;
+                    rows are not recreated.
+                </small>
+            </p>
+            <div class='row'>
+                <button type='button' on:click={() => create(1000)}>create 1 000</button>
+                <button type='button' on:click={() => create(10000)}>create 10 000</button>
+                <button type='button' on:click={() => append(1000)}>append 1 000</button>
+                <button type='button' on:click={updateEvery10th}>update every 10th</button>
+                <button type='button' on:click={swap}>swap rows</button>
+                <button type='button' on:click={shuffle}>shuffle</button>
+                <button type='button' on:click={clear}>clear</button>
+                <small>{last}</small>
+            </div>
+            <div class='rows-wrap'>
+                <table class='rows'>
+                    <tbody>
+                        {forEach(
+                            rows,
+                            r => r.id,
+                            r => (
+                                <tr class={() => (selected() === r().id ? 'selected' : '')}>
+                                    <td>{() => r().id}</td>
+                                    <td>
+                                        <a on:click={() => selected.set(r().id)}>{() => r().label()}</a>
+                                    </td>
+                                    <td>
+                                        <a on:click={() => rows.set(rows().filter(x => x.id !== r().id))}>×</a>
+                                    </td>
+                                </tr>
+                            )
+                        )}
+                    </tbody>
+                </table>
             </div>
         </div>
     );
@@ -382,12 +420,12 @@ const App = () => (
             <TodoList />
         </section>
         <section class='demo'>
-            <h2>Cascading tree (signals + effects)</h2>
-            <CascadingTree />
-        </section>
-        <section class='demo'>
             <h2>Scheduler bench (microtask vs rAF vs sync)</h2>
             <SchedulerBench />
+        </section>
+        <section class='demo'>
+            <h2>Rows bench (swap / shuffle / update)</h2>
+            <RowsBench />
         </section>
     </>
 );

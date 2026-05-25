@@ -94,25 +94,37 @@
                 border-radius: 50%;
                 will-change: transform;
             }
-            .cascade {
-                display: flex;
-                flex-direction: column;
-                gap: 0.25rem;
+            table.rows {
+                border-collapse: collapse;
+                width: 100%;
+                font-size: 0.85rem;
                 margin-block: 0.5rem;
-                font: 11px/1.4 monospace;
             }
-            .cascade-level {
-                display: flex;
-                gap: 0.25rem;
-                justify-content: center;
-                flex-wrap: wrap;
+            table.rows td {
+                padding: 0.15rem 0.5rem;
+                border-bottom: 1px solid color-mix(in srgb, currentColor 8%, transparent);
             }
-            .cascade-node {
-                min-width: 2.5em;
-                padding: 0.1rem 0.35rem;
-                text-align: center;
-                background: color-mix(in srgb, currentColor 8%, transparent);
-                border-radius: 0.2rem;
+            table.rows td:first-child {
+                width: 4rem;
+                opacity: 0.5;
+                font-variant-numeric: tabular-nums;
+            }
+            table.rows td:last-child {
+                width: 2rem;
+                text-align: right;
+                opacity: 0.5;
+            }
+            table.rows tr.selected {
+                background: color-mix(in srgb, tomato 18%, transparent);
+            }
+            table.rows tr:hover {
+                background: color-mix(in srgb, currentColor 6%, transparent);
+            }
+            .rows-wrap {
+                max-height: 24rem;
+                overflow: auto;
+                border: 1px solid color-mix(in srgb, currentColor 12%, transparent);
+                border-radius: 0.25rem;
             }
         </style>
     </head>
