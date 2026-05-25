@@ -112,7 +112,7 @@ flushEffects(); // commit both
 
 ##### Internal use of `EffectOptions.EAGER`
 
-Internally, `@slimlib/jsx` calls `effect(fn, 1)` (the literal value of `EffectOptions.EAGER` from `@slimlib/store`) for the bindings it sets up. This has three consequences worth knowing:
+Internally, `@slimlib/jsx` calls `effect(fn, EffectOptions.EAGER)` for the bindings it sets up. This has three consequences worth knowing:
 
 - **First-run errors propagate to `render()`.** A function-child that throws, or a `forEach` body that returns a non-Node, will throw synchronously from `render()` — you get a real stack trace at the call site and can wrap in `try/catch`. With the default `DEFERRED` mode those errors would be swallowed and logged by the scheduler's flush loop.
 - **`activeScope` is the render scope during initial wiring.** Function-child effects and per-item `forEach` scopes are parented correctly without any internal `activeScope` capture.
