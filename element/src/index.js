@@ -111,24 +111,24 @@ const createElementClass = (attrs, userRender) =>
  * @returns {P}
  */
 export const extend = (host, props) => {
-    const s = /** @type {P} */ (state({ ...props }));
-    const sAny = /** @type {Record<string, unknown>} */ (s);
+    const reactiveProps = /** @type {P} */ (state({ ...props }));
+    const reactivePropsRecord = /** @type {Record<string, unknown>} */ (reactiveProps);
     const target = /** @type {Record<string, unknown>} */ (/** @type {unknown} */ (host));
     for (const key of Object.keys(props)) {
         if (Object.hasOwn(target, key)) {
-            sAny[key] = target[key];
+            reactivePropsRecord[key] = target[key];
             delete target[key];
         }
         Object.defineProperty(host, key, {
             configurable: true,
             enumerable: true,
             get() {
-                return sAny[key];
+                return reactivePropsRecord[key];
             },
-            set(v) {
-                sAny[key] = v;
+            set(value) {
+                reactivePropsRecord[key] = value;
             },
         });
     }
-    return s;
+    return reactiveProps;
 };
