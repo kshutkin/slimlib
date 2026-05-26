@@ -1,90 +1,109 @@
 import { render } from '@slimlib/jsx';
-import { signal } from '@slimlib/store';
+import { state } from '@slimlib/store';
 
 /**
  * @template {Record<string, unknown>} [P=Record<string, unknown>]
- * @typedef {object} ElementOptions
- * @property {string} tag - must contain a hyphen
- * @property {P} [props] - default values; each becomes a reactive accessor on the element backed by a signal
- * @property {readonly (Extract<keyof P, string>)[]} [observedAttributes] - attribute names mirrored to props (string-coerced for now)
- * @property {ShadowRootInit | boolean} [shadow] - true => { mode: 'open' }
- * @property {(ctx: ElementContext<P>) => unknown} setup - returns JSX to render into the host
+ * @typedef {HTMLElement & P} SlimHost
  */
 
 /**
- * @template {Record<string, unknown>} P
- * @typedef {object} ElementContext
- * @property {HTMLElement} element
- * @property {ShadowRoot | HTMLElement} root - where setup() output is rendered
- * @property {{ readonly [K in keyof P]: import('@slimlib/store').Signal<P[K]> }} props
+ * @template {Record<string, unknown>} [P=Record<string, unknown>]
+ * @typedef {(host: SlimHost<P>) => unknown} SlimRender
  */
 
 /**
- * Define and register a custom element backed by @slimlib/jsx.
- * @template {Record<string, unknown>} P
- * @param {ElementOptions<P>} options
+ * Define and register a light-DOM custom element backed by `@slimlib/jsx`
+ * and `@slimlib/store`'s `state()`.
+ *
+ * Each instance gets a single `state({...defaults})` proxy with prototype
+ * getter/setters installed for every key so `host.foo` reads and
+ * `host.foo = v` (or `host.foo++`) flow through the reactive proxy.
+ *
+ * `observedAttributes` is derived from `Object.keys(defaults)`; attribute
+ * changes write the raw string into the state (typed coercion is a future
+ * addition — see IDEAS.md #4).
+ */
+/**
+ * @overload
+ * @param {string} tag
+ * @param {SlimRender} render
  * @returns {CustomElementConstructor}
  */
-export const defineElement = options => {
-    const { tag, props: defaults = /** @type {P} */ ({}), observedAttributes = [], shadow, setup } = options;
-    const propKeys = /** @type {(keyof P & string)[]} */ (Object.keys(defaults));
+/**
+ * @template {Record<string, unknown>} P
+ * @overload
+ * @param {string} tag
+ * @param {P} defaults
+ * @param {SlimRender<P>} render
+ * @returns {CustomElementConstructor}
+ */
+/**
+ * @param {string} tag
+ * @param {Record<string, unknown> | SlimRender} defaultsOrRender
+ * @param {SlimRender} [maybeRender]
+ * @returns {CustomElementConstructor}
+ */
+export const defineElement = (tag, defaultsOrRender, maybeRender) => {
+    const hasDefaults = typeof defaultsOrRender !== 'function';
+    /** @type {Record<string, unknown>} */
+    const defaults = hasDefaults ? /** @type {Record<string, unknown>} */ (defaultsOrRender) : {};
+    const userRender = /** @type {SlimRender} */ (hasDefaults ? maybeRender : defaultsOrRender);
+    const propKeys = Object.keys(defaults);
 
     class SlimElement extends HTMLElement {
+        /** @type {Record<string, unknown>} */
+        #props = state({ ...defaults });
+        /** @type {(() => void) | undefined} */
+        #dispose;
+
+        static {
+            for (const key of propKeys) {
+                Object.defineProperty(this.prototype, key, {
+                    configurable: true,
+                    enumerable: true,
+                    get() {
+                        return this.#props[key];
+                    },
+                    set(v) {
+                        this.#props[key] = v;
+                    }
+                });
+            }
+        }
+
         constructor() {
             super();
-            /** @type {{ [K in keyof P]: import('@slimlib/store').Signal<P[K]> }} */
-            // @ts-expect-error - populated below
-            this._p = {};
+            // lazy upgrade: own-properties set before definition flow through the setter
             for (const key of propKeys) {
-                this._p[key] = signal(defaults[key]);
-            }
-            // lazy upgrade: properties set before definition end up as own props
-            for (const key of propKeys) {
-                if (Object.prototype.hasOwnProperty.call(this, key)) {
-                    const v = /** @type {P[typeof key]} */ (/** @type {Record<string, unknown>} */ (this)[key]);
-                    delete (/** @type {Record<string, unknown>} */ (this))[key];
-                    /** @type {Record<string, unknown>} */ (this)[key] = v;
+                if (Object.hasOwn(this, key)) {
+                    const self = /** @type {Record<string, unknown>} */ (/** @type {unknown} */ (this));
+                    const v = self[key];
+                    delete self[key];
+                    self[key] = v;
                 }
             }
-            /** @type {(() => void) | undefined} */
-            this._dispose = undefined;
-            // TODO: attachInternals() - form association, ARIA reflection
+            // TODO: attachInternals() — form association, ARIA reflection (IDEAS.md #4 + future)
         }
 
         static get observedAttributes() {
-            return observedAttributes;
+            return propKeys;
         }
 
-        attributeChangedCallback(/** @type {keyof P & string} */ name, /** @type {string | null} */ _old, /** @type {string | null} */ value) {
-            const s = this._p[name];
-            if (s) s.set(/** @type {P[typeof name]} */ (/** @type {unknown} */ (value)));
-            // TODO: typed attribute coercion
+        attributeChangedCallback(/** @type {string} */ name, /** @type {string | null} */ _old, /** @type {string | null} */ value) {
+            this.#props[name] = value; // TODO: typed attribute coercion (IDEAS.md #4)
         }
 
         connectedCallback() {
-            const root = shadow
-                ? this.attachShadow(shadow === true ? { mode: 'open' } : shadow)
-                : this;
-            this._dispose = render(() => /** @type {any} */ (setup({ element: this, root, props: this._p })), /** @type {Element | DocumentFragment} */ (/** @type {unknown} */ (root)));
+            this.#dispose = render(
+                () => /** @type {any} */ (userRender(/** @type {SlimHost} */ (/** @type {unknown} */ (this)))),
+                this
+            );
         }
 
         disconnectedCallback() {
-            this._dispose?.();
-            this._dispose = undefined;
+            this.#dispose?.();
+            this.#dispose = undefined;
         }
-    }
-
-    for (const key of propKeys) {
-        Object.defineProperty(SlimElement.prototype, key, {
-            configurable: true,
-            enumerable: true,
-            get() {
-                return this._p[key]();
-            },
-            set(v) {
-                this._p[key].set(v);
-            }
-        });
     }
 
     customElements.define(tag, SlimElement);
