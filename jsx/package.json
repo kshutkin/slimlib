@@ -60,7 +60,7 @@
     "peerDependencies": {
         "@slimlib/store": "workspace:^"
     },
-    "dependencies": {        
+    "dependencies": {
         "esm-env": "^1.2.1"
     },
     "devDependencies": {

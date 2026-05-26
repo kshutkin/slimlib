@@ -12,8 +12,8 @@ import {
     computed,
     debugConfig,
     type EffectCleanup,
-    effect,
     EffectOptions,
+    effect,
     flushEffects,
     type OnDisposeCallback,
     type Scope,
@@ -159,7 +159,6 @@ effect(() => {}, 'eager');
 
 // @ts-expect-error - EffectOptions does not accept boolean
 effect(() => {}, true);
-
 
 // === state tests ===
 

@@ -6,6 +6,7 @@ import { trackSymbol } from './symbols';
 import type { ReactiveNode } from './internal-types';
 import type { EffectCleanup } from './types';
 
+// biome-ignore lint/suspicious/noConstEnum: optimization
 const enum EffectOptionsValues {
     DEFERRED = 0, // Default behavior: schedule effect to run in a microtask after the current execution context
     EAGER = 1 << 0, // Run effect immediately during setup instead of scheduling a microtask
@@ -54,7 +55,7 @@ export const EffectOptions = {
  * Numeric union of the values in {@link EffectOptions} (`0 | 1`). Accepted as
  * the second argument to {@link effect}.
  */
-export type EffectOptions = typeof EffectOptions[keyof typeof EffectOptions];
+export type EffectOptions = (typeof EffectOptions)[keyof typeof EffectOptions];
 
 /**
  * Effect creation counter - increments on every effect creation

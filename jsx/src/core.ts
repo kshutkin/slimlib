@@ -246,9 +246,7 @@ export const createElementArray = <P extends Props>(type: ElementType<P>, props:
         appendChild(fragment, result);
         return fragment;
     }
-    const element = currentNamespace !== undefined
-        ? document.createElementNS(currentNamespace, type)
-        : document.createElement(type);
+    const element = currentNamespace !== undefined ? document.createElementNS(currentNamespace, type) : document.createElement(type);
     for (const key in props) {
         setProperty(element, key, (props as Record<string, unknown>)[key]);
     }

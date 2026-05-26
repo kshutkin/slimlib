@@ -11,17 +11,9 @@
  *   - the behavior is identical for DEFERRED and EAGER.
  */
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import {
-    activeScope,
-    effect,
-    EffectOptions,
-    flushEffects,
-    scope,
-    setActiveScope,
-    signal,
-} from '../src/index.js';
+import { activeScope, EffectOptions, effect, flushEffects, scope, setActiveScope, signal } from '../src/index.js';
 
 function flushPromises() {
     return new Promise(resolve => setTimeout(resolve));
@@ -87,13 +79,10 @@ describe('runner restores activeScope to the effect creation scope', () => {
 
         const s = signal(0);
         const seen = [];
-        effect(
-            () => {
-                s();
-                seen.push(activeScope);
-            },
-            EffectOptions.EAGER,
-        );
+        effect(() => {
+            s();
+            seen.push(activeScope);
+        }, EffectOptions.EAGER);
 
         // First run already happened synchronously.
         expect(seen).toEqual([outer]);
@@ -130,20 +119,14 @@ describe('runner restores activeScope to the effect creation scope', () => {
         let innerSeen;
         let afterInnerSeen;
 
-        effect(
-            () => {
-                outerSeen = activeScope;
-                effect(
-                    () => {
-                        innerSeen = activeScope;
-                    },
-                    EffectOptions.EAGER,
-                );
-                // After the inner finishes, the outer's activeScope should be restored.
-                afterInnerSeen = activeScope;
-            },
-            EffectOptions.EAGER,
-        );
+        effect(() => {
+            outerSeen = activeScope;
+            effect(() => {
+                innerSeen = activeScope;
+            }, EffectOptions.EAGER);
+            // After the inner finishes, the outer's activeScope should be restored.
+            afterInnerSeen = activeScope;
+        }, EffectOptions.EAGER);
 
         expect(outerSeen).toBe(outer);
         expect(innerSeen).toBe(outer);
@@ -193,15 +176,12 @@ describe('grandchild effects auto-register with the creation scope', () => {
         let innerRuns = 0;
         const s = signal(0);
 
-        effect(
-            () => {
-                effect(() => {
-                    s();
-                    innerRuns++;
-                });
-            },
-            EffectOptions.EAGER,
-        );
+        effect(() => {
+            effect(() => {
+                s();
+                innerRuns++;
+            });
+        }, EffectOptions.EAGER);
 
         // Outer ran synchronously; inner is DEFERRED so it flushes next tick.
         setActiveScope(undefined);

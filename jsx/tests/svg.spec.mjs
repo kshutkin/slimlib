@@ -32,8 +32,12 @@ describe('svg() / html() factory wrappers', () => {
             createElement(
                 'svg',
                 null,
-                createElement('foreignObject', null, html(() => createElement('div', null))),
-            ),
+                createElement(
+                    'foreignObject',
+                    null,
+                    html(() => createElement('div', null))
+                )
+            )
         );
         expect(root.namespaceURI).toBe(SVG_NS);
         const foreign = root.firstChild;

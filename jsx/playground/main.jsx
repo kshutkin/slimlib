@@ -146,43 +146,51 @@ const BOXES = 200;
 // Bump the root and every level recomputes; under the microtask scheduler each
 // level's writes are flushed in their own microtask, so the cascade unfolds as
 // a chain of microtasks (one per level) inside the same task.
-const CASCADE_DEPTH = 6;     // 6 levels under root => 7 rows
+const CASCADE_DEPTH = 6; // 6 levels under root => 7 rows
 const CASCADE_BRANCHING = 2; // binary tree
 
 const CascadingTree = () => {
     const root = signal(0);
-    const levels = [[root]];
+    const levels = [{ id: 'root', nodes: [{ id: 'root', sig: root }] }];
     for (let lvl = 1; lvl <= CASCADE_DEPTH; lvl++) {
-        const prev = levels[lvl - 1];
+        const prev = levels[lvl - 1].nodes;
         const cur = [];
         for (let i = 0; i < prev.length; i++) {
             const parent = prev[i];
             for (let b = 0; b < CASCADE_BRANCHING; b++) {
                 const child = signal(0);
                 const branchIdx = b;
-                effect(() => child.set(parent() * CASCADE_BRANCHING + branchIdx + 1));
-                cur.push(child);
+                effect(() => child.set(parent.sig() * CASCADE_BRANCHING + branchIdx + 1));
+                cur.push({ id: `${parent.id}-${branchIdx}`, sig: child });
             }
         }
-        levels.push(cur);
+        levels.push({ id: `level-${lvl}`, nodes: cur });
     }
     const bump = () => root.set(root() + 1);
     const reset = () => root.set(0);
-    const totalNodes = levels.reduce((s, l) => s + l.length, 0);
+    const totalNodes = levels.reduce((s, l) => s + l.nodes.length, 0);
     return (
         <div>
             <div class='row'>
-                <button type='button' on:click={bump}>bump root</button>
-                <button type='button' on:click={reset}>reset</button>
+                <button type='button' on:click={bump}>
+                    bump root
+                </button>
+                <button type='button' on:click={reset}>
+                    reset
+                </button>
                 <small>
-                    {CASCADE_DEPTH + 1} levels, {totalNodes} nodes. Each level is written by an effect
-                    that reads its parent — bumping the root cascades down via the scheduler.
+                    {CASCADE_DEPTH + 1} levels, {totalNodes} nodes. Each level is written by an effect that reads its parent — bumping the
+                    root cascades down via the scheduler.
                 </small>
             </div>
             <div class='cascade'>
                 {levels.map(level => (
-                    <div class='cascade-level'>
-                        {level.map(sig => <span class='cascade-node'>{sig}</span>)}
+                    <div key={level.id} class='cascade-level'>
+                        {level.nodes.map(node => (
+                            <span key={node.id} class='cascade-node'>
+                                {node.sig}
+                            </span>
+                        ))}
                     </div>
                 ))}
             </div>
@@ -196,7 +204,7 @@ const SchedulerBench = () => {
 
     // --- Burst panel ---
     const mounted = signal(false);
-    const cells = Array.from({ length: CELLS }, () => signal(0));
+    const cells = Array.from({ length: CELLS }, (_, id) => ({ id, value: signal(0) }));
     const lastBurst = signal('—');
     const runBurst = (label, fn) => {
         const t0 = performance.now();
@@ -204,12 +212,14 @@ const SchedulerBench = () => {
         const dt = (performance.now() - t0).toFixed(2);
         lastBurst.set(`${label}: ${dt} ms (sync portion)`);
     };
-    const tick1 = () => runBurst('tick ×1', () => {
-        for (let i = 0; i < CELLS; i++) cells[i].set(cells[i]() + 1);
-    });
-    const tick10 = () => runBurst('tick ×10', () => {
-        for (let r = 0; r < 10; r++) for (let i = 0; i < CELLS; i++) cells[i].set(cells[i]() + 1);
-    });
+    const tick1 = () =>
+        runBurst('tick ×1', () => {
+            for (let i = 0; i < CELLS; i++) cells[i].value.set(cells[i].value() + 1);
+        });
+    const tick10 = () =>
+        runBurst('tick ×10', () => {
+            for (let r = 0; r < 10; r++) for (let i = 0; i < CELLS; i++) cells[i].value.set(cells[i].value() + 1);
+        });
 
     // --- Animation panel ---
     const boxes = Array.from({ length: BOXES }, (_, i) => ({
@@ -265,52 +275,50 @@ const SchedulerBench = () => {
             <div class='row'>
                 <strong>scheduler:</strong>
                 {['microtask', 'raf', 'sync'].map(m => (
-                    <label class='row'>
-                        <input
-                            type='radio'
-                            name='sched'
-                            checked={() => mode() === m}
-                            on:change={() => pick(m)}
-                        />
+                    <label key={m} class='row'>
+                        <input type='radio' name='sched' checked={() => mode() === m} on:change={() => pick(m)} />
                         {m}
                     </label>
                 ))}
-                <small>
-                    microtask = default (queueMicrotask), raf = requestAnimationFrame, sync = inline flush.
-                </small>
+                <small>microtask = default (queueMicrotask), raf = requestAnimationFrame, sync = inline flush.</small>
             </div>
 
             <h3>Burst writes ({CELLS} reactive cells)</h3>
             <p>
                 <small>
                     Each cell is its own signal + reactive text node. <code>tick ×1</code> issues one
-                    <code> set()</code> per cell; <code>tick ×10</code> issues ten. With microtask/raf the
-                    repeats collapse into one flush per effect; with sync each <code>set()</code> re-runs
-                    the effect immediately.
+                    <code> set()</code> per cell; <code>tick ×10</code> issues ten. With microtask/raf the repeats collapse into one flush
+                    per effect; with sync each <code>set()</code> re-runs the effect immediately.
                 </small>
             </p>
             <div class='row'>
                 {() =>
-                    mounted()
-                        ? (
-                            <button type='button' on:click={() => mounted.set(false)}>
-                                unmount {CELLS} cells
-                            </button>
-                        )
-                        : (
-                            <button type='button' on:click={() => mounted.set(true)}>
-                                mount {CELLS} cells
-                            </button>
-                        )
+                    mounted() ? (
+                        <button type='button' on:click={() => mounted.set(false)}>
+                            unmount {CELLS} cells
+                        </button>
+                    ) : (
+                        <button type='button' on:click={() => mounted.set(true)}>
+                            mount {CELLS} cells
+                        </button>
+                    )
                 }
-                <button type='button' on:click={tick1}>tick ×1</button>
-                <button type='button' on:click={tick10}>tick ×10</button>
+                <button type='button' on:click={tick1}>
+                    tick ×1
+                </button>
+                <button type='button' on:click={tick10}>
+                    tick ×10
+                </button>
                 <small>{lastBurst}</small>
             </div>
             <div class='cells'>
                 {() =>
                     mounted()
-                        ? cells.map(c => <div class='cell'>{c}</div>)
+                        ? cells.map(cell => (
+                              <div key={cell.id} class='cell'>
+                                  {cell.value}
+                              </div>
+                          ))
                         : null
                 }
             </div>
@@ -319,22 +327,27 @@ const SchedulerBench = () => {
             <p>
                 <small>
                     The <em>driver</em> chooses how often <code>set()</code> fires. The <em>scheduler</em>
-                    chooses when DOM writes flush. Try every combination — sync + setInterval is the
-                    worst case (synchronous reflow per box per tick); raf + raf is the smoothest.
+                    chooses when DOM writes flush. Try every combination — sync + setInterval is the worst case (synchronous reflow per box
+                    per tick); raf + raf is the smoothest.
                 </small>
             </p>
             <div class='row'>
-                <button type='button' on:click={startRaf}>start (rAF driver)</button>
-                <button type='button' on:click={startInterval}>start (setInterval 0)</button>
-                <button type='button' on:click={stop}>stop</button>
-                <span>fps: <strong>{fps}</strong></span>
+                <button type='button' on:click={startRaf}>
+                    start (rAF driver)
+                </button>
+                <button type='button' on:click={startInterval}>
+                    start (setInterval 0)
+                </button>
+                <button type='button' on:click={stop}>
+                    stop
+                </button>
+                <span>
+                    fps: <strong>{fps}</strong>
+                </span>
             </div>
             <div class='stage'>
                 {boxes.map(b => (
-                    <div
-                        class='box'
-                        attr:style={() => `transform: translate(${b.x()}px, ${b.y()}px)`}
-                    />
+                    <div key={b.s} class='box' attr:style={() => `transform: translate(${b.x()}px, ${b.y()}px)`} />
                 ))}
             </div>
         </div>
@@ -344,7 +357,33 @@ const SchedulerBench = () => {
 // Rows bench — mirrors swap-rows / shuffle / update scenarios from the
 // js-framework-benchmark suite the browser bench uses. Each cell label is a
 // signal so updates re-run only the inner text effect (no row remount).
-const ADJ = ['pretty', 'large', 'big', 'small', 'tall', 'short', 'long', 'handsome', 'plain', 'quaint', 'clean', 'elegant', 'easy', 'angry', 'crazy', 'helpful', 'mushy', 'odd', 'unsightly', 'adorable', 'important', 'inexpensive', 'cheap', 'expensive', 'fancy'];
+const ADJ = [
+    'pretty',
+    'large',
+    'big',
+    'small',
+    'tall',
+    'short',
+    'long',
+    'handsome',
+    'plain',
+    'quaint',
+    'clean',
+    'elegant',
+    'easy',
+    'angry',
+    'crazy',
+    'helpful',
+    'mushy',
+    'odd',
+    'unsightly',
+    'adorable',
+    'important',
+    'inexpensive',
+    'cheap',
+    'expensive',
+    'fancy',
+];
 const COLOR = ['red', 'yellow', 'blue', 'green', 'pink', 'brown', 'purple', 'brown', 'white', 'black', 'orange'];
 const NOUN = ['table', 'chair', 'house', 'bbq', 'desk', 'car', 'pony', 'cookie', 'sandwich', 'burger', 'pizza', 'mouse', 'keyboard'];
 const pick = arr => arr[(Math.random() * arr.length) | 0];
@@ -376,47 +415,69 @@ const RowsBench = () => {
         else if (mode === 'raf') requestAnimationFrame(() => queueMicrotask(end));
         else queueMicrotask(end);
     };
-    const create = n => measure(`create ${n}`, () => { rowId = 1; rows.set(makeRows(n)); });
+    const create = n =>
+        measure(`create ${n}`, () => {
+            rowId = 1;
+            rows.set(makeRows(n));
+        });
     const append = n => measure(`append ${n}`, () => rows.set(rows().concat(makeRows(n))));
-    const updateEvery10th = () => measure('update every 10th', () => {
-        const r = rows();
-        for (let i = 0; i < r.length; i += 10) r[i].label.set(`${r[i].label()} !!!`);
-    });
-    const swap = () => measure('swap rows 1 / 998', () => {
-        const r = rows();
-        if (r.length < 999) return;
-        const next = r.slice();
-        const a = next[1];
-        next[1] = next[998];
-        next[998] = a;
-        rows.set(next);
-    });
-    const shuffle = () => measure('shuffle', () => {
-        const r = rows().slice();
-        for (let i = r.length - 1; i > 0; i--) {
-            const j = (Math.random() * (i + 1)) | 0;
-            const t = r[i]; r[i] = r[j]; r[j] = t;
-        }
-        rows.set(r);
-    });
+    const updateEvery10th = () =>
+        measure('update every 10th', () => {
+            const r = rows();
+            for (let i = 0; i < r.length; i += 10) r[i].label.set(`${r[i].label()} !!!`);
+        });
+    const swap = () =>
+        measure('swap rows 1 / 998', () => {
+            const r = rows();
+            if (r.length < 999) return;
+            const next = r.slice();
+            const a = next[1];
+            next[1] = next[998];
+            next[998] = a;
+            rows.set(next);
+        });
+    const shuffle = () =>
+        measure('shuffle', () => {
+            const r = rows().slice();
+            for (let i = r.length - 1; i > 0; i--) {
+                const j = (Math.random() * (i + 1)) | 0;
+                const t = r[i];
+                r[i] = r[j];
+                r[j] = t;
+            }
+            rows.set(r);
+        });
     const clear = () => measure('clear', () => rows.set([]));
     return (
         <div>
             <p>
                 <small>
-                    1000-row keyed table via <code>forEach</code>. Each label is its own signal — updates
-                    re-run a single text effect per row. Swap / shuffle trigger key-based reordering only;
-                    rows are not recreated.
+                    1000-row keyed table via <code>forEach</code>. Each label is its own signal — updates re-run a single text effect per
+                    row. Swap / shuffle trigger key-based reordering only; rows are not recreated.
                 </small>
             </p>
             <div class='row'>
-                <button type='button' on:click={() => create(1000)}>create 1 000</button>
-                <button type='button' on:click={() => create(10000)}>create 10 000</button>
-                <button type='button' on:click={() => append(1000)}>append 1 000</button>
-                <button type='button' on:click={updateEvery10th}>update every 10th</button>
-                <button type='button' on:click={swap}>swap rows</button>
-                <button type='button' on:click={shuffle}>shuffle</button>
-                <button type='button' on:click={clear}>clear</button>
+                <button type='button' on:click={() => create(1000)}>
+                    create 1 000
+                </button>
+                <button type='button' on:click={() => create(10000)}>
+                    create 10 000
+                </button>
+                <button type='button' on:click={() => append(1000)}>
+                    append 1 000
+                </button>
+                <button type='button' on:click={updateEvery10th}>
+                    update every 10th
+                </button>
+                <button type='button' on:click={swap}>
+                    swap rows
+                </button>
+                <button type='button' on:click={shuffle}>
+                    shuffle
+                </button>
+                <button type='button' on:click={clear}>
+                    clear
+                </button>
                 <small>{last}</small>
             </div>
             <div class='rows-wrap'>
@@ -429,10 +490,19 @@ const RowsBench = () => {
                                 <tr class={() => (selected() === r().id ? 'selected' : '')}>
                                     <td>{() => r().id}</td>
                                     <td>
-                                        <a on:click={() => selected.set(r().id)}>{() => r().label()}</a>
+                                        <button type='button' class='link-button' on:click={() => selected.set(r().id)}>
+                                            {() => r().label()}
+                                        </button>
                                     </td>
                                     <td>
-                                        <a on:click={() => rows.set(rows().filter(x => x.id !== r().id))}>×</a>
+                                        <button
+                                            type='button'
+                                            class='link-button'
+                                            attr:aria-label={() => `delete row ${r().id}`}
+                                            on:click={() => rows.set(rows().filter(x => x.id !== r().id))}
+                                        >
+                                            ×
+                                        </button>
                                     </td>
                                 </tr>
                             )

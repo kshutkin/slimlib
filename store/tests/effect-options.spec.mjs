@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { computed, effect, EffectOptions, flushEffects, scope, setActiveScope, signal, state } from '../src/index.js';
+import { computed, EffectOptions, effect, flushEffects, scope, setActiveScope, signal, state } from '../src/index.js';
 
 function flushPromises() {
     return new Promise(resolve => setTimeout(resolve));
