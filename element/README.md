@@ -7,21 +7,30 @@ Functional wrapper for defining Custom Elements backed by `@slimlib/jsx` with re
 ## Usage
 
 ```jsx
-import { defineElement } from '@slimlib/element';
+import { defineElement, extend } from '@slimlib/element';
 
-// With defaults: every key becomes a reactive accessor and an observed attribute.
-defineElement('my-counter', { count: 0 }, (host) =>
-    <button on:click={() => host.count++}>{() => host.count}</button>
-);
+// Declare attributes the browser should observe; declare reactive props inside.
+defineElement('my-counter', ['count'], (host) => {
+    const s = extend(host, { count: 0, hovering: false });
+    return <button
+        on:mouseenter={() => s.hovering = true}
+        on:mouseleave={() => s.hovering = false}
+        on:click={() => s.count++}
+    >
+        {() => `${s.count}${s.hovering ? ' 👀' : ''}`}
+    </button>;
+});
 
-// No defaults: props bag is optional.
-defineElement('my-banner', (host) =>
-    <div>hello</div>
-);
+// No observed attributes — render-only element.
+defineElement('my-banner', (host) => <div>hello</div>);
 ```
 
 ## Model
 
-Each element gets a `state()`-backed reactive object behind its prototype accessors. Read `host.count` inside a reactive scope (a text or attribute effect, i.e. the `() => host.count` thunk) to subscribe; write `host.count = v` (or `host.count++`) to notify. Attribute changes flow through the same store: `observedAttributes` is derived from the keys of `defaults`, and `attributeChangedCallback` writes the raw string into the reactive state.
+`defineElement(tag, attrs?, render)` registers a light-DOM custom element. The browser observes the names in `attrs`; `attributeChangedCallback` writes the raw string to `this[name]`, which the `extend`-installed accessor forwards into the reactive store.
 
-Shadow DOM and typed attribute coercion/reflection are not in this tier — they're tracked in `IDEAS.md` (proposals #4 and #5 Tier 2).
+`extend(host, props)` creates a `state()` proxy seeded from `props`, installs `host.<key>` accessors that proxy to it, and returns the proxy. Render code uses the proxy directly (`s.count++`); external code (HTML attributes, parent JS) goes through `host.count`. Both land in the same store.
+
+Lazy-upgrade: if a key already exists as an own property on the host (parser-set attribute fired before connect, or `el.count = 5` before `customElements.define`), `extend` adopts the value into the store and replaces it with the accessor.
+
+Shadow DOM, typed attribute coercion, and reflection are not in this tier — see `IDEAS.md` (proposals #4 and #5 Tier 2).

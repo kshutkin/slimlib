@@ -2,95 +2,53 @@ import { render } from '@slimlib/jsx';
 import { state } from '@slimlib/store';
 
 /**
- * @template {Record<string, unknown>} [P=Record<string, unknown>]
- * @typedef {HTMLElement & P} SlimHost
+ * @typedef {HTMLElement & Record<string, unknown>} SlimHost
  */
 
 /**
- * @template {Record<string, unknown>} [P=Record<string, unknown>]
- * @typedef {(host: SlimHost<P>) => unknown} SlimRender
+ * @typedef {(host: SlimHost) => unknown} SlimRender
  */
 
 /**
- * Define and register a light-DOM custom element backed by `@slimlib/jsx`
- * and `@slimlib/store`'s `state()`.
+ * Define and register a light-DOM custom element backed by `@slimlib/jsx`.
  *
- * Each instance gets a single `state({...defaults})` proxy with prototype
- * getter/setters installed for every key so `host.foo` reads and
- * `host.foo = v` (or `host.foo++`) flow through the reactive proxy.
+ * Reactive properties are declared inside the render callback via `extend(host, {...})`.
+ * `attrs` is the list of attribute names the browser should observe; attribute writes
+ * flow into the host via `this[name] = value`, picked up by the accessor `extend` installs.
  *
- * `observedAttributes` is derived from `Object.keys(defaults)`; attribute
- * changes write the raw string into the state (typed coercion is a future
- * addition — see IDEAS.md #4).
+ * @overload
+ * @param {string} tag
+ * @param {SlimRender} userRender
+ * @returns {CustomElementConstructor}
  */
 /**
  * @overload
  * @param {string} tag
- * @param {SlimRender} render
- * @returns {CustomElementConstructor}
- */
-/**
- * @template {Record<string, unknown>} P
- * @overload
- * @param {string} tag
- * @param {P} defaults
- * @param {SlimRender<P>} render
+ * @param {string[]} attrs
+ * @param {SlimRender} userRender
  * @returns {CustomElementConstructor}
  */
 /**
  * @param {string} tag
- * @param {Record<string, unknown> | SlimRender} defaultsOrRender
+ * @param {string[] | SlimRender} attrsOrRender
  * @param {SlimRender} [maybeRender]
  * @returns {CustomElementConstructor}
  */
-export const defineElement = (tag, defaultsOrRender, maybeRender) => {
-    const hasDefaults = typeof defaultsOrRender !== 'function';
-    /** @type {Record<string, unknown>} */
-    const defaults = hasDefaults ? /** @type {Record<string, unknown>} */ (defaultsOrRender) : {};
-    const userRender = /** @type {SlimRender} */ (hasDefaults ? maybeRender : defaultsOrRender);
-    const propKeys = Object.keys(defaults);
+export const defineElement = (tag, attrsOrRender, maybeRender) => {
+    const hasAttrs = Array.isArray(attrsOrRender);
+    const attrs = hasAttrs ? attrsOrRender : [];
+    const userRender = /** @type {SlimRender} */ (hasAttrs ? maybeRender : attrsOrRender);
 
     class SlimElement extends HTMLElement {
-        /** @type {Record<string, unknown>} */
-        #props = state({ ...defaults });
         /** @type {(() => void) | undefined} */
         #dispose;
 
-        static {
-            for (const key of propKeys) {
-                Object.defineProperty(this.prototype, key, {
-                    configurable: true,
-                    enumerable: true,
-                    get() {
-                        return this.#props[key];
-                    },
-                    set(v) {
-                        this.#props[key] = v;
-                    }
-                });
-            }
-        }
-
-        constructor() {
-            super();
-            // lazy upgrade: own-properties set before definition flow through the setter
-            for (const key of propKeys) {
-                if (Object.hasOwn(this, key)) {
-                    const self = /** @type {Record<string, unknown>} */ (/** @type {unknown} */ (this));
-                    const v = self[key];
-                    delete self[key];
-                    self[key] = v;
-                }
-            }
-            // TODO: attachInternals() — form association, ARIA reflection (IDEAS.md #4 + future)
-        }
-
         static get observedAttributes() {
-            return propKeys;
+            return attrs;
         }
 
         attributeChangedCallback(/** @type {string} */ name, /** @type {string | null} */ _old, /** @type {string | null} */ value) {
-            this.#props[name] = value; // TODO: typed attribute coercion (IDEAS.md #4)
+            /** @type {Record<string, unknown>} */ (/** @type {unknown} */ (this))[name] = value;
         }
 
         connectedCallback() {
@@ -108,4 +66,40 @@ export const defineElement = (tag, defaultsOrRender, maybeRender) => {
 
     customElements.define(tag, SlimElement);
     return SlimElement;
+};
+
+/**
+ * Declare JS-only reactive properties on a slim element instance.
+ *
+ * Returns the underlying `state()` proxy so render code can use it directly
+ * (`s.count++`) while external code goes through the installed `host.count`
+ * accessor. Adopts any own property already on the host (e.g. from
+ * `attributeChangedCallback` or a pre-define `el.count = …`).
+ *
+ * @template {Record<string, unknown>} P
+ * @param {SlimHost} host
+ * @param {P} props
+ * @returns {P}
+ */
+export const extend = (host, props) => {
+    const s = /** @type {P} */ (state({ ...props }));
+    const sAny = /** @type {Record<string, unknown>} */ (s);
+    const target = /** @type {Record<string, unknown>} */ (/** @type {unknown} */ (host));
+    for (const key of Object.keys(props)) {
+        if (Object.hasOwn(target, key)) {
+            sAny[key] = target[key];
+            delete target[key];
+        }
+        Object.defineProperty(host, key, {
+            configurable: true,
+            enumerable: true,
+            get() {
+                return sAny[key];
+            },
+            set(v) {
+                sAny[key] = v;
+            }
+        });
+    }
+    return s;
 };
