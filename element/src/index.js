@@ -101,7 +101,7 @@ const createElementClass = (attrs, userRender) =>
  * Declare JS-only reactive properties on a slim element instance.
  *
  * Returns the underlying `state()` proxy so render code can use it directly
- * (`s.count++`) while external code goes through the installed `host.count`
+ * (`reactiveProps.count++`) while external code goes through the installed `host.count`
  * accessor. Adopts any own property already on the host (e.g. from
  * `attributeChangedCallback` or a pre-define `el.count = …`).
  *
@@ -112,21 +112,19 @@ const createElementClass = (attrs, userRender) =>
  */
 export const extend = (host, props) => {
     const reactiveProps = /** @type {P} */ (state({ ...props }));
-    const reactivePropsRecord = /** @type {Record<string, unknown>} */ (reactiveProps);
-    const target = /** @type {Record<string, unknown>} */ (/** @type {unknown} */ (host));
     for (const key of Object.keys(props)) {
-        if (Object.hasOwn(target, key)) {
-            reactivePropsRecord[key] = target[key];
-            delete target[key];
+        if (Object.hasOwn(host, key)) {
+            /** @type {Record<string, unknown>} */ (reactiveProps)[key] = host[key];
+            delete host[key];
         }
         Object.defineProperty(host, key, {
             configurable: true,
             enumerable: true,
             get() {
-                return reactivePropsRecord[key];
+                return reactiveProps[key];
             },
             set(value) {
-                reactivePropsRecord[key] = value;
+                /** @type {Record<string, unknown>} */ (reactiveProps)[key] = value;
             },
         });
     }
