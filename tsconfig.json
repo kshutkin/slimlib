@@ -1,6 +1,7 @@
 {
     "files": [],
     "references": [
+        { "path": "element" },
         { "path": "get-parameter-names" },
         { "path": "injector" },
         { "path": "jsx" },

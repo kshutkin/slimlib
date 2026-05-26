@@ -33,6 +33,15 @@ importers:
         specifier: ^4.0.18
         version: 4.0.18(@types/node@24.11.0)(happy-dom@15.11.7)(jsdom@25.0.1)(terser@5.44.1)
 
+  element:
+    dependencies:
+      '@slimlib/jsx':
+        specifier: workspace:^
+        version: link:../jsx
+      '@slimlib/store':
+        specifier: workspace:^
+        version: link:../store
+
   get-parameter-names: {}
 
   injector:
