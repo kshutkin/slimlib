@@ -41,6 +41,8 @@ export const defineElement = (tag, attrsOrRender, maybeRender) => {
 
     class SlimElement extends HTMLElement {
         #mounted = false;
+        /** @type {null | (() => void)} */
+        #dispose = null;
 
         static get observedAttributes() {
             return attrs;
@@ -51,12 +53,19 @@ export const defineElement = (tag, attrsOrRender, maybeRender) => {
         }
 
         connectedCallback() {
-            if (this.#mounted) return;
-            this.#mounted = true;
-            render(
-                () => /** @type {any} */ (userRender(/** @type {SlimHost} */ (/** @type {unknown} */ (this)))),
-                this
-            );
+            if (!this.#mounted) {
+                this.#mounted = true;
+                this.#dispose = render(() => /** @type {any} */ (userRender(/** @type {SlimHost} */ (/** @type {unknown} */ (this)))), this);
+            }
+        }
+
+        async disconnectedCallback() {
+            await Promise.resolve();
+            if (!this.isConnected) {
+                this.#mounted = false;
+                this.#dispose?.();
+                this.#dispose = null;
+            };
         }
     }
 
@@ -94,7 +103,7 @@ export const extend = (host, props) => {
             },
             set(v) {
                 sAny[key] = v;
-            }
+            },
         });
     }
     return s;
