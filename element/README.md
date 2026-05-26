@@ -33,4 +33,6 @@ defineElement('my-banner', (host) => <div>hello</div>);
 
 Lazy-upgrade: if a key already exists as an own property on the host (parser-set attribute fired before connect, or `el.count = 5` before `customElements.define`), `extend` adopts the value into the store and replaces it with the accessor.
 
+Lifecycle: the render callback runs once, on the first `connectedCallback`. Subsequent disconnect/reconnect cycles (e.g. `appendChild` to a different parent) are no-ops — the rendered DOM, effects, and reactive state are all preserved. There is no automatic teardown on disconnect; the scope dies with the host. Effects continue to run while the element is detached.
+
 Shadow DOM, typed attribute coercion, and reflection are not in this tier — see `IDEAS.md` (proposals #4 and #5 Tier 2).

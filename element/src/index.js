@@ -40,8 +40,7 @@ export const defineElement = (tag, attrsOrRender, maybeRender) => {
     const userRender = /** @type {SlimRender} */ (hasAttrs ? maybeRender : attrsOrRender);
 
     class SlimElement extends HTMLElement {
-        /** @type {(() => void) | undefined} */
-        #dispose;
+        #mounted = false;
 
         static get observedAttributes() {
             return attrs;
@@ -52,15 +51,12 @@ export const defineElement = (tag, attrsOrRender, maybeRender) => {
         }
 
         connectedCallback() {
-            this.#dispose = render(
+            if (this.#mounted) return;
+            this.#mounted = true;
+            render(
                 () => /** @type {any} */ (userRender(/** @type {SlimHost} */ (/** @type {unknown} */ (this)))),
                 this
             );
-        }
-
-        disconnectedCallback() {
-            this.#dispose?.();
-            this.#dispose = undefined;
         }
     }
 
