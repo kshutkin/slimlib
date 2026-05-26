@@ -89,7 +89,7 @@ const createElementClass = (attrs, userRender) =>
 
         async disconnectedCallback() {
             await Promise.resolve();
-            if (!this.isConnected) {
+            if (!this.isConnected && this.#mounted) {
                 this.#mounted = false;
                 this.#dispose?.();
                 this.#dispose = null;
