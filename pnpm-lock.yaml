@@ -41,6 +41,9 @@ importers:
       '@slimlib/store':
         specifier: workspace:^
         version: link:../store
+      esm-env:
+        specifier: ^1.2.1
+        version: 1.2.2
 
   get-parameter-names: {}
 

@@ -1,3 +1,5 @@
+import { DEV } from 'esm-env';
+
 import { render } from '@slimlib/jsx';
 import { state } from '@slimlib/store';
 
@@ -39,7 +41,30 @@ export const defineElement = (tag, attrsOrRender, maybeRender) => {
     const attrs = hasAttrs ? attrsOrRender : [];
     const userRender = /** @type {SlimRender} */ (hasAttrs ? maybeRender : attrsOrRender);
 
-    class SlimElement extends HTMLElement {
+    const ElementBase = createElementClass(attrs, userRender);
+    const Ctor = DEV ? createNamedElementClass(tag, ElementBase) : ElementBase;
+
+    customElements.define(tag, Ctor);
+    return Ctor;
+};
+
+/**
+ * @param {string} tag
+ * @param {CustomElementConstructor} ElementBase
+ * @returns {CustomElementConstructor}
+ */
+const createNamedElementClass = (tag, ElementBase) => {
+    const className = tag.replace(/(^|-)(\w)/g, (_, _d, c) => c.toUpperCase());
+    return /** @type {CustomElementConstructor} */ ({ [className]: class extends ElementBase {} }[className]);
+};
+
+/**
+ * @param {string[]} attrs
+ * @param {SlimRender} userRender
+ * @returns {CustomElementConstructor}
+ */
+const createElementClass = (attrs, userRender) =>
+    class extends HTMLElement {
         #mounted = false;
         /** @type {null | (() => void)} */
         #dispose = null;
@@ -55,7 +80,10 @@ export const defineElement = (tag, attrsOrRender, maybeRender) => {
         connectedCallback() {
             if (!this.#mounted) {
                 this.#mounted = true;
-                this.#dispose = render(() => /** @type {any} */ (userRender(/** @type {SlimHost} */ (/** @type {unknown} */ (this)))), this);
+                this.#dispose = render(
+                    () => /** @type {any} */ (userRender(/** @type {SlimHost} */ (/** @type {unknown} */ (this)))),
+                    this
+                );
             }
         }
 
@@ -65,13 +93,9 @@ export const defineElement = (tag, attrsOrRender, maybeRender) => {
                 this.#mounted = false;
                 this.#dispose?.();
                 this.#dispose = null;
-            };
+            }
         }
-    }
-
-    customElements.define(tag, SlimElement);
-    return SlimElement;
-};
+    };
 
 /**
  * Declare JS-only reactive properties on a slim element instance.
