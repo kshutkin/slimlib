@@ -37,6 +37,93 @@ describe('element', () => {
         expect(typeof props).toBe('function');
     });
 
+    it('attributeChangedCallback sets the named property on the host', async () => {
+        const { defineElement } = await importElement();
+
+        const Element = defineElement('x-slim-attrs', ['value'], () => null);
+        const element = new Element();
+
+        element.attributeChangedCallback('value', null, 'hello');
+
+        expect(element.value).toBe('hello');
+    });
+
+    it('props() throws outside a render callback in DEV mode', async () => {
+        const { props } = await importElement(true);
+
+        expect(() => props({ count: 0 })).toThrow(
+            'props() must be called synchronously inside a defineElement render callback'
+        );
+    });
+
+    it('props() installs reactive accessors that read and write through the state proxy', async () => {
+        render.mockImplementationOnce(factory => {
+            factory();
+            return vi.fn();
+        });
+        const { defineElement, props } = await importElement(true);
+        let reactiveState;
+        const Element = defineElement('x-props-rw', () => {
+            reactiveState = props({ count: 42 });
+            return null;
+        });
+        const element = new Element();
+        element.isConnected = true;
+        element.connectedCallback();
+
+        expect(element.count).toBe(42);
+        expect(reactiveState.count).toBe(42);
+
+        element.count = 99;
+        expect(element.count).toBe(99);
+        expect(reactiveState.count).toBe(99);
+
+        reactiveState.count = 7;
+        expect(element.count).toBe(7);
+    });
+
+    it('props() adopts own properties already present on the host before connect', async () => {
+        render.mockImplementationOnce(factory => {
+            factory();
+            return vi.fn();
+        });
+        const { defineElement, props } = await importElement(true);
+        let reactiveState;
+        const Element = defineElement('x-props-adopt', ['value'], () => {
+            reactiveState = props({ value: 'default' });
+            return null;
+        });
+        const element = new Element();
+
+        // Simulate browser setting the attribute before the element connects.
+        element.attributeChangedCallback('value', null, 'hello');
+        expect(element.value).toBe('hello');
+
+        element.isConnected = true;
+        element.connectedCallback();
+
+        // props() should have adopted the pre-set 'hello' value.
+        expect(element.value).toBe('hello');
+        expect(reactiveState.value).toBe('hello');
+    });
+
+    it('props() works in production mode without throwing', async () => {
+        render.mockImplementationOnce(factory => {
+            factory();
+            return vi.fn();
+        });
+        const { defineElement, props } = await importElement(false);
+        const Element = defineElement('x-props-prod', () => {
+            props({ x: 1 });
+            return null;
+        });
+        const element = new Element();
+        element.isConnected = true;
+        element.connectedCallback();
+
+        expect(element.x).toBe(1);
+    });
+
     it('derives a constructor name from the tag in dev mode', async () => {
         const { defineElement } = await importElement(true);
 
