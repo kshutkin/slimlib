@@ -1,5 +1,3 @@
-// @vitest-environment happy-dom
-
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { flushEffects, setScheduler, signal } from '@slimlib/store';
