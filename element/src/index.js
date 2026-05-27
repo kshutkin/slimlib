@@ -11,12 +11,15 @@ import { state } from '@slimlib/store';
  * @typedef {(host: SlimHost) => unknown} SlimRender
  */
 
+/** @type {SlimHost | undefined} */
+let currentHost;
+
 /**
  * Define and register a light-DOM custom element backed by `@slimlib/jsx`.
  *
- * Reactive properties are declared inside the render callback via `extend(host, {...})`.
+ * Reactive properties are declared inside the render callback via `props({...})`.
  * `attrs` is the list of attribute names the browser should observe; attribute writes
- * flow into the host via `this[name] = value`, picked up by the accessor `extend` installs.
+ * flow into the host via `this[name] = value`, picked up by the accessor `props` installs.
  *
  * @overload
  * @param {string} tag
@@ -80,10 +83,13 @@ const createElementClass = (attrs, userRender) =>
         connectedCallback() {
             if (!this.#mounted) {
                 this.#mounted = true;
+                const previousHost = currentHost;
+                currentHost = /** @type {SlimHost} */ (/** @type {unknown} */ (this));
                 this.#dispose = render(
                     () => /** @type {any} */ (userRender(/** @type {SlimHost} */ (/** @type {unknown} */ (this)))),
                     this
                 );
+                currentHost = previousHost;
             }
         }
 
@@ -98,26 +104,29 @@ const createElementClass = (attrs, userRender) =>
     };
 
 /**
- * Declare JS-only reactive properties on a slim element instance.
+ * Declare JS-only reactive properties on the current slim element instance.
  *
+ * Must be called synchronously inside a `defineElement` render callback.
  * Returns the underlying `state()` proxy so render code can use it directly
- * (`reactiveProps.count++`) while external code goes through the installed `host.count`
- * accessor. Adopts any own property already on the host (e.g. from
- * `attributeChangedCallback` or a pre-define `el.count = …`).
+ * (`reactiveProps.count++`) while external code goes through the installed
+ * `host.count` accessor. Adopts any own property already on the host (e.g.
+ * from `attributeChangedCallback` or a pre-define `el.count = …`).
  *
  * @template {Record<string, unknown>} P
- * @param {SlimHost} host
- * @param {P} props
+ * @param {P} initialProps
  * @returns {P}
  */
-export const extend = (host, props) => {
-    const reactiveProps = /** @type {P} */ (state({ ...props }));
-    for (const key of Object.keys(props)) {
-        if (Object.hasOwn(host, key)) {
-            /** @type {Record<string, unknown>} */ (reactiveProps)[key] = host[key];
-            delete host[key];
+export const props = initialProps => {
+    if (DEV && currentHost === undefined) {
+        throw new Error('props() must be called synchronously inside a defineElement render callback');
+    }
+    const reactiveProps = /** @type {P} */ (state(initialProps));
+    for (const key of Object.keys(initialProps)) {
+        if (Object.hasOwn(/** @type {SlimHost} */ (currentHost), key)) {
+            /** @type {Record<string, unknown>} */ (reactiveProps)[key] = /** @type {SlimHost} */ (currentHost)[key];
+            delete (/** @type {SlimHost} */ (currentHost)[key]);
         }
-        Object.defineProperty(host, key, {
+        Object.defineProperty(/** @type {SlimHost} */ (currentHost), key, {
             configurable: true,
             enumerable: true,
             get() {

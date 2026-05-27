@@ -31,10 +31,10 @@ describe('element', () => {
 
     it('smoke', async () => {
         // signature: (tag, render) | (tag, attrs, render)
-        const { defineElement, extend } = await importElement();
+        const { defineElement, props } = await importElement();
 
         expect(typeof defineElement).toBe('function');
-        expect(typeof extend).toBe('function');
+        expect(typeof props).toBe('function');
     });
 
     it('derives a constructor name from the tag in dev mode', async () => {
