@@ -5,28 +5,42 @@ is a self-contained proposal: rationale, sketch, tradeoffs, open questions.
 
 ---
 
-## Completed (removed from backlog)
+## Done / no longer relevant
 
-- **#1 Back `props` with `state()` instead of per-key signals** — implemented.
-- **#2 Derive class name from tag for nicer devtools / stack traces** — implemented (`DEV` only; production constructor remains anonymous).
+- **#1 Back `props` with `state()` instead of per-key signals** — shipped.
+  `props(initial)` calls `state(initial)` from `@slimlib/store` and installs
+  accessors on the host.
+- **#2 PascalCase class name in DEV** — shipped via `createNamedElementClass`;
+  production constructor stays anonymous.
+- **#5 Tier 1 (positional API + in-render declaration)** — shipped, in a
+  shape close to but not identical to the original proposal. Current signature
+  is `defineElement(tag, attrs?, render)`, with prop defaults declared
+  lazily via `props({...})` inside the render callback (closer to #6's
+  conclusion). The proposal's `(tag, defaults, render)` form was not adopted —
+  worth re-framing #5 Tier 2/3 against the actual shape when revisiting.
+- **#6 verdict on lazy declaration** — confirmed by the implementation:
+  attributes stay declared at `defineElement` time (the `attrs` array drives
+  `observedAttributes`); JS-only reactive state is declared lazily inside
+  render via `props()`. The "what's reachable" analysis is realized; the
+  residual `bindAttribute` open question carries forward into #4.
 
 ---
 
 ## 3. Support customized built-in elements (extend HTMLButtonElement, etc.)
 
 ### Current
-`defineElement` hard-codes `class SlimElement extends HTMLElement` — only the
+`defineElement` hard-codes `class extends HTMLElement` — only the
 "autonomous" custom element form (`<my-counter>`) is supported.
 
 ### Proposal
-Accept an optional base constructor and the local tag name to extend:
+Accept an optional base constructor and the local tag name to extend. Since
+the current API is positional, a third form would be needed (options bag, or
+a separate factory):
 
 ```js
-defineElement({
-    tag: 'my-counter',
-    base: HTMLButtonElement,  // default: HTMLElement
-    extends: 'button',        // required iff base !== HTMLElement
-    // … rest
+defineElement('my-counter', ['count'], render, {
+    base: HTMLButtonElement, // default: HTMLElement
+    extends: 'button',       // required iff base !== HTMLElement
 });
 // internally:
 class SlimElement extends base { /* unchanged body */ }
@@ -44,7 +58,7 @@ cares that the parent is *some* HTMLElement subclass.
 - Author can progressively enhance existing markup: `<button is="my-counter">`
   degrades to a plain button if the script never loads.
 
-### Caveats (the actual cost of supporting this)
+### Caveats
 
 1. **Safari does not ship customized built-ins.** WebKit has declined the
    feature for years. Two options: require the `@ungap/custom-elements`
@@ -53,9 +67,9 @@ cares that the parent is *some* HTMLElement subclass.
    is strictly an *additional* mode.
 
 2. **Shadow DOM is mostly blocked.** Most built-ins (`button`, `input`,
-   `select`, `textarea`, etc.) throw on `attachShadow()`. The wrapper must
-   either ignore `shadow: true` or error out when `base !== HTMLElement`.
-   Customized built-ins render into the element itself (light DOM).
+   `select`, `textarea`, etc.) throw on `attachShadow()`. Currently a non-issue
+   because `@slimlib/element` does not use shadow DOM at all; becomes relevant
+   only if a shadow-root mode is added later.
 
 3. **`is=` must be set at element creation time.** Setting
    `el.setAttribute('is', 'my-counter')` after the element exists does NOT
@@ -64,12 +78,12 @@ cares that the parent is *some* HTMLElement subclass.
    - `document.createElement('button', { is: 'my-counter' })` is used.
 
    The current jsx runtime calls `document.createElement(type)` without the
-   options bag (see `jsx/src/core.ts` line ~252). To make
-   `<button is="my-counter" />` actually upgrade, the runtime needs to detect
-   an `is` prop and pass it via the options arg at creation time. That's a
-   small but real runtime change — separate proposal in the jsx package.
+   options bag (see `jsx/src/core.ts`). To make `<button is="my-counter" />`
+   actually upgrade, the runtime needs to detect an `is` prop and pass it via
+   the options arg at creation time. That's a small but real runtime change —
+   separate proposal in the jsx package.
 
-4. **TypeScript surface gets a bit fiddly.** `base` and `extends` must agree
+4. **TypeScript surface gets fiddly.** `base` and `extends` must agree
    (you can't extend `HTMLButtonElement` and pass `extends: 'div'`). A
    discriminated union of `{ base: HTMLElement } | { base: HTMLButtonElement;
    extends: 'button' } | …` is doable but verbose. Acceptable first cut: type
@@ -77,11 +91,11 @@ cares that the parent is *some* HTMLElement subclass.
    the user.
 
 ### Open questions
-- Do we want this in `@slimlib/element` v1, or punt until a real consumer asks?
-  The plumbing in `defineElement` is trivial; the friction is (a) the
-  `createElement('button', { is })` change in `@slimlib/jsx`, and (b) deciding
-  the Safari policy (polyfill vs unsupported).
-- If we ship it, do we also expose an `is`-aware JSX helper (e.g. an
+- Do we want this in v1, or punt until a real consumer asks? Plumbing in
+  `defineElement` is trivial; friction is (a) the `createElement('button',
+  { is })` change in `@slimlib/jsx`, and (b) deciding the Safari policy
+  (polyfill vs unsupported).
+- If we ship it, expose an `is`-aware JSX helper (e.g. an
   `elementIs(tag, is, props, children)` factory) for ergonomics, or just rely
   on the runtime detecting an `is` prop?
 
@@ -90,65 +104,60 @@ cares that the parent is *some* HTMLElement subclass.
 ## 4. Attribute reflection and typed attribute coercion
 
 ### Current
-`options.props` and `options.observedAttributes` are two independent channels
-sharing internal storage:
-- Setting `el.foo = v` runs the prototype setter, which writes to the internal
-  signal/state.
+`attrs` (second arg of `defineElement`) and `props()` (called inside render)
+are two independent channels sharing internal storage:
+- Setting `el.foo = v` runs the prop accessor installed by `props()`, which
+  writes to the `state()`-backed proxy.
 - Changing the `foo` HTML attribute fires `attributeChangedCallback(name, _, v)`,
-  which writes the raw string into the same storage.
+  which writes the raw `string | null` into `this[name]` — either onto the
+  pre-mount own property (later adopted by `props()`) or through the accessor.
 
 Two gaps follow from "two channels, no glue":
 
 1. **Type drift.** Attribute path always delivers `string | null`. Prop path
    delivers whatever JS assigns. With both wired to the same storage, the
    value's runtime type depends on which side wrote last. `count="5"` →
-   `'5'`; `el.count = 5` → `5`. There's a `// TODO: typed attribute
-   coercion` marker in `attributeChangedCallback` for this.
+   `'5'`; `el.count = 5` → `5`.
 2. **No reflection.** Writing `el.count = 5` does not update the HTML
    attribute, so devtools, CSS attribute selectors, and SSR diffs do not see
    the change.
 
 ### Proposal
 
-Introduce a per-prop descriptor (optional — string-only entries in `props`
-still work as today) that captures both concerns:
+Extend `props()` (or add a parallel descriptor channel) so each prop can
+carry coercion + reflection metadata. Sketch:
 
 ```js
-defineElement({
-    tag: 'my-counter',
-    props: {
-        // shorthand: default only — no attribute, no reflection
-        ref: null,
-        // descriptor form
-        count: { value: 0, type: Number, attribute: 'count', reflect: true },
-        open:  { value: false, type: Boolean, attribute: 'open', reflect: true },
-        label: { value: '',    type: String,  attribute: 'label' }, // observe, don't reflect
-    },
-    setup: ({ props }) => /* … */,
+defineElement('my-counter', ['count', 'open', 'label'], host => {
+    const p = props({
+        count: { value: 0, type: Number, reflect: true },
+        open:  { value: false, type: Boolean, reflect: true },
+        label: { value: '',    type: String }, // observe, don't reflect
+    });
+    // …
 });
 ```
 
 Semantics:
-- `type: Number | Boolean | String | <fn>` — coercion function applied when an
-  attribute value (`string | null`) flows in. Boolean treats presence-as-true /
-  absence-as-false (HTML idiom). Custom functions get `(raw: string | null) =>
-  T`.
-- `attribute: string | false` — name of the observed attribute. Defaults to the
-  prop key in kebab-case if `type` is set; `false` opts out (prop-only).
-- `reflect: true` — sync prop → attribute on write. Numbers / strings stringify
-  via `String(v)`; booleans add/remove the attribute. `null` / `undefined`
-  remove the attribute.
+- `type: Number | Boolean | String | <fn>` — coercion function applied when
+  an attribute value (`string | null`) flows in. Boolean treats
+  presence-as-true / absence-as-false (HTML idiom). Custom functions get
+  `(raw: string | null) => T`.
+- `reflect: true` — sync prop → attribute on write. Numbers / strings
+  stringify via `String(v)`; booleans add/remove the attribute. `null` /
+  `undefined` remove the attribute.
 
-`observedAttributes` becomes derived (no longer a separate option) — the
-descriptor table is the single source of truth. Existing callers using
-`observedAttributes` keep working via a shorthand: top-level
-`observedAttributes: ['foo']` is sugar for `props: { foo: { attribute: 'foo' } }`.
+Open shape question: should the descriptor table subsume the `attrs` array
+(single source of truth for observed names), or stay a separate concern
+that augments it? The former is cleaner; the latter is incremental and
+keeps the current API working untouched.
 
 ### Implementation sketch
 
-- Build a normalized descriptor map at definition time.
-- `static get observedAttributes()` returns the list of `attribute` names where
-  `attribute !== false`.
+- Detect descriptor form by sniffing for `value`/`type`/`reflect` as own
+  keys (vs the shorthand `props({ count: 0 })` form, which is a bare
+  default).
+- Build a normalized descriptor map at `props()` call time.
 - `attributeChangedCallback(name, _, raw)` looks up the descriptor by
   attribute name, applies `type` coercion, sets a `_reflecting` flag, writes
   through the prop setter, clears the flag.
@@ -164,18 +173,18 @@ The `_reflecting` flag is the standard guard against infinite ping-pong.
   boilerplate.
 - HTML attribute stays in sync with JS prop where the author opts in — better
   devtools, CSS hookability via `[count="5"]` selectors, SSR diff alignment.
-- Single declarative table replaces two parallel lists (`props` + `observedAttributes`)
-  for the common case where they overlap.
+- Single declarative table for the common case where attributes and props
+  overlap.
 
 ### Tradeoffs
 
-- API surface grows. The shorthand `props: { count: 0 }` must keep working,
+- API surface grows. The shorthand `props({ count: 0 })` must keep working,
   so the runtime branches on "is this a descriptor or a bare default?".
   Easy to get wrong when defaults are themselves objects (`{ value: 0 }` *is*
   a descriptor; `{ x: 0, y: 0 }` isn't). Resolution rule: a value is a
-  descriptor iff it has at least one of `value`, `type`, `attribute`,
-  `reflect` as own keys. Document explicitly; consider requiring an explicit
-  `descriptor: true` marker if collisions feel risky.
+  descriptor iff it has at least one of `value`, `type`, `reflect` as own
+  keys. Document explicitly; consider requiring an explicit `descriptor: true`
+  marker if collisions feel risky.
 - Boolean attributes are a special case: presence is true, absence is false,
   any value (including `"false"`) is true. Must implement and document.
 - Reflection introduces a write loop guard. Standard pattern but extra state
@@ -188,246 +197,231 @@ The `_reflecting` flag is the standard guard against infinite ping-pong.
   rejects accidental string assignments. Either choice is defensible.
 - Should there be a way to declare a *computed* attribute (read-only,
   reflected from a derived value)? Likely yes eventually, deferred.
-- How does this interact with the `state()`-backed proposal (#1)? Cleanly,
-  I think — the descriptor table lives outside the proxy; the setter / attr
-  callback just mutate `this._props[key]` after coercion. Worth confirming
-  during implementation.
+- Does the descriptor table fully subsume `attrs`, or augment it?
+  Subsumption is cleaner long-term; augmentation is a safer first step.
 
 ---
 
-## 5. Collapse the API surface (Svelte-ish ergonomics without a compiler)
+## 5. Surface ergonomics — what remains after Tier 1
 
-### Current
-`defineElement` takes a single options bag with `tag`, `props`,
-`observedAttributes`, `shadow`, `setup`. The `setup` callback receives
-`{ element, root, props }`. Inside, reactive reads go through `props.foo()`
-and writes through `props.foo.set(v)`.
+Tier 1 (positional API + lazy `props()` inside render) has shipped (see
+"Done"). The remaining tiers from the original proposal are only relevant
+in the contexts described below.
 
-### Why touch this
-The current shape was driven by implementation convenience — one bag, named
-fields, a context object passed in. Once `state()` backs `props` (proposal #1),
-the runtime no longer needs a separate `props` argument at all, and the
-options bag is overkill for the most common case (a tag plus a few defaults
-plus a render function).
-
-The bar: get as close to modern Svelte ergonomics as a no-compiler library can.
-
-### Reachable in JS alone
-
-A positional, three-arg form covers ~90 % of definitions:
-
-```js
-defineElement('my-counter', { count: 0 }, (host) =>
-    <button on:click={() => host.count++}>{() => host.count}</button>
-);
-```
-
-What changed vs current:
-- Positional `(tag, defaults, render)`. No options bag when you don't need one.
-- `host` is the element itself. Reading and writing props goes through the
-  prototype accessors that `defineElement` already installs.
-- With `state()` backing the storage (proposal #1), `host.count++` works
-  unmodified — it desugars to `host.count = host.count + 1`, one getter +
-  one setter call on the proxy-backed accessors.
-- `observedAttributes` derived automatically from the defaults' keys.
-  Opt-out (or richer behaviour) happens through the descriptor form from
-  proposal #4: `{ count: { value: 0, attribute: false } }`.
-- Shadow DOM defaults off (light DOM, autonomous element). To attach a
-  shadow root, switch to the options-bag form (Tier 2 below).
-
-This is the closest a non-compiled JS surface can get to Svelte 5 runes. The
-only remaining stylistic gap is the `() => host.count` wrapper in JSX
-positions — that exists because the JSX runtime evaluates expressions
-eagerly at element creation. Without a compiler rewriting reads, the user
-has to mark "this read is reactive" with an explicit arrow.
-
-### Tier 2 — keep the options bag for declarative configuration
+### Tier 2 — options bag for declarative configuration
 
 When proposals #3 (customized built-ins) and #4 (descriptors / reflection)
-land, the positional form can't carry their config. Promote to:
+land, the positional form can't carry their config cleanly. At that point,
+an options-bag overload becomes worthwhile:
 
 ```js
 defineElement('my-counter', {
-    props: {
-        count: { value: 0, type: Number, attribute: 'count', reflect: true },
-    },
-    shadow: { mode: 'open' },
-    render: (host) =>
-        <button on:click={() => host.count++}>{() => host.count}</button>,
+    attrs: ['count'],
+    base: HTMLButtonElement, // #3
+    extends: 'button',       // #3
+    render: host => /* … */,
 });
 ```
 
 Same ergonomics inside `render` — the only difference is that the
-declaration lives in a config object instead of a positional argument.
-Detect "options bag vs defaults object" by sniffing for `render` /
-`setup` as a key; falls out naturally without ambiguity.
+declaration lives in a config object instead of positional arguments.
+Detect "options bag vs attrs array" by sniffing the second argument
+(`Array.isArray` for attrs, plain object for options). Falls out naturally
+without ambiguity.
 
-### Cost analysis (Tier 1 + Tier 2)
+### Tier 3 — compiler plugin (lowest priority, philosophy-misaligned)
 
-- Performance: identical to today modulo the `state()` migration (#1). One
-  getter → proxy-get hop per host-prop read, roughly 2–3× a raw signal call
-  in microbench but lost in noise at app scale.
-- Bundle size: smaller `defineElement` (less options parsing). The state
-  proxy is already paid for through `@slimlib/store`.
-- Migration: trivial — body of `defineElement` shrinks; callers swap an
-  options bag for positional args (or keep the bag when they need
-  descriptors).
-
-### Tier 3 — compiler plugin (lowest priority, explicitly out of philosophy alignment)
-
-The remaining `() => host.x` boilerplate is removable by a Rollup/Vite plugin
-that rewrites JSX expression positions:
-
-```js
-// Source
-component('my-counter', { count: 0 }, (host) =>
-    <button on:click={() => host.count++}>{host.count}</button>
-);
-
-// Emitted
-component('my-counter', { count: 0 }, (host) =>
-    <button on:click={() => host.count++}>{() => host.count}</button>
-);
-```
-
-Scope is small — member-read expressions inside JSX children/attributes
-get wrapped in arrows. Feasible as a standalone plugin and zero runtime
-cost (the rewrite emits exactly what users would write by hand).
-
-**Lowest priority. Misaligned with the library's "explicit over magic"
-philosophy.** The whole appeal of slimlib so far is that what you type is
-what runs — adding a compiler that silently rewrites expressions trades
-that off for a small ergonomic win. Document it as a possibility but do
-not implement unless multiple consumers ask. If implemented later, it
-must be:
+The remaining `() => host.x` boilerplate in JSX expression positions is
+removable by a Rollup/Vite plugin that wraps member-read expressions in
+arrows. **Lowest priority. Misaligned with the library's "explicit over
+magic" philosophy.** Document as a possibility but do not implement unless
+multiple consumers ask. If implemented later, it must be:
 - Optional. Tier 1/2 code must keep working without the plugin.
 - Scoped narrowly to JSX member-reads. No bare-identifier rewrites, no
   destructuring magic, no `count++` shorthand for non-host state.
 - Behind an explicit opt-in marker (e.g. a specific factory name like
   `component()` instead of `defineElement()`), so users see at the call
   site that the rewrite applies.
-
-### Open questions
-
-- Tier 1 + Tier 2: which `defineElement` signature should be the
-  recommended path in the README — positional or options? Probably keep
-  both, demo the positional form first.
-- Tier 3 plugin: if/when implemented, does it live in `@slimlib/element`
-  (close to the API it sugars) or a separate `@slimlib/element-plugin`
-  package (so the runtime has no implicit dependency on a build step)?
-  Lean toward separate.
+- In a separate package (`@slimlib/element-plugin`), so the runtime has no
+  implicit dependency on a build step.
 
 ---
 
-## 6. Lazy schema declaration inside render — what is reachable, what isn't
+## 6. `bindAttribute` helper
 
-### The idea
-Move declaration into the render callback. Instead of a schema bag at
-definition time, ask the user to declare props (and ideally attributes,
-with coercion) from inside the per-instance setup:
-
-```js
-defineElement('my-counter', (host) => {
-    const { count } = props({
-        count: { value: 0, type: Number, attribute: 'count', reflect: true },
-    });
-    return <button on:click={() => count++}>{() => count}</button>;
-});
-```
-
-Appeal: schema and use live next to each other; no second pass through the
-options bag; one consistent place to read about a prop.
-
-### Why it can't fully work for attributes
-
-`customElements.define(tag, Ctor)` reads several `static` fields **once**
-when called and caches them forever. Most relevant:
-
-- `static observedAttributes` — the list is frozen before any instance
-  exists. Adding names later does nothing; the browser ignores them.
-- `static formAssociated`
-- `static disabledFeatures`
-
-`attributeChangedCallback(name, _, value)` is synchronous, but the browser
-only fires it for names in the frozen list. So if `props({...})` inside
-`render` declares an attribute that wasn't known at `defineElement` time,
-the browser never reports changes to it.
-
-### Three ways one could try to work around this
-
-**A. Pre-probe.** Run `render` once with a stub host before
-`customElements.define`, capture the schema, then register. Problem:
-`render` returns JSX and likely has side effects. Asking the user to make
-their render safely re-runnable is fragile.
-
-**B. MutationObserver instead of `attributeChangedCallback`.** Drop
-`observedAttributes`, install an MO per instance on `attributes`. Lets
-attribute names be discovered per-instance.
-- Loses synchrony — `el.setAttribute('foo', '1'); el.foo` no longer
-  reflects the new value until the next microtask.
-- Doesn't fire for parser-set initial attributes — manual replay needed
-  in `connectedCallback`, and again every time a new name is declared.
-- One observer per instance (or one global with routing). Allocation cost
-  is real at high instance counts.
-
-**C. Stay declarative for attributes only.** Schema for attributes lives
-in `defineElement`'s options. `props()` inside `render` is allowed only
-for JS-only reactive state (no attribute mirroring). Spec-safe.
-
-### Verdict for attributes
-Workaround (B) is the only spec-compatible path, and its synchrony /
-allocation / replay costs outweigh the ergonomic win. **Not pursued.**
-Attribute declarations stay in the schema at `defineElement` time.
-
-### What is reachable: lazy *prop* (JS-only) declaration
-
-JS properties on an `HTMLElement` aren't constrained by the Custom Elements
-registry. We can add accessors, signals, or reactive state any time inside
-`render` without the spec complaining. So the spirit of the idea still
-works for everything except HTML attribute observation:
+Carryover from the #6 "what's reachable" analysis. The lazy-prop story is
+done; the only residual question is whether to offer a sugar helper that
+pulls attribute *use* closer to the render code:
 
 ```js
-defineElement('my-counter', (host) => {
-    // Declared at define time (needs attribute observation):
-    //   host.count is a prop wired to the 'count' attribute.
-
-    // Declared lazily (JS-only state, no attribute):
-    const internal = state({ active: false, hovering: false });
-    // Or per-key signals if preferred.
-
-    return /* … uses host.count and internal.active */;
-});
-```
-
-A `props()` helper *for non-attribute properties* would basically be sugar
-over `state()` / `signal()` — useful if it adds genuine ergonomic value,
-not worth a new API otherwise.
-
-### A more useful helper that respects the constraint
-
-`bindAttribute(host, name, options)` (or similar) called inside `render`,
-which assumes the attribute is **already** in the schema (declared at
-`defineElement` time) and returns a fresh reactive binding to its current
-value plus a coercion hook:
-
-```js
-defineElement('my-counter', {
-    props: { count: { value: 0, type: Number, attribute: 'count', reflect: true } },
-}, (host) => {
-    const count = bindAttribute(host, 'count'); // sugar; spec-safe because schema is declared
+defineElement('my-counter', ['count'], host => {
+    const count = bindAttribute(host, 'count'); // sugar; spec-safe because attr is in the schema
     return <button on:click={() => count.set(count() + 1)}>{count}</button>;
 });
 ```
 
-This pulls the *use* of an attribute closer to the render code without
-violating the registry's one-shot schema read. Worth considering once
-proposals #1 and #4 settle — until then `host.count` from the prototype
-accessor already does the job.
+Spec-safe: assumes the attribute is already in the schema declared at
+`defineElement` time. Returns a reactive binding to the current value plus
+a coercion hook (which would route through whatever #4 lands).
+
+### Open question
+Is this worth shipping, or is the prototype accessor (`host.count`) enough
+for every realistic case? Likely the accessor suffices; revisit only if #4
+makes the descriptor form ergonomically heavy at the call site.
+
+---
+
+## 7. ElementInternals & form-associated elements
+
+### The split
+ElementInternals straddles two registers that the current API cannot bridge
+on its own:
+- **Class-time**: `static formAssociated = true` must be set on the constructor
+  before `customElements.define`, and four form-lifecycle methods
+  (`formAssociatedCallback`, `formDisabledCallback`, `formResetCallback`,
+  `formStateRestoreCallback`) must exist on the prototype at registration
+  time. The browser checks `'methodName' in prototype` once; methods added
+  later are never invoked.
+- **Per-instance**: `host.attachInternals()` returns the live
+  `ElementInternals` and can only be called once per element. After that, the
+  user wires `setFormValue` / `setValidity` / ARIA mixins / custom state set
+  from inside render.
+
+### Proposal
+
+**Class-time → `defineElement` options.** Forces the options-bag overload
+(#5 Tier 2):
+
+```js
+defineElement('my-input', ['value'], host => { /* render */ }, {
+    formAssociated: true,
+    lifecycle: {
+        formAssociated:   (host, form) => { /* … */ },
+        formDisabled:     (host, disabled) => { /* … */ },
+        formReset:        host => { /* … */ },
+        formStateRestore: (host, state, mode) => { /* … */ },
+    },
+});
+```
+
+The wrapper sets `static formAssociated` from the option and installs
+prototype methods only for the keys actually present in `lifecycle` — the
+browser treats absent methods differently from present-but-no-op ones
+(saves notification cost).
+
+**Per-instance → `internals()` helper, called inside render.** Mirrors
+`props()`: context-aware, valid only inside the render callback, calls
+`currentHost.attachInternals()` once and caches the result on a
+`WeakMap<host, ElementInternals>` so repeated calls within the same render
+return the same instance instead of throwing.
+
+```js
+defineElement('my-input', ['value'], host => {
+    const i = internals();
+    const p = props({ value: '' });
+    effect(() => i.setFormValue(p.value));
+    return null;
+});
+```
+
+DEV-mode guard mirrors `props()`: throw the friendly "must be called inside
+render" error when `currentHost` is undefined.
+
+### Why not just `host.attachInternals()` directly?
+Works for ARIA-mixin and custom-states use cases (which need no class-time
+config). Fails for form-association because `static formAssociated` is read
+once by `customElements.define` and cannot be patched later. So
+`defineElement` has to be involved for that path.
 
 ### Open questions
+- Should `internals()` always call `attachInternals` (even when not
+  form-associated), or only when `formAssociated: true`? Probably always —
+  ARIA mixin is a legitimate non-form use case.
+- Should there be a separate `ariaInternals()` or similar split, or is
+  one helper enough? Likely one helper; ergonomics judged once usage exists.
+- How does `disabledFeatures: ['shadow']` (see #8) interact? It blocks
+  `internals.shadowRoot` access but not the rest of the API. Document.
 
-- If a `props()` helper for JS-only state lands, does it overlap enough
-  with `state()` from `@slimlib/store` to confuse users? Probably yes —
-  default to plain `state()` and only add `props()` if it earns its keep.
-- Is `bindAttribute` worth shipping as a primitive, or is the prototype
-  accessor enough for every realistic case? Likely the accessor suffices.
+### Depends on
+#5 Tier 2 (options-bag overload).
+
+---
+
+## 8. Other class-time configuration: lifecycle hooks & static fields
+
+ElementInternals is the largest single user of pre-`customElements.define`
+configuration, but it is not alone. The full set of things that must be
+decided at define time (and therefore live in the #5 Tier 2 options bag)
+is:
+
+### Static fields read once by the registry
+- `static observedAttributes` — already covered via the `attrs` arg.
+- `static formAssociated` — covered by #7.
+- `static disabledFeatures` — opt out of features per-class. Only spec'd
+  value today is `'shadow'`: blocks `attachShadow` and ARIA Shadow access
+  via `attachInternals().shadowRoot`. Useful as a defensive flag when the
+  element is explicitly light-DOM-only.
+
+### Lifecycle callbacks that must exist on the prototype at registration
+Browser does `'methodName' in prototype` check at `customElements.define`
+time; methods added later are never called.
+
+- `connectedCallback`, `disconnectedCallback`, `attributeChangedCallback` —
+  owned by the wrapper today.
+- `adoptedCallback(oldDocument, newDocument)` — fires when the element
+  moves between documents (iframe, popup, `document.adoptNode`). Not
+  currently exposed. Niche but spec-mandated.
+- `connectedMoveCallback()` — newer spec hook; fires for
+  `Element.moveBefore()` so the element can preserve state across
+  DOM relocation instead of being torn down and re-mounted. Worth
+  exposing now that it's shipping in Chromium.
+- Form-association callbacks (require `formAssociated: true`) — covered
+  by #7.
+
+### Class extension
+- `base` constructor (`HTMLElement` default vs `HTMLButtonElement` etc.)
+  and the `{ extends: 'button' }` third arg to `customElements.define`.
+  Covered by #3.
+
+### Proposal
+
+Single `lifecycle` object in the #5 Tier 2 options bag carries all
+user-defined callbacks; the wrapper installs each prototype method
+conditionally. Static flags are top-level options:
+
+```js
+defineElement('my-thing', ['value'], host => /* render */, {
+    // static fields
+    formAssociated: true,             // #7
+    disabledFeatures: ['shadow'],
+    // class extension (#3)
+    base: HTMLElement,
+    // user lifecycle hooks — each one is optional; the wrapper installs
+    // the corresponding prototype method only when the key is present
+    lifecycle: {
+        adopted:          (host, oldDoc, newDoc) => {},
+        connectedMove:    host => {},
+        formAssociated:   (host, form) => {},
+        formDisabled:     (host, disabled) => {},
+        formReset:        host => {},
+        formStateRestore: (host, state, mode) => {},
+    },
+});
+```
+
+The wrapper-owned `connected`/`disconnected`/`attributeChanged` callbacks
+stay internal — exposing user hooks for those would conflict with the
+mount/unmount semantics that `render` + `props()` already provide. If a
+real use case appears (e.g. teardown that cannot fit into a render-scope
+effect cleanup), revisit.
+
+### Open questions
+- Should `adopted` and `connectedMove` get first-class API or stay
+  rarely-used `lifecycle` entries? Probably the latter — bag stays flat.
+- Should there be a `before-define` hook that runs once with the
+  constructor, for users who want to patch the prototype directly?
+  Unappealing escape hatch; defer until a real ask.
+
+### Depends on
+#5 Tier 2 (options-bag overload). All entries here are dormant until
+that lands.
