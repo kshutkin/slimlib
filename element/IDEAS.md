@@ -33,19 +33,30 @@ is a self-contained proposal: rationale, sketch, tradeoffs, open questions.
 "autonomous" custom element form (`<my-counter>`) is supported.
 
 ### Proposal
-Accept an optional base constructor and the local tag name to extend. Since
-the current API is positional, a third form would be needed (options bag, or
-a separate factory):
+Accept a fourth `extendElement` argument (string, the local name of the
+built-in to extend). The wrapper resolves it to the matching constructor
+(`HTMLButtonElement`, `HTMLInputElement`, …) and uses that as the starting
+base for the #5 middleware chain. The same string is passed as the third
+arg to `customElements.define`.
 
 ```js
-defineElement('my-counter', ['count'], render, {
-    base: HTMLButtonElement, // default: HTMLElement
-    extends: 'button',       // required iff base !== HTMLElement
-});
+defineElement(
+    'my-counter',
+    observedAttributes(['count']),
+    render,
+    'button', // → base resolved to HTMLButtonElement
+);
 // internally:
-class SlimElement extends base { /* unchanged body */ }
-customElements.define(tag, SlimElement, extendsBuiltin ? { extends: extendsBuiltin } : undefined);
+const Base = document.createElement('button').constructor; // → HTMLButtonElement
+let Ctor = applySlimCore(Base, render);
+Ctor = layers.reduceRight((acc, mw) => mw(acc), Ctor);
+customElements.define('my-counter', Ctor, { extends: 'button' });
 ```
+
+No separate `base:` option — middleware composition extends whatever the
+wrapper hands it, so there is only one input that needs to agree
+(`extendElement` resolves to the right constructor and is passed through to
+`customElements.define`).
 
 Consumer markup becomes `<button is="my-counter">` instead of `<my-counter>`.
 Lifecycle, attribute callback, and state wiring are identical — the body only
@@ -83,12 +94,12 @@ cares that the parent is *some* HTMLElement subclass.
    the options arg at creation time. That's a small but real runtime change —
    separate proposal in the jsx package.
 
-4. **TypeScript surface gets fiddly.** `base` and `extends` must agree
-   (you can't extend `HTMLButtonElement` and pass `extends: 'div'`). A
-   discriminated union of `{ base: HTMLElement } | { base: HTMLButtonElement;
-   extends: 'button' } | …` is doable but verbose. Acceptable first cut: type
-   `base` as `typeof HTMLElement` and `extends` as `string | undefined`, trust
-   the user.
+4. **TypeScript surface.** With `extendElement` as a single string, the
+   `host` parameter handed to `render` should narrow to the matching
+   built-in (`HTMLButtonElement` when `extendElement === 'button'`, etc.).
+   A small lookup type (`{ button: HTMLButtonElement; input: HTMLInputElement;
+   … }`) plus a generic on `defineElement` does this without ceremony.
+   Customised built-ins outside the lookup fall back to `HTMLElement`.
 
 ### Open questions
 - Do we want this in v1, or punt until a real consumer asks? Plumbing in
@@ -202,32 +213,183 @@ The `_reflecting` flag is the standard guard against infinite ping-pong.
 
 ---
 
-## 5. Surface ergonomics — what remains after Tier 1
+## 5. Middleware-composed `defineElement`
 
-Tier 1 (positional API + lazy `props()` inside render) has shipped (see
-"Done"). The remaining tiers from the original proposal are only relevant
-in the contexts described below.
+Supersedes the old Tier 2 (options bag), #7 (ElementInternals helper), and
+#8 (lifecycle hook bag). Each "class-time concern" — every static field and
+every prototype method the browser reads once at registration — becomes a
+small composable function instead of a key in a closed options object.
+Users can write their own without us shipping it.
 
-### Tier 2 — options bag for declarative configuration
+### Shape
 
-When proposals #3 (customized built-ins) and #4 (descriptors / reflection)
-land, the positional form can't carry their config cleanly. At that point,
-an options-bag overload becomes worthwhile:
+```ts
+type Middleware = (Base: typeof HTMLElement) => typeof HTMLElement;
 
-```js
-defineElement('my-counter', {
-    attrs: ['count'],
-    base: HTMLButtonElement, // #3
-    extends: 'button',       // #3
-    render: host => /* … */,
-});
+defineElement(
+    tag: string,
+    middleware: Middleware | Middleware[],
+    render: (host: HTMLElement) => Node | null,
+    extendElement?: string, // e.g. 'button' for customized built-ins (#3)
+): void;
 ```
 
-Same ergonomics inside `render` — the only difference is that the
-declaration lives in a config object instead of positional arguments.
-Detect "options bag vs attrs array" by sniffing the second argument
-(`Array.isArray` for attrs, plain object for options). Falls out naturally
-without ambiguity.
+Each middleware receives a base class and returns a subclass. The wrapper
+folds them onto a starting base (resolved from `extendElement`, default
+`HTMLElement`), then layers its own slim core (connected/disconnected/
+attributeChanged dispatchers + render wiring) innermost, then registers.
+
+```js
+function defineElement(tag, middleware, render, extendElement) {
+    const parent = extendElement
+        ? document.createElement(extendElement).constructor
+        : HTMLElement;
+    const layers = Array.isArray(middleware) ? middleware : [middleware];
+    let Ctor = applySlimCore(parent, render);
+    Ctor = layers.reduceRight((acc, mw) => mw(acc), Ctor);
+    if (DEV) Ctor = pascalNamed(tag, Ctor);
+    customElements.define(
+        tag, Ctor,
+        extendElement ? { extends: extendElement } : undefined,
+    );
+}
+```
+
+Order convention: array index 0 is the outermost layer (`reduceRight`).
+Same as Redux/Koa.
+
+### Shipped middlewares (the baseline kit)
+
+Each is a one-liner producing a `Middleware`. They cover everything in the
+old #7 / #8 lists.
+
+```js
+// Static fields read once by the registry
+observedAttributes(['value', 'count'])       // sets static observedAttributes
+formAssociated({                              // sets static formAssociated = true,
+    reset:    host => {},                     //   installs the four form callbacks
+    disabled: (host, d) => {},                //   on the prototype only when present
+    associated: (host, form) => {},
+    stateRestore: (host, state, mode) => {},
+})
+disabledFeatures(['shadow'])                  // sets static disabledFeatures
+
+// Per-instance allocation that needs prototype presence
+withInternals()                               // adds _internals = this.attachInternals()
+                                              //   in the constructor; gives ARIA mixin,
+                                              //   custom states, and (combined with
+                                              //   formAssociated()) setFormValue access
+
+// Niche lifecycle hooks
+onAdopted((host, oldDoc, newDoc) => {})       // installs adoptedCallback
+onMove(host => {})                            // installs connectedMoveCallback
+```
+
+User-written middleware for anything we don't ship is trivial:
+
+```js
+const withDataset = (key, value) => Base =>
+    class extends Base {
+        constructor() { super(); this.dataset[key] = value; }
+    };
+```
+
+### Full example
+
+```js
+defineElement(
+    'my-input',
+    [
+        observedAttributes(['value']),
+        formAssociated({ reset: host => host.value = '' }),
+        withInternals(),
+    ],
+    host => {
+        const p = props({ value: '' });
+        effect(() => host._internals.setFormValue(p.value));
+        return null;
+    },
+    'input', // customized built-in (#3)
+);
+```
+
+### Integration with other proposals
+
+- **#3 Customized built-ins** — collapses to the `extendElement` argument.
+  Wrapper resolves the local name to its constructor (`HTMLButtonElement`,
+  `HTMLInputElement`, …) and threads it as the starting base. The same
+  string is passed as `{ extends }` to `customElements.define`. No
+  separate `base:` config — middleware composition already extends whatever
+  the wrapper hands it.
+- **#4 Attribute reflection / typed coercion** — orthogonal: still
+  per-instance, still happens inside `props()`. Could be expressed as a
+  middleware too (`reflectedProps({...})`) if the descriptor table needs
+  class-time wiring, but the current sketch keeps it per-instance and
+  unchanged.
+- **#6 `bindAttribute`** — unchanged, orthogonal, still per-instance.
+
+### Wins
+
+- **Open extension.** Users add new class-time behaviour without a runtime
+  change. Everything in #8 that we'd have to enumerate becomes a shipped
+  function in the same shape.
+- **Pay-for-what-you-use.** `withInternals()` is opt-in — elements that
+  don't need ElementInternals don't allocate one. Same for every other
+  middleware.
+- **Customized built-ins fall out for free.** Same `withInternals()` /
+  `formAssociated()` middlewares work whether the base is `HTMLElement`,
+  `HTMLButtonElement`, or anything else, because middleware composes
+  generically.
+- **Smaller core.** The wrapper only knows about the slim core; everything
+  else is a separate import.
+
+### Tradeoffs / open questions
+
+1. **Always an array.** Middleware is `Middleware[]`. Even a single-entry
+   chain wraps in `[mw]`. The bare-function shorthand was rejected: it
+   forced a runtime branch in the wrapper for negligible call-site savings,
+   and it muddled the type story. One shape, no detection.
+2. **Application order.** `reduceRight` (array[0] outermost). Document
+   once; do not bikeshed.
+3. **Slim core position.** Innermost. User middleware sees the slim core
+   as part of the base it extends. Means a user middleware *can* override
+   `connectedCallback` etc. — escape hatch, not footgun, if documented.
+4. **Static-field conflicts.** If two middlewares both set
+   `static observedAttributes`, the later (innermore) class shadows the
+   earlier. Ship the dumb version first; add a merging helper
+   (`mergeObservedAttributes`) only if real conflicts surface.
+5. **TypeScript typing.** The interesting part: typing `withInternals()`
+   so `host._internals` shows up in the `render` callback's `host` type.
+   Doable with a generic `Middleware<Adds = {}>` and an array-typed
+   accumulator, but it's mid-effort. Ship the JS API first; type later.
+6. **Memoisation.** Per `defineElement` call rebuilds the class chain.
+   This is one-shot at module load — not worth caching. The built-in
+   resolution (`document.createElement(name).constructor`) is inlined at
+   the one call site; if profiling ever shows it matters, drop in a tiny
+   `Map<string, Ctor>` cache.
+7. **Naming.** `middleware` (singular, accepts one or array). `mixins` is
+   also fine. `decorators` is loaded — avoid.
+8. **DEV-time validation.** Each middleware can carry its own DEV checks
+   (e.g. `observedAttributes` warns on duplicate names, `withInternals`
+   warns if called twice in the chain). Standard pattern; no central
+   registry needed.
+9. **Render hook as middleware?** Could be — the slim core itself is just
+   another middleware applied automatically. Keeping `render` as a
+   first-class positional parameter is friendlier for the common case;
+   advanced users who want to skip the slim core can build their own
+   `defineElement`-equivalent on top of the same primitives.
+
+### Status of the old subsections
+
+- Old **Tier 2 (options bag)** — replaced by middleware. No options bag.
+- Old **Tier 3 (compiler plugin)** — unchanged; preserved below.
+- Old **#7 (ElementInternals split)** — `internals()` helper dropped;
+  `withInternals()` middleware + `host._internals` covers both use cases.
+  Class-time `formAssociated` config is the `formAssociated()` middleware.
+- Old **#8 (class-time bag)** — every entry becomes a middleware in the
+  shipped kit. The note about wrapper-owned `connected`/`disconnected`/
+  `attributeChanged` carries forward: those stay inside the slim core,
+  not exposed as middlewares.
 
 ### Tier 3 — compiler plugin (lowest priority, philosophy-misaligned)
 
@@ -269,159 +431,23 @@ Is this worth shipping, or is the prototype accessor (`host.count`) enough
 for every realistic case? Likely the accessor suffices; revisit only if #4
 makes the descriptor form ergonomically heavy at the call site.
 
----
+<!-- old #7 and #8 collapsed into #5 (middleware-composed defineElement) -->
 
-## 7. ElementInternals & form-associated elements
+## 7. ElementInternals & form-associated elements — superseded by #5
 
-### The split
-ElementInternals straddles two registers that the current API cannot bridge
-on its own:
-- **Class-time**: `static formAssociated = true` must be set on the constructor
-  before `customElements.define`, and four form-lifecycle methods
-  (`formAssociatedCallback`, `formDisabledCallback`, `formResetCallback`,
-  `formStateRestoreCallback`) must exist on the prototype at registration
-  time. The browser checks `'methodName' in prototype` once; methods added
-  later are never invoked.
-- **Per-instance**: `host.attachInternals()` returns the live
-  `ElementInternals` and can only be called once per element. After that, the
-  user wires `setFormValue` / `setValidity` / ARIA mixins / custom state set
-  from inside render.
-
-### Proposal
-
-**Class-time → `defineElement` options.** Forces the options-bag overload
-(#5 Tier 2):
-
-```js
-defineElement('my-input', ['value'], host => { /* render */ }, {
-    formAssociated: true,
-    lifecycle: {
-        formAssociated:   (host, form) => { /* … */ },
-        formDisabled:     (host, disabled) => { /* … */ },
-        formReset:        host => { /* … */ },
-        formStateRestore: (host, state, mode) => { /* … */ },
-    },
-});
-```
-
-The wrapper sets `static formAssociated` from the option and installs
-prototype methods only for the keys actually present in `lifecycle` — the
-browser treats absent methods differently from present-but-no-op ones
-(saves notification cost).
-
-**Per-instance → `internals()` helper, called inside render.** Mirrors
-`props()`: context-aware, valid only inside the render callback, calls
-`currentHost.attachInternals()` once and caches the result on a
-`WeakMap<host, ElementInternals>` so repeated calls within the same render
-return the same instance instead of throwing.
-
-```js
-defineElement('my-input', ['value'], host => {
-    const i = internals();
-    const p = props({ value: '' });
-    effect(() => i.setFormValue(p.value));
-    return null;
-});
-```
-
-DEV-mode guard mirrors `props()`: throw the friendly "must be called inside
-render" error when `currentHost` is undefined.
-
-### Why not just `host.attachInternals()` directly?
-Works for ARIA-mixin and custom-states use cases (which need no class-time
-config). Fails for form-association because `static formAssociated` is read
-once by `customElements.define` and cannot be patched later. So
-`defineElement` has to be involved for that path.
-
-### Open questions
-- Should `internals()` always call `attachInternals` (even when not
-  form-associated), or only when `formAssociated: true`? Probably always —
-  ARIA mixin is a legitimate non-form use case.
-- Should there be a separate `ariaInternals()` or similar split, or is
-  one helper enough? Likely one helper; ergonomics judged once usage exists.
-- How does `disabledFeatures: ['shadow']` (see #8) interact? It blocks
-  `internals.shadowRoot` access but not the rest of the API. Document.
-
-### Depends on
-#5 Tier 2 (options-bag overload).
+Folded into the middleware kit. Class-time `formAssociated` becomes the
+`formAssociated()` middleware (sets `static formAssociated`, installs the
+four form callbacks). Per-instance access drops the `internals()` helper
+in favour of `host._internals`, populated by the `withInternals()`
+middleware (`_internals = this.attachInternals()` in the constructor —
+opt-in, so elements that don't ask don't allocate).
 
 ---
 
-## 8. Other class-time configuration: lifecycle hooks & static fields
+## 8. Other class-time configuration — superseded by #5
 
-ElementInternals is the largest single user of pre-`customElements.define`
-configuration, but it is not alone. The full set of things that must be
-decided at define time (and therefore live in the #5 Tier 2 options bag)
-is:
-
-### Static fields read once by the registry
-- `static observedAttributes` — already covered via the `attrs` arg.
-- `static formAssociated` — covered by #7.
-- `static disabledFeatures` — opt out of features per-class. Only spec'd
-  value today is `'shadow'`: blocks `attachShadow` and ARIA Shadow access
-  via `attachInternals().shadowRoot`. Useful as a defensive flag when the
-  element is explicitly light-DOM-only.
-
-### Lifecycle callbacks that must exist on the prototype at registration
-Browser does `'methodName' in prototype` check at `customElements.define`
-time; methods added later are never called.
-
-- `connectedCallback`, `disconnectedCallback`, `attributeChangedCallback` —
-  owned by the wrapper today.
-- `adoptedCallback(oldDocument, newDocument)` — fires when the element
-  moves between documents (iframe, popup, `document.adoptNode`). Not
-  currently exposed. Niche but spec-mandated.
-- `connectedMoveCallback()` — newer spec hook; fires for
-  `Element.moveBefore()` so the element can preserve state across
-  DOM relocation instead of being torn down and re-mounted. Worth
-  exposing now that it's shipping in Chromium.
-- Form-association callbacks (require `formAssociated: true`) — covered
-  by #7.
-
-### Class extension
-- `base` constructor (`HTMLElement` default vs `HTMLButtonElement` etc.)
-  and the `{ extends: 'button' }` third arg to `customElements.define`.
-  Covered by #3.
-
-### Proposal
-
-Single `lifecycle` object in the #5 Tier 2 options bag carries all
-user-defined callbacks; the wrapper installs each prototype method
-conditionally. Static flags are top-level options:
-
-```js
-defineElement('my-thing', ['value'], host => /* render */, {
-    // static fields
-    formAssociated: true,             // #7
-    disabledFeatures: ['shadow'],
-    // class extension (#3)
-    base: HTMLElement,
-    // user lifecycle hooks — each one is optional; the wrapper installs
-    // the corresponding prototype method only when the key is present
-    lifecycle: {
-        adopted:          (host, oldDoc, newDoc) => {},
-        connectedMove:    host => {},
-        formAssociated:   (host, form) => {},
-        formDisabled:     (host, disabled) => {},
-        formReset:        host => {},
-        formStateRestore: (host, state, mode) => {},
-    },
-});
-```
-
-The wrapper-owned `connected`/`disconnected`/`attributeChanged` callbacks
-stay internal — exposing user hooks for those would conflict with the
-mount/unmount semantics that `render` + `props()` already provide. If a
-real use case appears (e.g. teardown that cannot fit into a render-scope
-effect cleanup), revisit.
-
-### Open questions
-- Should `adopted` and `connectedMove` get first-class API or stay
-  rarely-used `lifecycle` entries? Probably the latter — bag stays flat.
-- Should there be a `before-define` hook that runs once with the
-  constructor, for users who want to patch the prototype directly?
-  Unappealing escape hatch; defer until a real ask.
-
-### Depends on
-#5 Tier 2 (options-bag overload). All entries here are dormant until
-that lands.
+Every entry (`disabledFeatures`, `adoptedCallback`, `connectedMoveCallback`,
+form-association callbacks, customized built-ins) is a shipped middleware
+in the #5 kit, plus the `extendElement` argument for built-in extension.
+Wrapper-owned `connected`/`disconnected`/`attributeChanged` stay inside
+the slim core, not exposed as middlewares.

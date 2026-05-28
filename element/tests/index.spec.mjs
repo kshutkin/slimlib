@@ -9,27 +9,312 @@ setScheduler(fn => fn());
 let counter = 0;
 const uniqueTag = base => `${base}-${++counter}`;
 const nextMicrotask = () => Promise.resolve();
+const supportsCustomizedBuiltIns = () => {
+    const tag = uniqueTag('x-slim-built-in-probe');
+    try {
+        class ProbeButton extends HTMLButtonElement {}
+        customElements.define(tag, ProbeButton, { extends: 'button' });
+        return document.createElement('button', { is: tag }) instanceof ProbeButton;
+    } catch {
+        return false;
+    }
+};
 
 afterEach(() => {
     document.body.innerHTML = '';
 });
 
 describe('@slimlib/element public API (DEV)', () => {
-    it('exports defineElement and props', async () => {
-        const { defineElement, props } = await import('../src/index.js');
+    it('exports defineElement, props, and middleware helpers', async () => {
+        const api = await import('../src/index.js');
+        const { defineElement, props } = api;
         expect(typeof defineElement).toBe('function');
         expect(typeof props).toBe('function');
+        expect(typeof api.observedAttributes).toBe('function');
+        expect(typeof api.disabledFeatures).toBe('function');
+        expect(typeof api.formAssociated).toBe('function');
+        expect(typeof api.withInternals).toBe('function');
+        expect(typeof api.onAdopted).toBe('function');
+        expect(typeof api.onMove).toBe('function');
     });
 
     it('attributeChangedCallback writes the named property to the host', async () => {
-        const { defineElement } = await import('../src/index.js');
+        const { defineElement, observedAttributes } = await import('../src/index.js');
         const tag = uniqueTag('x-slim-attrs');
-        defineElement(tag, ['value'], () => null);
+        defineElement(tag, [observedAttributes(['value'])], () => null);
 
         const element = document.createElement(tag);
         element.setAttribute('value', 'hello');
 
         expect(element.value).toBe('hello');
+    });
+});
+
+describe('middleware-composed defineElement (DEV)', () => {
+    it('observes attributes through observedAttributes([...]) middleware', async () => {
+        const { defineElement, observedAttributes } = await import('../src/index.js');
+        const tag = uniqueTag('x-slim-observed-middleware');
+        defineElement(tag, [observedAttributes(['value'])], () => null);
+
+        const element = document.createElement(tag);
+        element.setAttribute('value', 'hello');
+
+        expect(element.value).toBe('hello');
+    });
+
+    it('rejects a non-array middleware argument in DEV', async () => {
+        const { defineElement, observedAttributes } = await import('../src/index.js');
+        const tag = uniqueTag('x-slim-bad-middleware');
+        expect(() => defineElement(tag, observedAttributes(['x']), () => null)).toThrow(/middleware must be an array/);
+    });
+
+    it('disables requested platform features with disabledFeatures([...])', async () => {
+        const { defineElement, disabledFeatures } = await import('../src/index.js');
+        const tag = uniqueTag('x-slim-disabled-features');
+        defineElement(tag, [disabledFeatures(['shadow'])], () => null);
+
+        const element = document.createElement(tag);
+
+        try {
+            element.attachShadow({ mode: 'open' });
+            throw new Error('attachShadow should throw');
+        } catch (error) {
+            expect(error).toBeInstanceOf(DOMException);
+            expect(error.name).toBe('NotSupportedError');
+        }
+    });
+
+    it('allocates ElementInternals once with withInternals()', async () => {
+        const { defineElement, withInternals } = await import('../src/index.js');
+        const tag = uniqueTag('x-slim-internals');
+        defineElement(tag, [withInternals()], () => null);
+
+        const element = document.createElement(tag);
+        document.body.appendChild(element);
+
+        expect(element._internals).toBeInstanceOf(ElementInternals);
+        expect(() => element.attachInternals()).toThrow();
+    });
+
+    it('sets the formAssociated static flag', async () => {
+        const { defineElement, formAssociated } = await import('../src/index.js');
+        const tag = uniqueTag('x-slim-form-associated');
+        defineElement(tag, [formAssociated()], () => null);
+
+        expect(customElements.get(tag).formAssociated).toBe(true);
+    });
+
+    it('forwards form reset callbacks to formAssociated({ reset }) handlers', async () => {
+        const { defineElement, formAssociated, withInternals } = await import('../src/index.js');
+        const tag = uniqueTag('x-slim-form-reset');
+        const reset = vi.fn();
+        defineElement(tag, [withInternals(), formAssociated({ reset })], () => null);
+        const form = document.createElement('form');
+        const element = document.createElement(tag);
+
+        form.appendChild(element);
+        document.body.appendChild(form);
+        form.reset();
+
+        expect(reset).toHaveBeenCalledTimes(1);
+        expect(reset).toHaveBeenCalledWith(element);
+    });
+
+    it('forwards form owner changes to formAssociated({ associated }) handlers', async () => {
+        const { defineElement, formAssociated, withInternals } = await import('../src/index.js');
+        const tag = uniqueTag('x-slim-form-owner');
+        const associated = vi.fn();
+        defineElement(tag, [withInternals(), formAssociated({ associated })], () => null);
+        const firstForm = document.createElement('form');
+        const secondForm = document.createElement('form');
+        const element = document.createElement(tag);
+
+        document.body.append(firstForm, secondForm);
+        firstForm.appendChild(element);
+        await nextMicrotask();
+        secondForm.appendChild(element);
+        await nextMicrotask();
+
+        expect(associated).toHaveBeenCalledTimes(3);
+        expect(associated).toHaveBeenNthCalledWith(1, element, firstForm);
+        expect(associated).toHaveBeenNthCalledWith(2, element, null);
+        expect(associated).toHaveBeenNthCalledWith(3, element, secondForm);
+    });
+
+    it('forwards fieldset disabled changes to formAssociated({ disabled }) handlers', async () => {
+        const { defineElement, formAssociated, withInternals } = await import('../src/index.js');
+        const tag = uniqueTag('x-slim-form-disabled');
+        const disabled = vi.fn();
+        defineElement(tag, [withInternals(), formAssociated({ disabled })], () => null);
+        const form = document.createElement('form');
+        const fieldset = document.createElement('fieldset');
+        const element = document.createElement(tag);
+
+        fieldset.appendChild(element);
+        form.appendChild(fieldset);
+        document.body.appendChild(form);
+        fieldset.disabled = true;
+        await nextMicrotask();
+        fieldset.disabled = false;
+        await nextMicrotask();
+
+        expect(disabled).toHaveBeenNthCalledWith(1, element, true);
+        expect(disabled).toHaveBeenNthCalledWith(2, element, false);
+    });
+
+    it('forwards state restore callbacks to formAssociated({ stateRestore }) handlers', async () => {
+        const { defineElement, formAssociated, withInternals } = await import('../src/index.js');
+        const tag = uniqueTag('x-slim-form-state-restore');
+        const stateRestore = vi.fn();
+        defineElement(tag, [withInternals(), formAssociated({ stateRestore })], () => null);
+        const element = document.createElement(tag);
+        const Ctor = customElements.get(tag);
+
+        // Browser restoration needs bfcache/autofill, so invoke the platform callback directly.
+        Ctor.prototype.formStateRestoreCallback.call(element, 'state-value', 'restore');
+
+        expect(stateRestore).toHaveBeenCalledTimes(1);
+        expect(stateRestore).toHaveBeenCalledWith(element, 'state-value', 'restore');
+    });
+
+    it('does not install absent formAssociated callbacks', async () => {
+        const { defineElement, formAssociated } = await import('../src/index.js');
+        const tag = uniqueTag('x-slim-form-absent');
+        defineElement(tag, [formAssociated({ reset: vi.fn() })], () => null);
+        const Ctor = customElements.get(tag);
+
+        expect('formResetCallback' in Ctor.prototype).toBe(true);
+        expect('formDisabledCallback' in Ctor.prototype).toBe(false);
+    });
+
+    it('installs adoptedCallback through onAdopted(fn)', async () => {
+        const { defineElement, onAdopted } = await import('../src/index.js');
+        const tag = uniqueTag('x-slim-adopted');
+        defineElement(tag, [onAdopted(() => {})], () => null);
+        const Ctor = customElements.get(tag);
+
+        expect('adoptedCallback' in Ctor.prototype).toBe(true);
+    });
+
+    it('forwards adopted callbacks to onAdopted(fn)', async () => {
+        const { defineElement, onAdopted } = await import('../src/index.js');
+        const tag = uniqueTag('x-slim-adopted-body');
+        const adopted = vi.fn();
+        defineElement(tag, [onAdopted(adopted)], () => null);
+        const element = document.createElement(tag);
+        const oldDoc = element.ownerDocument;
+        const newDoc = document.implementation.createHTMLDocument('new-owner');
+
+        newDoc.adoptNode(element);
+
+        expect(adopted).toHaveBeenCalledTimes(1);
+        expect(adopted).toHaveBeenCalledWith(element, oldDoc, newDoc);
+    });
+
+    it('installs connectedMoveCallback through onMove(fn)', async () => {
+        const { defineElement, onMove } = await import('../src/index.js');
+        const tag = uniqueTag('x-slim-move');
+        defineElement(tag, [onMove(() => {})], () => null);
+        const Ctor = customElements.get(tag);
+
+        expect('connectedMoveCallback' in Ctor.prototype).toBe(true);
+    });
+
+    it('forwards connectedMoveCallback to onMove(fn)', async () => {
+        const { defineElement, onMove } = await import('../src/index.js');
+        const tag = uniqueTag('x-slim-move-body');
+        const moved = vi.fn();
+        defineElement(tag, [onMove(moved)], () => null);
+        const parent = document.createElement('div');
+        const element = document.createElement(tag);
+        const anotherChild = document.createElement('span');
+
+        parent.append(element, anotherChild);
+        document.body.appendChild(parent);
+        if (typeof parent.moveBefore === 'function') {
+            parent.moveBefore(element, anotherChild);
+        } else {
+            const Ctor = customElements.get(tag);
+            // Element.moveBefore is not available in every test browser, so invoke the hook directly.
+            Ctor.prototype.connectedMoveCallback.call(element);
+        }
+
+        expect(moved).toHaveBeenCalledTimes(1);
+        expect(moved).toHaveBeenCalledWith(element);
+    });
+
+    it('applies middleware from inside out while preserving outer-to-inner prototype order', async () => {
+        const { defineElement } = await import('../src/index.js');
+        const applied = [];
+        const layerNames = [];
+        const createLayer = name => Base => {
+            applied.push(name);
+            class Layer extends Base {}
+            Object.defineProperty(Layer, name, { value: true });
+            Object.defineProperty(Layer.prototype, 'layerName', { value: name });
+            return Layer;
+        };
+        const tag = uniqueTag('x-slim-order');
+        defineElement(tag, [createLayer('A'), createLayer('B'), createLayer('C')], () => null);
+        let prototype = customElements.get(tag).prototype;
+
+        while (prototype && prototype !== HTMLElement.prototype) {
+            if (Object.hasOwn(prototype, 'layerName')) layerNames.push(prototype.layerName);
+            prototype = Object.getPrototypeOf(prototype);
+        }
+
+        expect(applied).toEqual(['C', 'B', 'A']);
+        expect(layerNames).toEqual(['A', 'B', 'C']);
+    });
+
+    const customizedBuiltInIt = supportsCustomizedBuiltIns() ? it : it.skip;
+    // Skip outside browsers that implement customized built-ins and createElement(type, { is }).
+    customizedBuiltInIt('supports customized built-ins through extendElement', async () => {
+        const { defineElement, observedAttributes } = await import('../src/index.js');
+        const tag = uniqueTag('x-slim-button');
+        let renderCount = 0;
+        const Element = defineElement(
+            tag,
+            [observedAttributes(['data-x'])],
+            () => {
+                renderCount++;
+                return null;
+            },
+            'button'
+        );
+
+        const element = document.createElement('button', { is: tag });
+        element.setAttribute('data-x', 'hello');
+        document.body.appendChild(element);
+
+        expect(customElements.get(tag)).toBe(Element);
+        expect(element).toBeInstanceOf(HTMLButtonElement);
+        expect(element).toBeInstanceOf(Element);
+        expect(element['data-x']).toBe('hello');
+        expect(renderCount).toBe(1);
+    });
+
+    it('keeps slim core innermost so middleware can override connectedCallback', async () => {
+        const { defineElement } = await import('../src/index.js');
+        const tag = uniqueTag('x-slim-connected-override');
+        let renderCount = 0;
+        let connectedCount = 0;
+        const markConnected = Base =>
+            class extends Base {
+                connectedCallback() {
+                    super.connectedCallback();
+                    connectedCount++;
+                }
+            };
+        defineElement(tag, [markConnected], () => {
+            renderCount++;
+            return null;
+        });
+
+        document.body.appendChild(document.createElement(tag));
+
+        expect(connectedCount).toBe(1);
+        expect(renderCount).toBe(1);
     });
 });
 
@@ -64,11 +349,11 @@ describe('props() (DEV)', () => {
     });
 
     it('adopts own properties already present on the host before connect', async () => {
-        const { defineElement, props } = await import('../src/index.js');
+        const { defineElement, observedAttributes, props } = await import('../src/index.js');
 
         let reactiveState;
         const tag = uniqueTag('x-props-adopt');
-        defineElement(tag, ['value'], () => {
+        defineElement(tag, [observedAttributes(['value'])], () => {
             reactiveState = props({ value: 'default' });
             return null;
         });

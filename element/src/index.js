@@ -11,6 +11,18 @@ import { state } from '@slimlib/store';
  * @typedef {(host: SlimHost) => unknown} SlimRender
  */
 
+/**
+ * @typedef {(Base: CustomElementConstructor) => CustomElementConstructor} Middleware
+ */
+
+/**
+ * @typedef {object} FormAssociatedHandlers
+ * @property {(host: SlimHost, form: HTMLFormElement | null) => void} [associated]
+ * @property {(host: SlimHost, disabled: boolean) => void} [disabled]
+ * @property {(host: SlimHost) => void} [reset]
+ * @property {(host: SlimHost, state: unknown, mode: string) => void} [stateRestore]
+ */
+
 /** @type {SlimHost | undefined} */
 let currentHost;
 
@@ -18,8 +30,7 @@ let currentHost;
  * Define and register a light-DOM custom element backed by `@slimlib/jsx`.
  *
  * Reactive properties are declared inside the render callback via `props({...})`.
- * `attrs` is the list of attribute names the browser should observe; attribute writes
- * flow into the host via `this[name] = value`, picked up by the accessor `props` installs.
+ * Class-time custom element features are composed with middleware.
  *
  * @overload
  * @param {string} tag
@@ -29,27 +40,140 @@ let currentHost;
 /**
  * @overload
  * @param {string} tag
- * @param {string[]} attrs
+ * @param {Middleware[]} middleware
  * @param {SlimRender} userRender
+ * @param {string} [extendElement]
  * @returns {CustomElementConstructor}
  */
 /**
  * @param {string} tag
- * @param {string[] | SlimRender} attrsOrRender
+ * @param {SlimRender | Middleware[]} middlewareOrRender
  * @param {SlimRender} [maybeRender]
+ * @param {string} [extendElement]
  * @returns {CustomElementConstructor}
  */
-export const defineElement = (tag, attrsOrRender, maybeRender) => {
-    const hasAttrs = Array.isArray(attrsOrRender);
-    const attrs = hasAttrs ? attrsOrRender : [];
-    const userRender = /** @type {SlimRender} */ (hasAttrs ? maybeRender : attrsOrRender);
+export const defineElement = (tag, middlewareOrRender, maybeRender, extendElement) => {
+    const hasRenderOnly = typeof middlewareOrRender === 'function' && maybeRender === undefined;
+    if (DEV && !hasRenderOnly && !Array.isArray(middlewareOrRender)) {
+        throw new Error('defineElement: middleware must be an array of (Base) => SubClass functions');
+    }
+    const userRender = /** @type {SlimRender} */ (hasRenderOnly ? middlewareOrRender : maybeRender);
+    const layers = /** @type {Middleware[]} */ (hasRenderOnly ? [] : middlewareOrRender);
 
-    const ElementBase = createElementClass(attrs, userRender);
-    const Ctor = DEV ? createNamedElementClass(tag, ElementBase) : ElementBase;
+    const Base = extendElement
+        ? /** @type {CustomElementConstructor} */ (/** @type {unknown} */ (document.createElement(extendElement).constructor))
+        : HTMLElement;
+    let Ctor = applySlimCore(Base, userRender);
+    Ctor = layers.reduceRight((acc, layer) => layer(acc), Ctor);
+    if (DEV) Ctor = createNamedElementClass(tag, Ctor);
 
-    customElements.define(tag, Ctor);
+    customElements.define(tag, Ctor, extendElement ? { extends: extendElement } : undefined);
     return Ctor;
 };
+
+/**
+ * @param {string[]} attrs
+ * @returns {Middleware}
+ */
+export const observedAttributes = attrs => Base =>
+    class extends Base {
+        static get observedAttributes() {
+            return attrs;
+        }
+    };
+
+/**
+ * @param {string[]} features
+ * @returns {Middleware}
+ */
+export const disabledFeatures = features => Base =>
+    class extends Base {
+        static disabledFeatures = features;
+    };
+
+/**
+ * @param {FormAssociatedHandlers} [handlers]
+ * @returns {Middleware}
+ */
+export const formAssociated =
+    (handlers = {}) =>
+    Base => {
+        class FormAssociatedElement extends Base {
+            static formAssociated = true;
+        }
+
+        if (Object.hasOwn(handlers, 'associated')) {
+            const associated = /** @type {NonNullable<FormAssociatedHandlers['associated']>} */ (handlers.associated);
+            Object.defineProperty(FormAssociatedElement.prototype, 'formAssociatedCallback', {
+                configurable: true,
+                value(/** @type {HTMLFormElement | null} */ form) {
+                    return associated(this, form);
+                },
+            });
+        }
+        if (Object.hasOwn(handlers, 'disabled')) {
+            const disabled = /** @type {NonNullable<FormAssociatedHandlers['disabled']>} */ (handlers.disabled);
+            Object.defineProperty(FormAssociatedElement.prototype, 'formDisabledCallback', {
+                configurable: true,
+                value(/** @type {boolean} */ isDisabled) {
+                    return disabled(this, isDisabled);
+                },
+            });
+        }
+        if (Object.hasOwn(handlers, 'reset')) {
+            const reset = /** @type {NonNullable<FormAssociatedHandlers['reset']>} */ (handlers.reset);
+            Object.defineProperty(FormAssociatedElement.prototype, 'formResetCallback', {
+                configurable: true,
+                value() {
+                    return reset(this);
+                },
+            });
+        }
+        if (Object.hasOwn(handlers, 'stateRestore')) {
+            const stateRestore = /** @type {NonNullable<FormAssociatedHandlers['stateRestore']>} */ (handlers.stateRestore);
+            Object.defineProperty(FormAssociatedElement.prototype, 'formStateRestoreCallback', {
+                configurable: true,
+                value(/** @type {unknown} */ state, /** @type {string} */ mode) {
+                    return stateRestore(this, state, mode);
+                },
+            });
+        }
+
+        return FormAssociatedElement;
+    };
+
+/**
+ * @returns {Middleware}
+ */
+export const withInternals = () => Base =>
+    class extends Base {
+        constructor() {
+            super();
+            /** @type {SlimHost & { _internals: ElementInternals }} */ (/** @type {unknown} */ (this))._internals = this.attachInternals();
+        }
+    };
+
+/**
+ * @param {(host: SlimHost, oldDoc: Document, newDoc: Document) => void} fn
+ * @returns {Middleware}
+ */
+export const onAdopted = fn => Base =>
+    class extends Base {
+        adoptedCallback(/** @type {Document} */ oldDoc, /** @type {Document} */ newDoc) {
+            fn(/** @type {SlimHost} */ (/** @type {unknown} */ (this)), oldDoc, newDoc);
+        }
+    };
+
+/**
+ * @param {(host: SlimHost) => void} fn
+ * @returns {Middleware}
+ */
+export const onMove = fn => Base =>
+    class extends Base {
+        connectedMoveCallback() {
+            fn(/** @type {SlimHost} */ (/** @type {unknown} */ (this)));
+        }
+    };
 
 /**
  * @param {string} tag
@@ -62,19 +186,15 @@ const createNamedElementClass = (tag, ElementBase) => {
 };
 
 /**
- * @param {string[]} attrs
+ * @param {CustomElementConstructor} Base
  * @param {SlimRender} userRender
  * @returns {CustomElementConstructor}
  */
-const createElementClass = (attrs, userRender) =>
-    class extends HTMLElement {
+const applySlimCore = (Base, userRender) =>
+    class extends Base {
         #mounted = false;
         /** @type {null | (() => void)} */
         #dispose = null;
-
-        static get observedAttributes() {
-            return attrs;
-        }
 
         attributeChangedCallback(/** @type {string} */ name, /** @type {string | null} */ _old, /** @type {string | null} */ value) {
             /** @type {Record<string, unknown>} */ (/** @type {unknown} */ (this))[name] = value;
