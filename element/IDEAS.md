@@ -37,46 +37,16 @@ is a self-contained proposal: rationale, sketch, tradeoffs, open questions.
   customized built-ins — all shipped as middlewares (or, for built-ins, via
   the dedicated `defineBuiltinElement` facade). Wrapper-owned
   `connected`/`disconnected`/`attributeChanged` stay inside the slim core.
-
----
-
-## 3. Customized built-in elements — JSX runtime piece
-
-The wrapper side is shipped via `defineBuiltinElement(tag, 'button', mw, render)`.
-What remains is the JSX-runtime change required to make `<button is="my-tag">`
-actually upgrade in markup produced by `@slimlib/jsx`.
-
-### Problem
-`document.createElement('button', { is: 'my-tag' })` is the only call form
-the browser honours for `is`-upgrade. `el.setAttribute('is', 'my-tag')`
-after the fact does NOT upgrade the element. The current jsx runtime calls
-`document.createElement(type)` without the options bag (see `jsx/src/core.ts`),
-so `<button is="my-counter" />` never upgrades when produced by jsx.
-
-### Proposal
-In the jsx runtime, detect an `is` prop on a host-tag element and pass it as
-the second `createElement` arg:
-
-```js
-const isProp = props?.is;
-const el = isProp
-    ? document.createElement(type, { is: isProp })
-    : document.createElement(type);
-```
-
-Cost: one extra prop sniff per host-tag element. Negligible.
-
-### Open questions
-- Safari does not implement customized built-ins. Two options: require
-  `@ungap/custom-elements` polyfill, or document the feature as
-  Chromium + Firefox only. Autonomous elements work everywhere — this is
-  strictly an *additional* mode.
-- Most built-ins (`button`, `input`, `select`, …) throw on `attachShadow()`.
-  Non-issue today (no shadow DOM mode in `@slimlib/element`); revisit if a
-  shadow-root mode is ever added.
-- TypeScript: `host` handed to `render` should narrow to the matching
-  built-in (`HTMLButtonElement` when `extendElement === 'button'`). A small
-  lookup type plus a generic on `defineElement` does this without ceremony.
+- **#3 JSX runtime `is`-upgrade for customized built-ins.** Shipped. The
+  jsx runtime sniffs an `is` prop and passes the options bag —
+  `document.createElement(type, { is })` — so `<button is="my-tag" />`
+  upgrades in markup produced by `@slimlib/jsx`. See `jsx/src/core.ts`
+  (`createElementArray`). Caveats unchanged: Safari lacks customized
+  built-ins (needs `@ungap/custom-elements` or Chromium/Firefox-only docs),
+  and most built-ins throw on `attachShadow()` (non-issue today, no shadow
+  mode). Remaining follow-up: TypeScript narrowing of `host` to the matching
+  built-in (`HTMLButtonElement` for `extendElement === 'button'`) is still
+  open — tracked with the additive-middleware typing work in #5.1.
 
 ---
 
