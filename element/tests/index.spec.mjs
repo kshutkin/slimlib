@@ -20,6 +20,17 @@ const supportsCustomizedBuiltIns = () => {
     }
 };
 
+const supportsScopedRegistry = () => {
+    try {
+        // eslint-disable-next-line no-new
+        new CustomElementRegistry();
+        return true;
+    } catch {
+        return false;
+    }
+};
+const scopedRegistryIt = supportsScopedRegistry() ? it : it.skip;
+
 afterEach(() => {
     document.body.innerHTML = '';
 });
@@ -28,7 +39,9 @@ describe('@slimlib/element public API (DEV)', () => {
     it('exports defineElement, props, and middleware helpers', async () => {
         const api = await import('../src/index.js');
         const { defineElement, props } = api;
+        expect(typeof api.createCustomElement).toBe('function');
         expect(typeof defineElement).toBe('function');
+        expect(typeof api.defineBuiltinElement).toBe('function');
         expect(typeof props).toBe('function');
         expect(typeof api.observedAttributes).toBe('function');
         expect(typeof api.disabledFeatures).toBe('function');
@@ -51,6 +64,37 @@ describe('@slimlib/element public API (DEV)', () => {
 });
 
 describe('middleware-composed defineElement (DEV)', () => {
+    it('createCustomElement returns an unregistered class', async () => {
+        const { createCustomElement } = await import('../src/index.js');
+        const tag = uniqueTag('x-slim-unregistered');
+        const Ctor = createCustomElement(() => null);
+
+        expect(typeof Ctor).toBe('function');
+        expect(customElements.get(tag)).toBeUndefined();
+
+        customElements.define(tag, Ctor);
+        const element = document.createElement(tag);
+
+        expect(element).toBeInstanceOf(Ctor);
+    });
+
+    scopedRegistryIt('registers in a scoped registry without touching the global one', async () => {
+        const { createCustomElement } = await import('../src/index.js');
+        const tag = uniqueTag('x-slim-scoped');
+        const Ctor = createCustomElement(() => null);
+
+        const registry = new CustomElementRegistry();
+        registry.define(tag, Ctor);
+
+        expect(registry.get(tag)).toBe(Ctor);
+        expect(customElements.get(tag)).toBeUndefined();
+
+        // Element upgrade through a scoped registry (attachShadow({ customElements }),
+        // registry.upgrade(), registry.initialize()) is not yet wired up in the test
+        // Chromium — the constructor exists but none of those paths upgrade the node.
+        // We therefore assert only the define/get/global-isolation contract here.
+    });
+
     it('observes attributes through observedAttributes([...]) middleware', async () => {
         const { defineElement, observedAttributes } = await import('../src/index.js');
         const tag = uniqueTag('x-slim-observed-middleware');
@@ -270,18 +314,13 @@ describe('middleware-composed defineElement (DEV)', () => {
     const customizedBuiltInIt = supportsCustomizedBuiltIns() ? it : it.skip;
     // Skip outside browsers that implement customized built-ins and createElement(type, { is }).
     customizedBuiltInIt('supports customized built-ins through extendElement', async () => {
-        const { defineElement, observedAttributes } = await import('../src/index.js');
+        const { defineBuiltinElement, observedAttributes } = await import('../src/index.js');
         const tag = uniqueTag('x-slim-button');
         let renderCount = 0;
-        const Element = defineElement(
-            tag,
-            [observedAttributes(['data-x'])],
-            () => {
-                renderCount++;
-                return null;
-            },
-            'button'
-        );
+        const Element = defineBuiltinElement(tag, 'button', [observedAttributes(['data-x'])], () => {
+            renderCount++;
+            return null;
+        });
 
         const element = document.createElement('button', { is: tag });
         element.setAttribute('data-x', 'hello');
@@ -292,6 +331,31 @@ describe('middleware-composed defineElement (DEV)', () => {
         expect(element).toBeInstanceOf(Element);
         expect(element['data-x']).toBe('hello');
         expect(renderCount).toBe(1);
+    });
+
+    customizedBuiltInIt('upgrades a defineBuiltinElement element through the jsx is= runtime', async () => {
+        const { defineBuiltinElement, observedAttributes } = await import('../src/index.js');
+        const { createElement: jsxCreateElement } = await import('@slimlib/jsx');
+        const tag = uniqueTag('x-slim-jsx-button');
+        let renderCount = 0;
+        const Ctor = defineBuiltinElement(tag, 'button', [observedAttributes(['data-label'])], () => {
+            renderCount++;
+            return jsxCreateElement('span', null, 'inner');
+        });
+
+        const element = jsxCreateElement('button', { is: tag });
+
+        expect(element).toBeInstanceOf(Ctor);
+        expect(element).toBeInstanceOf(HTMLButtonElement);
+        expect(element.getAttribute('is')).toBe(tag);
+
+        document.body.appendChild(element);
+
+        expect(renderCount).toBe(1);
+        expect(element.querySelector('span')?.textContent).toBe('inner');
+
+        element.setAttribute('data-label', 'x');
+        expect(element['data-label']).toBe('x');
     });
 
     it('keeps slim core innermost so middleware can override connectedCallback', async () => {

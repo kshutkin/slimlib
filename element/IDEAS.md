@@ -13,8 +13,11 @@ is a self-contained proposal: rationale, sketch, tradeoffs, open questions.
 - **#2 PascalCase class name in DEV.** Shipped via `createNamedElementClass`;
   production constructor stays anonymous.
 - **#5 Middleware-composed `defineElement`.** Shipped. The API is
-  `defineElement(tag, render)` or
-  `defineElement(tag, middleware[], render, extendElement?)`. Slim core is
+  `defineElement(tag, render)` or `defineElement(tag, middleware[], render)`;
+  the low-level `createCustomElement(middleware?, render, Base?)` returns an
+  unregistered constructor (for custom registries / manual define), and
+  customized built-ins go through `defineBuiltinElement(tag, extendElement,
+  middleware?, render)`. Slim core is
   innermost; user middleware composes outward via `reduceRight`. Baseline kit
   exports: `observedAttributes`, `disabledFeatures`, `formAssociated`,
   `withInternals`, `onAdopted`, `onMove`. See `README.md` for usage and
@@ -31,15 +34,15 @@ is a self-contained proposal: rationale, sketch, tradeoffs, open questions.
   elements that don't ask don't allocate).
 - **#8 Other class-time configuration.** Folded into #5. `disabledFeatures`,
   `adoptedCallback`, `connectedMoveCallback`, form-association callbacks,
-  customized built-ins — all shipped as middlewares (or, for built-ins, as
-  the `extendElement` argument). Wrapper-owned `connected`/`disconnected`/
-  `attributeChanged` stay inside the slim core.
+  customized built-ins — all shipped as middlewares (or, for built-ins, via
+  the dedicated `defineBuiltinElement` facade). Wrapper-owned
+  `connected`/`disconnected`/`attributeChanged` stay inside the slim core.
 
 ---
 
 ## 3. Customized built-in elements — JSX runtime piece
 
-The wrapper side is shipped via `defineElement(tag, mw, render, 'button')`.
+The wrapper side is shipped via `defineBuiltinElement(tag, 'button', mw, render)`.
 What remains is the JSX-runtime change required to make `<button is="my-tag">`
 actually upgrade in markup produced by `@slimlib/jsx`.
 

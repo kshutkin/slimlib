@@ -18,10 +18,42 @@ export { withInternals } from './middleware/with-internals.js';
 let currentHost;
 
 /**
- * Define and register a light-DOM custom element backed by `@slimlib/jsx`.
+ * Create an unregistered light-DOM custom element constructor backed by `@slimlib/jsx`.
  *
  * Reactive properties are declared inside the render callback via `props({...})`.
  * Class-time custom element features are composed with middleware.
+ *
+ * @overload
+ * @param {SlimRender} userRender
+ * @returns {CustomElementConstructor}
+ */
+/**
+ * @overload
+ * @param {Middleware[]} middleware
+ * @param {SlimRender} userRender
+ * @param {CustomElementConstructor} [Base]
+ * @returns {CustomElementConstructor}
+ */
+/**
+ * @param {SlimRender | Middleware[]} middlewareOrRender
+ * @param {SlimRender} [maybeRender]
+ * @param {CustomElementConstructor} [Base]
+ * @returns {CustomElementConstructor}
+ */
+export const createCustomElement = (middlewareOrRender, maybeRender, Base = HTMLElement) => {
+    const hasRenderOnly = typeof middlewareOrRender === 'function' && maybeRender === undefined;
+    if (DEV && !hasRenderOnly && !Array.isArray(middlewareOrRender)) {
+        throw new Error('createCustomElement: middleware must be an array of (Base) => SubClass functions');
+    }
+    const userRender = /** @type {SlimRender} */ (hasRenderOnly ? middlewareOrRender : maybeRender);
+    const layers = /** @type {Middleware[]} */ (hasRenderOnly ? [] : middlewareOrRender);
+
+    const Ctor = applySlimCore(Base, userRender);
+    return layers.reduceRight((acc, layer) => layer(acc), Ctor);
+};
+
+/**
+ * Define and register an autonomous light-DOM custom element backed by `@slimlib/jsx`.
  *
  * @overload
  * @param {string} tag
@@ -33,32 +65,59 @@ let currentHost;
  * @param {string} tag
  * @param {Middleware[]} middleware
  * @param {SlimRender} userRender
- * @param {string} [extendElement]
  * @returns {CustomElementConstructor}
  */
 /**
  * @param {string} tag
  * @param {SlimRender | Middleware[]} middlewareOrRender
  * @param {SlimRender} [maybeRender]
- * @param {string} [extendElement]
  * @returns {CustomElementConstructor}
  */
-export const defineElement = (tag, middlewareOrRender, maybeRender, extendElement) => {
-    const hasRenderOnly = typeof middlewareOrRender === 'function' && maybeRender === undefined;
-    if (DEV && !hasRenderOnly && !Array.isArray(middlewareOrRender)) {
-        throw new Error('defineElement: middleware must be an array of (Base) => SubClass functions');
-    }
-    const userRender = /** @type {SlimRender} */ (hasRenderOnly ? middlewareOrRender : maybeRender);
-    const layers = /** @type {Middleware[]} */ (hasRenderOnly ? [] : middlewareOrRender);
-
-    const Base = extendElement
-        ? /** @type {CustomElementConstructor} */ (/** @type {unknown} */ (document.createElement(extendElement).constructor))
-        : HTMLElement;
-    let Ctor = applySlimCore(Base, userRender);
-    Ctor = layers.reduceRight((acc, layer) => layer(acc), Ctor);
+export const defineElement = (tag, middlewareOrRender, maybeRender) => {
+    let Ctor = createCustomElement(
+        /** @type {Middleware[]} */ (/** @type {unknown} */ (middlewareOrRender)),
+        /** @type {SlimRender} */ (maybeRender)
+    );
     if (DEV) Ctor = createNamedElementClass(tag, Ctor);
 
-    customElements.define(tag, Ctor, extendElement ? { extends: extendElement } : undefined);
+    customElements.define(tag, Ctor);
+    return Ctor;
+};
+
+/**
+ * Define and register a customized built-in element backed by `@slimlib/jsx`.
+ *
+ * @overload
+ * @param {string} tag
+ * @param {string} extendElement
+ * @param {SlimRender} userRender
+ * @returns {CustomElementConstructor}
+ */
+/**
+ * @overload
+ * @param {string} tag
+ * @param {string} extendElement
+ * @param {Middleware[]} middleware
+ * @param {SlimRender} userRender
+ * @returns {CustomElementConstructor}
+ */
+/**
+ * @param {string} tag
+ * @param {string} extendElement
+ * @param {SlimRender | Middleware[]} middlewareOrRender
+ * @param {SlimRender} [maybeRender]
+ * @returns {CustomElementConstructor}
+ */
+export const defineBuiltinElement = (tag, extendElement, middlewareOrRender, maybeRender) => {
+    const Base = /** @type {CustomElementConstructor} */ (/** @type {unknown} */ (document.createElement(extendElement).constructor));
+    let Ctor = createCustomElement(
+        /** @type {Middleware[]} */ (/** @type {unknown} */ (middlewareOrRender)),
+        /** @type {SlimRender} */ (maybeRender),
+        Base
+    );
+    if (DEV) Ctor = createNamedElementClass(tag, Ctor);
+
+    customElements.define(tag, Ctor, { extends: extendElement });
     return Ctor;
 };
 
