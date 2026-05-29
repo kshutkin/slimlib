@@ -43,7 +43,8 @@ describe('defineElement constructor naming (production)', () => {
         const { defineElement } = await import('../src/index.js');
 
         const tag = uniqueTag('x-slim-counter-prod');
-        const Element = defineElement(tag, () => null);
+        defineElement(tag, () => null);
+        const Element = customElements.get(tag);
 
         expect(Element.name).toBe('');
         expect(customElements.get(tag)).toBe(Element);

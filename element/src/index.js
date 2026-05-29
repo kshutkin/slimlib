@@ -58,20 +58,20 @@ export const createCustomElement = (middlewareOrRender, maybeRender, Base = HTML
  * @overload
  * @param {string} tag
  * @param {SlimRender} userRender
- * @returns {CustomElementConstructor}
+ * @returns {void}
  */
 /**
  * @overload
  * @param {string} tag
  * @param {Middleware[]} middleware
  * @param {SlimRender} userRender
- * @returns {CustomElementConstructor}
+ * @returns {void}
  */
 /**
  * @param {string} tag
  * @param {SlimRender | Middleware[]} middlewareOrRender
  * @param {SlimRender} [maybeRender]
- * @returns {CustomElementConstructor}
+ * @returns {void}
  */
 export const defineElement = (tag, middlewareOrRender, maybeRender) => {
     let Ctor = createCustomElement(
@@ -81,7 +81,6 @@ export const defineElement = (tag, middlewareOrRender, maybeRender) => {
     if (DEV) Ctor = createNamedElementClass(tag, Ctor);
 
     customElements.define(tag, Ctor);
-    return Ctor;
 };
 
 /**
@@ -91,7 +90,7 @@ export const defineElement = (tag, middlewareOrRender, maybeRender) => {
  * @param {string} tag
  * @param {string} extendElement
  * @param {SlimRender} userRender
- * @returns {CustomElementConstructor}
+ * @returns {void}
  */
 /**
  * @overload
@@ -99,14 +98,14 @@ export const defineElement = (tag, middlewareOrRender, maybeRender) => {
  * @param {string} extendElement
  * @param {Middleware[]} middleware
  * @param {SlimRender} userRender
- * @returns {CustomElementConstructor}
+ * @returns {void}
  */
 /**
  * @param {string} tag
  * @param {string} extendElement
  * @param {SlimRender | Middleware[]} middlewareOrRender
  * @param {SlimRender} [maybeRender]
- * @returns {CustomElementConstructor}
+ * @returns {void}
  */
 export const defineBuiltinElement = (tag, extendElement, middlewareOrRender, maybeRender) => {
     const Base = /** @type {CustomElementConstructor} */ (/** @type {unknown} */ (document.createElement(extendElement).constructor));
@@ -118,7 +117,6 @@ export const defineBuiltinElement = (tag, extendElement, middlewareOrRender, may
     if (DEV) Ctor = createNamedElementClass(tag, Ctor);
 
     customElements.define(tag, Ctor, { extends: extendElement });
-    return Ctor;
 };
 
 /**

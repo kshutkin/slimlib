@@ -317,10 +317,11 @@ describe('middleware-composed defineElement (DEV)', () => {
         const { defineBuiltinElement, observedAttributes } = await import('../src/index.js');
         const tag = uniqueTag('x-slim-button');
         let renderCount = 0;
-        const Element = defineBuiltinElement(tag, 'button', [observedAttributes(['data-x'])], () => {
+        defineBuiltinElement(tag, 'button', [observedAttributes(['data-x'])], () => {
             renderCount++;
             return null;
         });
+        const Element = customElements.get(tag);
 
         const element = document.createElement('button', { is: tag });
         element.setAttribute('data-x', 'hello');
@@ -338,10 +339,11 @@ describe('middleware-composed defineElement (DEV)', () => {
         const { createElement: jsxCreateElement } = await import('@slimlib/jsx');
         const tag = uniqueTag('x-slim-jsx-button');
         let renderCount = 0;
-        const Ctor = defineBuiltinElement(tag, 'button', [observedAttributes(['data-label'])], () => {
+        defineBuiltinElement(tag, 'button', [observedAttributes(['data-label'])], () => {
             renderCount++;
             return jsxCreateElement('span', null, 'inner');
         });
+        const Ctor = customElements.get(tag);
 
         const element = jsxCreateElement('button', { is: tag });
 
@@ -440,7 +442,8 @@ describe('defineElement constructor naming (DEV)', () => {
         const { defineElement } = await import('../src/index.js');
 
         const tag = uniqueTag('x-slim-counter-dev');
-        const Element = defineElement(tag, () => null);
+        defineElement(tag, () => null);
+        const Element = customElements.get(tag);
 
         const expected = tag.replace(/(^|-)(\w)/g, (_, _d, c) => c.toUpperCase());
         expect(Element.name).toBe(expected);
