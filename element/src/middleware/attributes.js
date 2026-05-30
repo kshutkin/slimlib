@@ -50,7 +50,7 @@ export const attributes = attributeConfig => {
                     /** @type {Scope | null} */
                     let reflectScope = null;
 
-                    /** @type {AttributeHost} */ (this)[MOUNT].push(() => {
+                    /** @type {(() => void)[]} */ (/** @type {AttributeHost} */ (this)[MOUNT]).push(() => {
                         if (DEV) {
                             for (const attributeName of reflectedAttributeNames) {
                                 if (!Object.getOwnPropertyDescriptor(this, attributeName)?.get) {
@@ -98,7 +98,7 @@ export const attributes = attributeConfig => {
                         });
                     });
 
-                    /** @type {AttributeHost} */ (this)[UNMOUNT].push(() => {
+                    /** @type {(() => void)[]} */ (/** @type {AttributeHost} */ (this)[UNMOUNT]).push(() => {
                         reflectScope?.();
                         reflectScope = null;
                     });
