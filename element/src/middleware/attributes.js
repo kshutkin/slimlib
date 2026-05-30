@@ -31,7 +31,7 @@ export const attributes = config => {
     const reflectedKeys = names.filter(name => config[name]?.[1]);
 
     return Base => {
-        return class extends /** @type {new (...args: unknown[]) => HTMLElement & { connectedCallback?(): void; disconnectedCallback?(): void }} */ (
+        return class extends /** @type {new (...args: unknown[]) => HTMLElement & { connectedCallback(): void; disconnectedCallback(): void }} */ (
             /** @type {unknown} */ (Base)
         ) {
             /** @type {null | (() => void)} */
@@ -48,7 +48,7 @@ export const attributes = config => {
             }
 
             connectedCallback() {
-                super.connectedCallback?.();
+                super.connectedCallback();
 
                 if (DEV) {
                     for (const name of reflectedKeys) {
@@ -92,7 +92,7 @@ export const attributes = config => {
             disconnectedCallback() {
                 this.#reflectDispose?.();
                 this.#reflectDispose = null;
-                super.disconnectedCallback?.();
+                super.disconnectedCallback();
             }
         };
     };
