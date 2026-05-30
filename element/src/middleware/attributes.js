@@ -8,6 +8,7 @@ import { on } from '../utils/pubsub.js';
 /** @typedef {import('../types.js').Middleware} Middleware */
 /** @typedef {import('../types.js').SlimHost} SlimHost */
 /** @typedef {import('@slimlib/store').Scope} Scope */
+/** @typedef {SlimHost & Record<typeof MOUNT | typeof UNMOUNT, (() => void)[]>} AttributeHost */
 /**
  * @typedef {[parse?: (rawValue: string | null) => unknown, serialize?: (propertyValue: unknown) => (string | null)]} AttributeDescriptor
  *   Positional tuple. `parse` converts an inbound attribute string (`string | null`)
@@ -50,7 +51,7 @@ export const attributes = attributeConfig => {
                     /** @type {Scope | null} */
                     let reflectScope = null;
 
-                    on(/** @type {any} */ (this)[MOUNT], () => {
+                    on(/** @type {AttributeHost} */ (this)[MOUNT], () => {
                         if (DEV) {
                             for (const attributeName of reflectedAttributeNames) {
                                 if (!Object.getOwnPropertyDescriptor(this, attributeName)?.get) {
@@ -64,11 +65,12 @@ export const attributes = attributeConfig => {
                         reflectScope = scope(() => {
                             for (const attributeName of reflectedAttributeNames) {
                                 const attributeDescriptor = /** @type {AttributeDescriptor} */ (attributeConfig[attributeName]);
-                                const parseAttribute = attributeDescriptor[0];
+                                const parseAttribute = /** @type {AttributeDescriptor[0]} */ (attributeDescriptor[0]);
                                 const serializeAttribute = /** @type {NonNullable<AttributeDescriptor[1]>} */ (attributeDescriptor[1]);
                                 effect(() => {
-                                    const elementHost = /** @type {SlimHost} */ (/** @type {unknown} */ (this));
-                                    const serializedValue = serializeAttribute(elementHost[attributeName]);
+                                    const serializedValue = serializeAttribute(
+                                        /** @type {SlimHost} */ (/** @type {unknown} */ (this))[attributeName]
+                                    );
                                     if (DEV && parseAttribute) {
                                         const roundTripValue = serializeAttribute(parseAttribute(serializedValue));
                                         if (roundTripValue !== serializedValue) {
@@ -78,18 +80,24 @@ export const attributes = attributeConfig => {
                                         }
                                     }
                                     if (serializedValue == null) {
-                                        if (elementHost.hasAttribute(attributeName)) {
-                                            elementHost.removeAttribute(attributeName);
+                                        if (/** @type {SlimHost} */ (/** @type {unknown} */ (this)).hasAttribute(attributeName)) {
+                                            /** @type {SlimHost} */ (/** @type {unknown} */ (this)).removeAttribute(attributeName);
                                         }
-                                    } else if (elementHost.getAttribute(attributeName) !== serializedValue) {
-                                        elementHost.setAttribute(attributeName, serializedValue);
+                                    } else if (
+                                        /** @type {SlimHost} */ (/** @type {unknown} */ (this)).getAttribute(attributeName) !==
+                                        serializedValue
+                                    ) {
+                                        /** @type {SlimHost} */ (/** @type {unknown} */ (this)).setAttribute(
+                                            attributeName,
+                                            serializedValue
+                                        );
                                     }
                                 }, 1 /* EAGER */);
                             }
                         });
                     });
 
-                    on(/** @type {any} */ (this)[UNMOUNT], () => {
+                    on(/** @type {AttributeHost} */ (this)[UNMOUNT], () => {
                         reflectScope?.();
                         reflectScope = null;
                     });

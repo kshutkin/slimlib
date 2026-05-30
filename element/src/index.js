@@ -39,12 +39,15 @@ export { withInternals } from './middleware/with-internals.js';
 /** @typedef {import('./types.js').SlimHost} SlimHost */
 /** @typedef {import('./types.js').SlimRender} SlimRender */
 /** @typedef {import('./types.js').Middleware} Middleware */
+/** @typedef {ReturnType<Parameters<typeof render>[0]>} JsxChild */
+/** @typedef {(...args: unknown[]) => void} LifecycleListener */
 
 /** @type {SlimHost | undefined} */
 let currentHost;
 
 /** Host-scoped key for the list of render-time unsubscribe fns, cleared on unmount. */
 const RENDER_SUBS = Symbol();
+/** @typedef {SlimHost & Record<symbol, LifecycleListener[]> & Record<typeof RENDER_SUBS, (() => void)[]>} LifecycleHost */
 
 /**
  * Create an unregistered light-DOM custom element constructor backed by `@slimlib/jsx`.
@@ -187,7 +190,7 @@ const applySlimCore = (ElementBase, userRender) =>
                 const previousHost = currentHost;
                 currentHost = /** @type {SlimHost} */ (/** @type {unknown} */ (this));
                 this.#disposeRender = render(
-                    () => /** @type {any} */ (userRender(/** @type {SlimHost} */ (/** @type {unknown} */ (this)))),
+                    () => /** @type {JsxChild} */ (userRender(/** @type {SlimHost} */ (/** @type {unknown} */ (this)))),
                     this
                 );
                 currentHost = previousHost;
@@ -204,11 +207,10 @@ const applySlimCore = (ElementBase, userRender) =>
                 emit(this[UNMOUNT]);
                 this.#disposeRender?.();
                 this.#disposeRender = null;
-                const renderSubs = /** @type {(() => void)[]} */ (/** @type {any} */ (this)[RENDER_SUBS]);
-                for (let index = 0; index < renderSubs.length; index++) {
-                    /** @type {(() => void)} */ (renderSubs[index])();
+                for (let index = 0; index < /** @type {LifecycleHost} */ (this)[RENDER_SUBS].length; index++) {
+                    /** @type {() => void} */ (/** @type {LifecycleHost} */ (this)[RENDER_SUBS][index])();
                 }
-                renderSubs.length = 0;
+                /** @type {LifecycleHost} */ (this)[RENDER_SUBS].length = 0;
             }
         }
     };
@@ -259,23 +261,26 @@ export const props = initialProps => {
  * unsupported.
  *
  * @param {symbol} key
- * @param {(...args: any[]) => void} listener
+ * @template {unknown[]} Args
+ * @param {(...args: Args) => void} listener
  * @returns {void}
  */
 const subscribeToLifecycle = (key, listener) => {
     if (DEV && currentHost === undefined) {
         throw new Error('lifecycle subscriptions must be called synchronously inside a defineElement render callback');
     }
-    const host = /** @type {SlimHost} */ (currentHost);
-    if (DEV && !(key in host)) {
+    if (DEV && !(key in /** @type {LifecycleHost} */ (currentHost))) {
         console.warn(
             '[@slimlib/element] lifecycle subscription ignored: this element does not implement the requested lifecycle. Add the matching middleware before subscribing to optional lifecycle callbacks.'
         );
         return;
     }
-    const off = on(/** @type {any} */ (host)[key], listener);
-    const renderSubs = /** @type {(() => void)[]} */ (/** @type {any} */ (host)[RENDER_SUBS]);
-    renderSubs.push(off);
+    /** @type {LifecycleHost} */ (currentHost)[RENDER_SUBS].push(
+        on(
+            /** @type {LifecycleListener[]} */ (/** @type {LifecycleHost} */ (currentHost)[key]),
+            /** @type {LifecycleListener} */ (/** @type {unknown} */ (listener))
+        )
+    );
 };
 
 /**
@@ -287,13 +292,13 @@ const subscribeToLifecycle = (key, listener) => {
  * @returns {void}
  */
 export const onMount = listener => {
-    const host = /** @type {SlimHost} */ (currentHost);
+    const host = currentHost;
     subscribeToLifecycle(MOUNT, () => {
         const cleanup = listener();
         if (typeof cleanup === 'function') {
-            const off = on(/** @type {any} */ (host)[UNMOUNT], cleanup);
-            const renderSubs = /** @type {(() => void)[]} */ (/** @type {any} */ (host)[RENDER_SUBS]);
-            renderSubs.push(off);
+            /** @type {LifecycleHost} */ (host)[RENDER_SUBS].push(
+                on(/** @type {LifecycleListener[]} */ (/** @type {LifecycleHost} */ (host)[UNMOUNT]), cleanup)
+            );
         }
     });
 };
