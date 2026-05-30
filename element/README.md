@@ -5,9 +5,9 @@ Functional Custom Elements backed by [`@slimlib/jsx`](../jsx) for rendering and
 function: declare reactive props, return JSX, and the element re-renders itself.
 
 ```jsx
-import { attributes, defineElement, numberAttr, props } from '@slimlib/element';
+import { attributes, defineElement, numberAttribute, props } from '@slimlib/element';
 
-defineElement('my-counter', [attributes({ count: numberAttr })], () => {
+defineElement('my-counter', [attributes({ count: numberAttribute })], () => {
     const state = props({ count: 0 });
     return <button on:click={() => state.count++}>{() => state.count}</button>;
 });
@@ -43,9 +43,9 @@ Configure the JSX runtime (tsconfig or bundler):
 ### Reactive props and attribute reflection
 
 ```jsx
-import { attributes, defineElement, boolAttr, numberAttr, props } from '@slimlib/element';
+import { attributes, defineElement, booleanAttribute, numberAttribute, props } from '@slimlib/element';
 
-defineElement('my-toggle', [attributes({ count: numberAttr, open: boolAttr })], () => {
+defineElement('my-toggle', [attributes({ count: numberAttribute, open: booleanAttribute })], () => {
     const state = props({ count: 0, open: false });
     return (
         <button on:click={() => { state.count++; state.open = !state.open; }}>
@@ -152,9 +152,9 @@ middleware; in DEV a missing one logs a warning and the subscription is ignored.
 
 ```jsx
 attributes({
-    count: numberAttr,      // parse + serialize → observe + reflect
-    open:  boolAttr,        // boolean presence
-    label: [stringAttr[0]], // parse only → observe, no reflection
+    count: numberAttribute,      // parse + serialize → observe + reflect
+    open:  booleanAttribute,        // boolean presence
+    label: [stringAttribute[0]], // parse only → observe, no reflection
     note:  [],              // inert
 });
 ```
@@ -163,7 +163,7 @@ attributes({
 - `serialize(value)` — present ⇒ prop writes are **reflected** to the attribute
   (return `null` to remove it).
 
-Presets: `numberAttr`, `boolAttr`, `stringAttr`. Reflection reads the prop
+Presets: `numberAttribute`, `booleanAttribute`, `stringAttribute`. Reflection reads the prop
 reactively, so a reflected attribute must be declared via `props()`. A
 `[parse, serialize]` pair must be round-trip stable (DEV throws if not).
 

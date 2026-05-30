@@ -19,7 +19,7 @@ import {
 } from './symbols.js';
 import { emit } from './utils/pubsub.js';
 
-export { attributes, boolAttr, numberAttr, stringAttr } from './middleware/attributes.js';
+export { attributes, booleanAttribute, numberAttribute, stringAttribute } from './middleware/attributes.js';
 export { disabledFeatures } from './middleware/disabled-features.js';
 export { formAssociated } from './middleware/form-associated.js';
 export { onAdopted } from './middleware/on-adopted.js';

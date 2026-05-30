@@ -75,10 +75,10 @@ describe('defineElement constructor naming (production)', () => {
 
 describe('attributes() reflection (production)', () => {
     it('reflects a Number prop without emitting DEV warnings', async () => {
-        const { defineElement, attributes, numberAttr, props } = await import('../src/index.js');
+        const { defineElement, attributes, numberAttribute, props } = await import('../src/index.js');
         const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
         const tag = uniqueTag('x-attr-reflect-prod');
-        defineElement(tag, [attributes({ count: numberAttr })], () => {
+        defineElement(tag, [attributes({ count: numberAttribute })], () => {
             props({ count: 0 });
             return null;
         });
@@ -93,10 +93,10 @@ describe('attributes() reflection (production)', () => {
     });
 
     it('does not warn for an undeclared reflected key in production', async () => {
-        const { defineElement, attributes, stringAttr } = await import('../src/index.js');
+        const { defineElement, attributes, stringAttribute } = await import('../src/index.js');
         const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
         const tag = uniqueTag('x-attr-undeclared-prod');
-        defineElement(tag, [attributes({ ghost: stringAttr })], () => null);
+        defineElement(tag, [attributes({ ghost: stringAttribute })], () => null);
 
         document.body.appendChild(document.createElement(tag));
 

@@ -21,7 +21,7 @@ import { MOUNT, UNMOUNT } from '../symbols.js';
  * Observe HTML attributes, parse them into props, and optionally reflect prop
  * writes back to the DOM.
  *
- * `config` is a tuple-descriptor map (`{ count: numberAttr }`). Each descriptor
+ * `config` is a tuple-descriptor map (`{ count: numberAttribute }`). Each descriptor
  * is a `[parse?, serialize?]` tuple; presence of `serialize` reflects the prop
  * write back to the attribute.
  *
@@ -111,13 +111,13 @@ export const attributes = attributeConfig => {
 };
 
 /** @type {AttributeDescriptor} */
-export const numberAttr = [
+export const numberAttribute = [
     rawValue => (rawValue === null ? null : Number(rawValue)),
     propertyValue => (propertyValue == null ? null : String(propertyValue)),
 ];
 
 /** @type {AttributeDescriptor} */
-export const boolAttr = [rawValue => rawValue !== null, propertyValue => (propertyValue ? '' : null)];
+export const booleanAttribute = [rawValue => rawValue !== null, propertyValue => (propertyValue ? '' : null)];
 
 /** @type {AttributeDescriptor} */
-export const stringAttr = [rawValue => rawValue, propertyValue => (propertyValue == null ? null : String(propertyValue))];
+export const stringAttribute = [rawValue => rawValue, propertyValue => (propertyValue == null ? null : String(propertyValue))];
