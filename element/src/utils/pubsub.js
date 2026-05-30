@@ -39,8 +39,9 @@ export const RENDER_GEN = Symbol();
 export const emit = (host, key, ...args) => {
     const list = /** @type {Listener[]} */ (host[key]);
     const aliveGen = host[RENDER_GEN];
+    const length = list.length;
     let writeIndex = 0;
-    for (let index = 0; index < list.length; ++index) {
+    for (let index = 0; index < length; ++index) {
         const listener = /** @type {TaggedListener} */ (list[index]);
         const gen = listener[key];
         if (gen === undefined || gen === aliveGen) {
