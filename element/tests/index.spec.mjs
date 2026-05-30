@@ -1305,3 +1305,28 @@ describe('attributes() reflection + coercion (DEV)', () => {
         expect(element.csv).toEqual(['a', 'b']);
     });
 });
+
+describe('internals() (DEV)', () => {
+    it('throws when called outside a defineElement render callback', async () => {
+        const { internals } = await import('../src/index.js');
+        expect(() => internals()).toThrow(/must be called synchronously inside a defineElement render callback/);
+    });
+
+    it('throws when withInternals() middleware is missing', async () => {
+        const { defineElement, internals } = await import('../src/index.js');
+        const tag = uniqueTag('x-internals-no-middleware');
+        let thrown;
+        defineElement(tag, () => {
+            try {
+                internals();
+            } catch (e) {
+                thrown = e;
+            }
+            return null;
+        });
+        const element = document.createElement(tag);
+        document.body.appendChild(element);
+        expect(thrown).toBeInstanceOf(Error);
+        expect(thrown.message).toMatch(/requires the withInternals\(\) middleware/);
+    });
+});
