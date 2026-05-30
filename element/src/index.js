@@ -3,9 +3,9 @@ import { DEV } from 'esm-env';
 import { render } from '@slimlib/jsx';
 import { state } from '@slimlib/store';
 
+export { attributes } from './middleware/attributes.js';
 export { disabledFeatures } from './middleware/disabled-features.js';
 export { formAssociated } from './middleware/form-associated.js';
-export { observedAttributes } from './middleware/observed-attributes.js';
 export { onAdopted } from './middleware/on-adopted.js';
 export { onMove } from './middleware/on-move.js';
 export { withInternals } from './middleware/with-internals.js';
@@ -139,10 +139,6 @@ const applySlimCore = (Base, userRender) =>
         #mounted = false;
         /** @type {null | (() => void)} */
         #dispose = null;
-
-        attributeChangedCallback(/** @type {string} */ name, /** @type {string | null} */ _old, /** @type {string | null} */ value) {
-            /** @type {Record<string, unknown>} */ (/** @type {unknown} */ (this))[name] = value;
-        }
 
         connectedCallback() {
             if (!this.#mounted) {

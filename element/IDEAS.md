@@ -7,6 +7,28 @@ is a self-contained proposal: rationale, sketch, tradeoffs, open questions.
 
 ## Done
 
+- **#4 Attribute reflection and typed coercion (Option A).** Shipped. The
+  `observedAttributes` middleware was renamed to `attributes` and now owns the
+  whole attribute channel: observe (`static observedAttributes`), coerce
+  inbound (`coerceIn`), and reflect outbound (`reflectOut`). Config is either
+  an array of names (`attributes(['count'])`) or a descriptor map
+  (`attributes({ count: { type: Number, reflect: true } })`). The slim core no
+  longer has an `attributeChangedCallback` — attribute handling is purely
+  middleware. Reflection runs through one EAGER `@slimlib/store` `effect` per
+  reflected key that reads `host[name]` (so it tracks the `props()`-installed
+  accessor / reactive proxy, including the `state.count++` path). Attribute
+  removal delivers `null` (Boolean → `false`); the middleware does not restore
+  a default. The "only write if different" checks in `reflectOut` are the loop
+  guard, so reflect → setAttribute → attributeChangedCallback → prop settles
+  (also relying on `state()`'s `Object.is` dedupe). DEV warns when a
+  `reflect: true` key is not declared via `props()`. Effects live outside the
+  jsx render scope, so they are disposed manually in `disconnectedCallback` and
+  recreated in `connectedCallback` (covers both the synchronous move case and a
+  later remount). This resolves §4.1: the open timing question was settled by
+  setting up reflection **after** `super.connectedCallback()` (which runs the
+  core render + `props()`), so the accessors exist before the effects read
+  them. Per §4.1, keys are still repeated across the (now-renamed) `attributes`
+  schema and `props()`; that's accepted for v1.
 - **#1 Back `props` with `state()` instead of per-key signals.** Shipped.
   `props(initial)` calls `state(initial)` from `@slimlib/store` and installs
   accessors on the host.
@@ -19,13 +41,13 @@ is a self-contained proposal: rationale, sketch, tradeoffs, open questions.
   customized built-ins go through `defineBuiltinElement(tag, extendElement,
   middleware?, render)`. Slim core is
   innermost; user middleware composes outward via `reduceRight`. Baseline kit
-  exports: `observedAttributes`, `disabledFeatures`, `formAssociated`,
+  exports: `attributes`, `disabledFeatures`, `formAssociated`,
   `withInternals`, `onAdopted`, `onMove`. See `README.md` for usage and
   `src/index.js` for the wrapper. The original Tier 2 (options bag) and
   Tier 3 (compiler plugin) are obsolete — replaced and deferred respectively.
 - **#6 lazy declaration verdict.** Confirmed by the implementation:
   observed-attribute names are declared at `defineElement` time via the
-  `observedAttributes()` middleware; JS-only reactive state is declared
+  `attributes()` middleware; JS-only reactive state is declared
   lazily inside `render` via `props()`.
 - **#7 ElementInternals & form-associated elements.** Folded into #5. Class-
   time `formAssociated` is the `formAssociated()` middleware (sets
@@ -36,7 +58,8 @@ is a self-contained proposal: rationale, sketch, tradeoffs, open questions.
   `adoptedCallback`, `connectedMoveCallback`, form-association callbacks,
   customized built-ins — all shipped as middlewares (or, for built-ins, via
   the dedicated `defineBuiltinElement` facade). Wrapper-owned
-  `connected`/`disconnected`/`attributeChanged` stay inside the slim core.
+  `connected`/`disconnected` stay inside the slim core; `attributeChanged`
+  moved out to the `attributes` middleware under Option A.
 - **#3 JSX runtime `is`-upgrade for customized built-ins.** Shipped. The
   jsx runtime sniffs an `is` prop and passes the options bag —
   `document.createElement(type, { is })` — so `<button is="my-tag" />`
@@ -122,6 +145,75 @@ Semantics:
 - Computed/derived attributes (read-only, reflected from a value): defer.
 - Could also be expressed as a `reflectedProps({...})` middleware — keeps the
   descriptor table at class-time. Probably overkill; per-instance is fine.
+
+---
+
+## 4.1 Separate helper for attribute-backed state
+
+Instead of extending `props()` with a second descriptor mode, keep `props()`
+as the JS-only helper and add a sibling helper for attribute-backed state.
+Tentative name: `attrs()` (clearer than `reflectedProps()` because coercion
+without reflection is still a valid use case).
+
+### Rationale
+- Keeps `props({ count: 0 })` simple and avoids descriptor-vs-shorthand
+  ambiguity.
+- Matches the actual split in the platform/API surface: attribute schema is
+  class-time (`observedAttributes([...])`), while reactive state is still
+  declared lazily inside `render`.
+- Gives the typed/reflected path its own stricter contract without making the
+  default helper pay the complexity cost.
+
+### Sketch
+
+```js
+defineElement('my-counter', [observedAttributes(['count', 'open', 'label'])], host => {
+    const a = attrs({
+        count: { value: 0, type: Number, reflect: true },
+        open: { value: false, type: Boolean, reflect: true },
+        label: { value: '' },
+    });
+    const p = props({ hovering: false });
+    // ...
+});
+```
+
+Semantics:
+- `attrs()` is descriptor-only. Bare defaults stay on `props()`.
+- `observedAttributes([...])` stays required. A render-time helper cannot
+  declare `static observedAttributes` after the class is defined.
+- `type` applies to attribute-originated `string | null` input in v1.
+  Boolean remains presence/absence based.
+- `reflect: true` syncs JS writes back to the DOM attribute.
+- Attribute removal resets to the descriptor default `value` (avoids
+  `Number(null) === 0` / `String(null) === 'null'` surprises).
+
+### Implementation notes
+- The current core writes raw attribute values to `this[name]` before `render`
+  runs. `attrs()` therefore cannot be a thin wrapper around `props()`; it
+  needs the same adoption path plus a small core-integrated buffer/guard for
+  pre-mount attribute writes.
+- Writes through the returned reactive object must reflect too. Reflecting only
+  from `host.foo = ...` would miss the common `state.foo++` path used inside
+  render.
+- Use a per-attribute reflection guard rather than one instance-wide boolean,
+  so nested reflected writes do not suppress unrelated attributes.
+
+### Tradeoffs
+- Repeats keys across `observedAttributes([...])` and `attrs({...})`. Acceptable
+  in v1; add a DEV-time throw when `attrs()` references an attribute that is not
+  observed.
+- More surface area (`props()` + `attrs()`), but the type signatures stay much
+  cleaner than an overloaded descriptor form on `props()`.
+- Dashed attribute names need an explicit rule (`attrs({ 'foo-bar': ... })` or
+  a future `attr` alias field). Do not guess camelCase/dash-case implicitly.
+
+### Open questions
+- Naming: `attrs()` feels right; `reflectedProps()` is more literal but too
+  narrow if `reflect` is optional.
+- Should `type` normalize all writes, not just attribute-originated ones?
+- Should duplicate keys across `props()` / `attrs()` / multiple `attrs()` calls
+  throw in DEV? Probably yes.
 
 ---
 

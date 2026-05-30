@@ -26,6 +26,9 @@
     "dependencies": {
         "esm-env": "^1.2.1"
     },
+    "devDependencies": {
+        "esbuild": "^0.24.0"
+    },
     "repository": {
         "type": "git",
         "url": "git+https://github.com/kshutkin/slimlib.git",
@@ -43,6 +46,7 @@
     "scripts": {
         "build": "dts-buddy",
         "test": "vitest run --coverage --config ./vitest.config.mjs",
+        "play": "node playground/serve.mjs",
         "prepack": "pkgprn-internal --strip-comments --flatten=src,types"
     }
 }
