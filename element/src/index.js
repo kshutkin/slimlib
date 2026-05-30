@@ -3,6 +3,33 @@ import { DEV } from 'esm-env';
 import { render } from '@slimlib/jsx';
 import { state } from '@slimlib/store';
 
+import {
+    ADOPTED,
+    CONNECT,
+    DISCONNECT,
+    FORM_ASSOCIATED,
+    FORM_DISABLED,
+    FORM_RESET,
+    FORM_STATE_RESTORE,
+    LIFECYCLE_SYMBOLS,
+    MOUNT,
+    MOVE,
+    UNMOUNT,
+} from './lifecycle.js';
+import { createList, emit, on } from './utils/pubsub.js';
+
+export {
+    ADOPTED,
+    CONNECT,
+    DISCONNECT,
+    FORM_ASSOCIATED,
+    FORM_DISABLED,
+    FORM_RESET,
+    FORM_STATE_RESTORE,
+    MOUNT,
+    MOVE,
+    UNMOUNT,
+} from './lifecycle.js';
 export { attributes, boolAttr, numberAttr, stringAttr } from './middleware/attributes.js';
 export { disabledFeatures } from './middleware/disabled-features.js';
 export { formAssociated } from './middleware/form-associated.js';
@@ -16,6 +43,9 @@ export { withInternals } from './middleware/with-internals.js';
 
 /** @type {SlimHost | undefined} */
 let currentHost;
+
+/** Host-scoped key for the list of render-time unsubscribe fns, cleared on unmount. */
+const RENDER_SUBS = Symbol();
 
 /**
  * Create an unregistered light-DOM custom element constructor backed by `@slimlib/jsx`.
@@ -110,7 +140,9 @@ export const defineElement = (tag, middlewareOrRender, maybeRender) => {
  * @returns {void}
  */
 export const defineBuiltinElement = (tag, extendElement, middlewareOrRender, maybeRender) => {
-    const ElementBase = /** @type {CustomElementConstructor} */ (/** @type {unknown} */ (document.createElement(extendElement).constructor));
+    const ElementBase = /** @type {CustomElementConstructor} */ (
+        /** @type {unknown} */ (document.createElement(extendElement).constructor)
+    );
     let ElementConstructor = createCustomElement(
         /** @type {Middleware[]} */ (/** @type {unknown} */ (middlewareOrRender)),
         /** @type {SlimRender} */ (maybeRender),
@@ -144,6 +176,12 @@ const applySlimCore = (ElementBase, userRender) =>
         /** @type {null | (() => void)} */
         #disposeRender = null;
 
+        [MOUNT] = createList();
+        [UNMOUNT] = createList();
+        [CONNECT] = createList();
+        [DISCONNECT] = createList();
+        [RENDER_SUBS] = createList();
+
         connectedCallback() {
             if (!this.#mounted) {
                 this.#mounted = true;
@@ -154,15 +192,24 @@ const applySlimCore = (ElementBase, userRender) =>
                     this
                 );
                 currentHost = previousHost;
+                emit(this[MOUNT]);
             }
+            emit(this[CONNECT]);
         }
 
         async disconnectedCallback() {
+            emit(this[DISCONNECT]);
             await Promise.resolve();
             if (!this.isConnected && this.#mounted) {
                 this.#mounted = false;
+                emit(this[UNMOUNT]);
                 this.#disposeRender?.();
                 this.#disposeRender = null;
+                const renderSubs = /** @type {(() => void)[]} */ (/** @type {any} */ (this)[RENDER_SUBS]);
+                for (let index = 0; index < renderSubs.length; index++) {
+                    /** @type {(() => void)} */ (renderSubs[index])();
+                }
+                renderSubs.length = 0;
             }
         }
     };
@@ -203,3 +250,111 @@ export const props = initialProps => {
     }
     return reactiveProps;
 };
+
+/**
+ * Subscribe to an internal lifecycle message on the current slim element.
+ *
+ * Must be called synchronously inside a render callback (like `props`).
+ * Listeners are dropped automatically on unmount and re-registered when the
+ * element re-renders. Subscribing to the same message during an emit is
+ * unsupported.
+ *
+ * @param {symbol} key one of the exported lifecycle symbols (e.g. `CONNECT`, `ADOPTED`)
+ * @param {(...args: any[]) => void} listener
+ * @returns {void}
+ */
+export const subscribe = (key, listener) => {
+    if (DEV && currentHost === undefined) {
+        throw new Error('lifecycle subscriptions must be called synchronously inside a defineElement render callback');
+    }
+    if (DEV && !LIFECYCLE_SYMBOLS.includes(key)) {
+        throw new Error('subscribe() expects a lifecycle symbol exported by @slimlib/element (e.g. CONNECT, UNMOUNT, ADOPTED)');
+    }
+    const off = on(/** @type {any} */ (currentHost)[key], listener);
+    const renderSubs = /** @type {(() => void)[]} */ (/** @type {any} */ (currentHost)[RENDER_SUBS]);
+    renderSubs.push(off);
+};
+
+/**
+ * Subscribe to the element's first/genuine mount (fires once per mounted period,
+ * after the render callback has run). The listener may return cleanup that runs
+ * on the matching genuine unmount.
+ *
+ * @param {() => void | (() => void)} listener
+ * @returns {void}
+ */
+export const onMount = listener => {
+    const host = /** @type {SlimHost} */ (currentHost);
+    subscribe(MOUNT, () => {
+        const cleanup = listener();
+        if (typeof cleanup === 'function') {
+            const off = on(/** @type {any} */ (host)[UNMOUNT], cleanup);
+            const renderSubs = /** @type {(() => void)[]} */ (/** @type {any} */ (host)[RENDER_SUBS]);
+            renderSubs.push(off);
+        }
+    });
+};
+
+/**
+ * Subscribe to every connect, including synchronous moves.
+ *
+ * @param {() => void} listener
+ * @returns {void}
+ */
+export const onConnect = listener => subscribe(CONNECT, listener);
+
+/**
+ * Subscribe to the element's genuine disconnect.
+ *
+ * @param {() => void} listener
+ * @returns {void}
+ */
+export const onDisconnect = listener => subscribe(DISCONNECT, listener);
+
+/**
+ * Subscribe to `adoptedCallback` events emitted by `onAdopted()` middleware.
+ *
+ * @param {(oldDocument: Document, newDocument: Document) => void} listener
+ * @returns {void}
+ */
+export const onAdoptedCallback = listener => subscribe(ADOPTED, listener);
+
+/**
+ * Subscribe to `connectedMoveCallback` events emitted by `onMove()` middleware.
+ *
+ * @param {() => void} listener
+ * @returns {void}
+ */
+export const onConnectedMove = listener => subscribe(MOVE, listener);
+
+/**
+ * Subscribe to form owner changes emitted by `formAssociated()` middleware.
+ *
+ * @param {(form: HTMLFormElement | null) => void} listener
+ * @returns {void}
+ */
+export const onFormAssociated = listener => subscribe(FORM_ASSOCIATED, listener);
+
+/**
+ * Subscribe to disabled state changes emitted by `formAssociated()` middleware.
+ *
+ * @param {(isDisabled: boolean) => void} listener
+ * @returns {void}
+ */
+export const onFormDisabled = listener => subscribe(FORM_DISABLED, listener);
+
+/**
+ * Subscribe to form reset events emitted by `formAssociated()` middleware.
+ *
+ * @param {() => void} listener
+ * @returns {void}
+ */
+export const onFormReset = listener => subscribe(FORM_RESET, listener);
+
+/**
+ * Subscribe to form state restore events emitted by `formAssociated()` middleware.
+ *
+ * @param {(state: unknown, mode: string) => void} listener
+ * @returns {void}
+ */
+export const onFormStateRestore = listener => subscribe(FORM_STATE_RESTORE, listener);

@@ -148,11 +148,14 @@ describe('middleware-composed defineElement (DEV)', () => {
         expect(customElements.get(tag).formAssociated).toBe(true);
     });
 
-    it('forwards form reset callbacks to formAssociated({ reset }) handlers', async () => {
-        const { defineElement, formAssociated, withInternals } = await import('../src/index.js');
+    it('emits form reset lifecycle events from formAssociated()', async () => {
+        const { defineElement, formAssociated, withInternals, onFormReset } = await import('../src/index.js');
         const tag = uniqueTag('x-slim-form-reset');
         const reset = vi.fn();
-        defineElement(tag, [withInternals(), formAssociated({ reset })], () => null);
+        defineElement(tag, [withInternals(), formAssociated()], () => {
+            onFormReset(reset);
+            return null;
+        });
         const form = document.createElement('form');
         const element = document.createElement(tag);
 
@@ -161,35 +164,43 @@ describe('middleware-composed defineElement (DEV)', () => {
         form.reset();
 
         expect(reset).toHaveBeenCalledTimes(1);
-        expect(reset).toHaveBeenCalledWith(element);
+        expect(reset).toHaveBeenCalledWith();
     });
 
-    it('forwards form owner changes to formAssociated({ associated }) handlers', async () => {
-        const { defineElement, formAssociated, withInternals } = await import('../src/index.js');
+    it('emits form owner lifecycle events from formAssociated()', async () => {
+        const { defineElement, formAssociated, withInternals, onFormAssociated } = await import('../src/index.js');
         const tag = uniqueTag('x-slim-form-owner');
         const associated = vi.fn();
-        defineElement(tag, [withInternals(), formAssociated({ associated })], () => null);
+        defineElement(tag, [withInternals(), formAssociated()], () => {
+            onFormAssociated(associated);
+            return null;
+        });
         const firstForm = document.createElement('form');
         const secondForm = document.createElement('form');
         const element = document.createElement(tag);
 
         document.body.append(firstForm, secondForm);
+        document.body.appendChild(element);
+        await nextMicrotask();
         firstForm.appendChild(element);
         await nextMicrotask();
         secondForm.appendChild(element);
         await nextMicrotask();
 
         expect(associated).toHaveBeenCalledTimes(3);
-        expect(associated).toHaveBeenNthCalledWith(1, element, firstForm);
-        expect(associated).toHaveBeenNthCalledWith(2, element, null);
-        expect(associated).toHaveBeenNthCalledWith(3, element, secondForm);
+        expect(associated).toHaveBeenNthCalledWith(1, firstForm);
+        expect(associated).toHaveBeenNthCalledWith(2, null);
+        expect(associated).toHaveBeenNthCalledWith(3, secondForm);
     });
 
-    it('forwards fieldset disabled changes to formAssociated({ disabled }) handlers', async () => {
-        const { defineElement, formAssociated, withInternals } = await import('../src/index.js');
+    it('emits fieldset disabled lifecycle events from formAssociated()', async () => {
+        const { defineElement, formAssociated, withInternals, onFormDisabled } = await import('../src/index.js');
         const tag = uniqueTag('x-slim-form-disabled');
         const disabled = vi.fn();
-        defineElement(tag, [withInternals(), formAssociated({ disabled })], () => null);
+        defineElement(tag, [withInternals(), formAssociated()], () => {
+            onFormDisabled(disabled);
+            return null;
+        });
         const form = document.createElement('form');
         const fieldset = document.createElement('fieldset');
         const element = document.createElement(tag);
@@ -202,73 +213,86 @@ describe('middleware-composed defineElement (DEV)', () => {
         fieldset.disabled = false;
         await nextMicrotask();
 
-        expect(disabled).toHaveBeenNthCalledWith(1, element, true);
-        expect(disabled).toHaveBeenNthCalledWith(2, element, false);
+        expect(disabled).toHaveBeenNthCalledWith(1, true);
+        expect(disabled).toHaveBeenNthCalledWith(2, false);
     });
 
-    it('forwards state restore callbacks to formAssociated({ stateRestore }) handlers', async () => {
-        const { defineElement, formAssociated, withInternals } = await import('../src/index.js');
+    it('emits state restore lifecycle events from formAssociated()', async () => {
+        const { defineElement, formAssociated, withInternals, onFormStateRestore } = await import('../src/index.js');
         const tag = uniqueTag('x-slim-form-state-restore');
         const stateRestore = vi.fn();
-        defineElement(tag, [withInternals(), formAssociated({ stateRestore })], () => null);
+        defineElement(tag, [withInternals(), formAssociated()], () => {
+            onFormStateRestore(stateRestore);
+            return null;
+        });
         const element = document.createElement(tag);
         const ElementConstructor = customElements.get(tag);
+        document.body.appendChild(element);
 
         // Browser restoration needs bfcache/autofill, so invoke the platform callback directly.
         ElementConstructor.prototype.formStateRestoreCallback.call(element, 'state-value', 'restore');
 
         expect(stateRestore).toHaveBeenCalledTimes(1);
-        expect(stateRestore).toHaveBeenCalledWith(element, 'state-value', 'restore');
+        expect(stateRestore).toHaveBeenCalledWith('state-value', 'restore');
     });
 
-    it('does not install absent formAssociated callbacks', async () => {
+    it('installs all form-associated callbacks for lifecycle events', async () => {
         const { defineElement, formAssociated } = await import('../src/index.js');
         const tag = uniqueTag('x-slim-form-absent');
-        defineElement(tag, [formAssociated({ reset: vi.fn() })], () => null);
+        defineElement(tag, [formAssociated()], () => null);
         const ElementConstructor = customElements.get(tag);
 
+        expect('formAssociatedCallback' in ElementConstructor.prototype).toBe(true);
         expect('formResetCallback' in ElementConstructor.prototype).toBe(true);
-        expect('formDisabledCallback' in ElementConstructor.prototype).toBe(false);
+        expect('formDisabledCallback' in ElementConstructor.prototype).toBe(true);
+        expect('formStateRestoreCallback' in ElementConstructor.prototype).toBe(true);
     });
 
-    it('installs adoptedCallback through onAdopted(callback)', async () => {
+    it('installs adoptedCallback through onAdopted()', async () => {
         const { defineElement, onAdopted } = await import('../src/index.js');
         const tag = uniqueTag('x-slim-adopted');
-        defineElement(tag, [onAdopted(() => {})], () => null);
+        defineElement(tag, [onAdopted()], () => null);
         const ElementConstructor = customElements.get(tag);
 
         expect('adoptedCallback' in ElementConstructor.prototype).toBe(true);
     });
 
-    it('forwards adopted callbacks to onAdopted(callback)', async () => {
-        const { defineElement, onAdopted } = await import('../src/index.js');
+    it('emits adopted lifecycle events from onAdopted()', async () => {
+        const { defineElement, onAdopted, onAdoptedCallback } = await import('../src/index.js');
         const tag = uniqueTag('x-slim-adopted-body');
         const adopted = vi.fn();
-        defineElement(tag, [onAdopted(adopted)], () => null);
+        defineElement(tag, [onAdopted()], () => {
+            onAdoptedCallback(adopted);
+            return null;
+        });
         const element = document.createElement(tag);
+        document.body.appendChild(element);
         const oldDocument = element.ownerDocument;
         const newDocument = document.implementation.createHTMLDocument('new-owner');
 
         newDocument.adoptNode(element);
 
         expect(adopted).toHaveBeenCalledTimes(1);
-        expect(adopted).toHaveBeenCalledWith(element, oldDocument, newDocument);
+        expect(adopted).toHaveBeenCalledWith(oldDocument, newDocument);
     });
 
-    it('installs connectedMoveCallback through onMove(callback)', async () => {
+    it('installs connectedMoveCallback through onMove()', async () => {
         const { defineElement, onMove } = await import('../src/index.js');
         const tag = uniqueTag('x-slim-move');
-        defineElement(tag, [onMove(() => {})], () => null);
+        defineElement(tag, [onMove()], () => null);
         const ElementConstructor = customElements.get(tag);
 
         expect('connectedMoveCallback' in ElementConstructor.prototype).toBe(true);
     });
 
-    it('forwards connectedMoveCallback to onMove(callback)', async () => {
-        const { defineElement, onMove } = await import('../src/index.js');
+    it('emits connectedMoveCallback lifecycle events from onMove()', async () => {
+        const { defineElement, onMove, onConnectedMove } = await import('../src/index.js');
         const tag = uniqueTag('x-slim-move-body');
         const moved = vi.fn();
-        defineElement(tag, [onMove(moved)], () => null);
+        defineElement(tag, [onMove()], () => {
+            onConnectedMove(moved);
+            return null;
+        });
         const parent = document.createElement('div');
         const element = document.createElement(tag);
         const anotherChild = document.createElement('span');
@@ -284,7 +308,7 @@ describe('middleware-composed defineElement (DEV)', () => {
         }
 
         expect(moved).toHaveBeenCalledTimes(1);
-        expect(moved).toHaveBeenCalledWith(element);
+        expect(moved).toHaveBeenCalledWith();
     });
 
     it('applies middleware from inside out while preserving outer-to-inner prototype order', async () => {
@@ -383,6 +407,347 @@ describe('middleware-composed defineElement (DEV)', () => {
 
         expect(connectedCount).toBe(1);
         expect(renderCount).toBe(1);
+    });
+});
+
+describe('lifecycle message bus (DEV)', () => {
+    it('exports lifecycle hooks, subscribe, and symbols', async () => {
+        const elementModule = await import('../src/index.js');
+        for (const name of [
+            'onMount',
+            'onConnect',
+            'onDisconnect',
+            'onAdoptedCallback',
+            'onConnectedMove',
+            'onFormAssociated',
+            'onFormDisabled',
+            'onFormReset',
+            'onFormStateRestore',
+            'subscribe',
+        ]) {
+            expect(typeof elementModule[name]).toBe('function');
+        }
+        expect('onUnmount' in elementModule).toBe(false);
+        for (const name of [
+            'MOUNT',
+            'UNMOUNT',
+            'CONNECT',
+            'DISCONNECT',
+            'ADOPTED',
+            'MOVE',
+            'FORM_ASSOCIATED',
+            'FORM_DISABLED',
+            'FORM_RESET',
+            'FORM_STATE_RESTORE',
+        ]) {
+            expect(typeof elementModule[name]).toBe('symbol');
+        }
+    });
+
+    it('throws when a hook is called outside a render callback', async () => {
+        const { onConnect } = await import('../src/index.js');
+        expect(() => onConnect(() => {})).toThrow(/must be called synchronously inside a defineElement render callback/);
+    });
+
+    it('fires mount once and connect on every connect (including sync moves)', async () => {
+        const { defineElement, onMount, onConnect } = await import('../src/index.js');
+        const mount = vi.fn();
+        const connect = vi.fn();
+        const tag = uniqueTag('x-bus-mount-connect');
+        defineElement(tag, () => {
+            onMount(mount);
+            onConnect(connect);
+            return null;
+        });
+
+        const element = document.createElement(tag);
+        const containerA = document.createElement('div');
+        const containerB = document.createElement('div');
+        document.body.append(containerA, containerB);
+        containerA.appendChild(element);
+
+        expect(mount).toHaveBeenCalledTimes(1);
+        expect(connect).toHaveBeenCalledTimes(1);
+
+        // Synchronous move across connected parents: connect fires again, mount does not.
+        containerB.appendChild(element);
+        await nextMicrotask();
+
+        expect(mount).toHaveBeenCalledTimes(1);
+        expect(connect).toHaveBeenCalledTimes(2);
+    });
+
+    it('does not run mount cleanup on a synchronous move', async () => {
+        const { defineElement, onMount } = await import('../src/index.js');
+        const cleanup = vi.fn();
+        const tag = uniqueTag('x-bus-move-no-cleanup');
+        defineElement(tag, () => {
+            onMount(() => cleanup);
+            return null;
+        });
+
+        const element = document.createElement(tag);
+        const containerA = document.createElement('div');
+        const containerB = document.createElement('div');
+        document.body.append(containerA, containerB);
+        containerA.appendChild(element);
+        containerB.appendChild(element);
+        await nextMicrotask();
+
+        expect(cleanup).not.toHaveBeenCalled();
+    });
+
+    it('fires disconnect and mount cleanup on each genuine disconnect', async () => {
+        const { defineElement, onDisconnect, onMount } = await import('../src/index.js');
+        const disconnect = vi.fn();
+        const cleanup = vi.fn();
+        const tag = uniqueTag('x-bus-mount-cleanup');
+        defineElement(tag, () => {
+            onDisconnect(disconnect);
+            onMount(() => cleanup);
+            return null;
+        });
+
+        const element = document.createElement(tag);
+        document.body.appendChild(element);
+        element.remove();
+        await nextMicrotask();
+
+        expect(disconnect).toHaveBeenCalledTimes(1);
+        expect(cleanup).toHaveBeenCalledTimes(1);
+
+        document.body.appendChild(element);
+        await nextMicrotask();
+        element.remove();
+        await nextMicrotask();
+
+        expect(disconnect).toHaveBeenCalledTimes(2);
+        expect(cleanup).toHaveBeenCalledTimes(2);
+    });
+
+    it('tolerates mount cleanup removed before render-scope cleanup', async () => {
+        const { defineElement, onMount, UNMOUNT } = await import('../src/index.js');
+        let element;
+        const cleanup = vi.fn(() => {
+            element[UNMOUNT].length = 0;
+        });
+        const tag = uniqueTag('x-bus-stale-mount-cleanup');
+        defineElement(tag, () => {
+            onMount(() => cleanup);
+            return null;
+        });
+
+        element = document.createElement(tag);
+        document.body.appendChild(element);
+        element.remove();
+        await nextMicrotask();
+
+        expect(cleanup).toHaveBeenCalledTimes(1);
+
+        document.body.appendChild(element);
+        await nextMicrotask();
+        element.remove();
+        await nextMicrotask();
+
+        expect(cleanup).toHaveBeenCalledTimes(2);
+    });
+
+    it('clears render listeners on unmount so a remount does not stack duplicates', async () => {
+        const { defineElement, onConnect } = await import('../src/index.js');
+        const connect = vi.fn();
+        const tag = uniqueTag('x-bus-remount');
+        defineElement(tag, () => {
+            onConnect(connect);
+            return null;
+        });
+
+        const element = document.createElement(tag);
+        document.body.appendChild(element);
+        expect(connect).toHaveBeenCalledTimes(1);
+
+        // Genuine disconnect: render-time listeners are torn down.
+        element.remove();
+        await nextMicrotask();
+
+        // Remount: render re-runs and re-registers a single fresh listener.
+        document.body.appendChild(element);
+        await nextMicrotask();
+
+        expect(connect).toHaveBeenCalledTimes(2);
+    });
+
+    it('keeps middleware-style on() subscriptions across remounts while clearing render-time ones', async () => {
+        const { defineElement, onConnect, CONNECT } = await import('../src/index.js');
+        const { on } = await import('../src/utils/pubsub.js');
+        const persistent = vi.fn();
+        const renderScoped = vi.fn();
+        const tag = uniqueTag('x-bus-persist');
+        defineElement(tag, () => {
+            onConnect(renderScoped);
+            return null;
+        });
+
+        const element = document.createElement(tag);
+        // Middleware-style subscription: registered once, directly on the host.
+        on(element[CONNECT], persistent);
+        document.body.appendChild(element);
+        expect(persistent).toHaveBeenCalledTimes(1);
+        expect(renderScoped).toHaveBeenCalledTimes(1);
+
+        element.remove();
+        await nextMicrotask();
+        document.body.appendChild(element);
+        await nextMicrotask();
+
+        // Persistent survived both connects; render-scoped was cleared and re-registered (no stacking).
+        expect(persistent).toHaveBeenCalledTimes(2);
+        expect(renderScoped).toHaveBeenCalledTimes(2);
+    });
+
+    it('returns undefined from render-time lifecycle subscriptions', async () => {
+        const { defineElement, onMount, onConnect, subscribe, CONNECT } = await import('../src/index.js');
+        const subscriptionResults = [];
+        const tag = uniqueTag('x-bus-subscribe-return');
+        defineElement(tag, () => {
+            subscriptionResults.push(onMount(() => () => {}));
+            subscriptionResults.push(onConnect(() => {}));
+            subscriptionResults.push(subscribe(CONNECT, () => {}));
+            return null;
+        });
+
+        document.body.appendChild(document.createElement(tag));
+
+        expect(subscriptionResults).toEqual([undefined, undefined, undefined]);
+    });
+
+    it('routes onAdopted middleware events to render-time subscribers via the bus', async () => {
+        const { defineElement, onAdopted, subscribe, ADOPTED } = await import('../src/index.js');
+        const busListener = vi.fn();
+        const tag = uniqueTag('x-bus-adopted');
+        defineElement(tag, [onAdopted()], () => {
+            subscribe(ADOPTED, busListener);
+            return null;
+        });
+
+        const element = document.createElement(tag);
+        document.body.appendChild(element);
+        const oldDocument = element.ownerDocument;
+        const newDocument = document.implementation.createHTMLDocument('new-owner');
+        newDocument.adoptNode(element);
+
+        expect(busListener).toHaveBeenCalledWith(oldDocument, newDocument);
+    });
+
+    it('routes formAssociated middleware events to render-time subscribers via the bus', async () => {
+        const { defineElement, formAssociated, withInternals, subscribe, FORM_STATE_RESTORE } = await import('../src/index.js');
+        const busListener = vi.fn();
+        const tag = uniqueTag('x-bus-form-state');
+        defineElement(tag, [withInternals(), formAssociated()], () => {
+            subscribe(FORM_STATE_RESTORE, busListener);
+            return null;
+        });
+        const element = document.createElement(tag);
+        document.body.appendChild(element);
+        const ElementConstructor = customElements.get(tag);
+
+        ElementConstructor.prototype.formStateRestoreCallback.call(element, 'state-value', 'restore');
+
+        expect(busListener).toHaveBeenCalledWith('state-value', 'restore');
+    });
+
+    it('routes onMove middleware events to render-time subscribers via the bus', async () => {
+        const { defineElement, onMove, subscribe, MOVE } = await import('../src/index.js');
+        const busListener = vi.fn();
+        const tag = uniqueTag('x-bus-move');
+        defineElement(tag, [onMove()], () => {
+            subscribe(MOVE, busListener);
+            return null;
+        });
+        const element = document.createElement(tag);
+        document.body.appendChild(element);
+        const ElementConstructor = customElements.get(tag);
+
+        ElementConstructor.prototype.connectedMoveCallback.call(element);
+
+        expect(busListener).toHaveBeenCalledTimes(1);
+    });
+
+    it('invokes multiple listeners in registration order', async () => {
+        const { defineElement, onConnect } = await import('../src/index.js');
+        const order = [];
+        const tag = uniqueTag('x-bus-order');
+        defineElement(tag, () => {
+            onConnect(() => order.push('first'));
+            onConnect(() => order.push('second'));
+            return null;
+        });
+
+        document.body.appendChild(document.createElement(tag));
+
+        expect(order).toEqual(['first', 'second']);
+    });
+
+    it('reports a thrown listener and continues notifying later listeners', async () => {
+        const { defineElement, onConnect } = await import('../src/index.js');
+        const thrownError = new Error('listener failed');
+        const nextListener = vi.fn();
+        const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+        const tag = uniqueTag('x-bus-error-continues');
+        defineElement(tag, () => {
+            onConnect(() => {
+                throw thrownError;
+            });
+            onConnect(nextListener);
+            return null;
+        });
+
+        document.body.appendChild(document.createElement(tag));
+
+        expect(error).toHaveBeenCalledWith(thrownError);
+        expect(nextListener).toHaveBeenCalledTimes(1);
+        error.mockRestore();
+    });
+
+    it('does not expose stale cleanup when a render-time listener is cleared on unmount', async () => {
+        const { defineElement, onConnect } = await import('../src/index.js');
+        const connect = vi.fn();
+        let subscriptionResult;
+        const tag = uniqueTag('x-bus-stale-cleanup');
+        defineElement(tag, () => {
+            subscriptionResult = onConnect(connect);
+            return null;
+        });
+
+        const element = document.createElement(tag);
+        document.body.appendChild(element);
+        element.remove();
+        await nextMicrotask();
+
+        expect(subscriptionResult).toBeUndefined();
+
+        document.body.appendChild(element);
+        await nextMicrotask();
+
+        expect(connect).toHaveBeenCalledTimes(2);
+    });
+
+    it('rejects subscribe() with a non-lifecycle symbol in DEV', async () => {
+        const { defineElement, subscribe } = await import('../src/index.js');
+        let thrown;
+        const tag = uniqueTag('x-bus-bad-symbol');
+        defineElement(tag, () => {
+            try {
+                subscribe(Symbol('custom'), () => {});
+            } catch (error) {
+                thrown = error;
+            }
+            return null;
+        });
+
+        document.body.appendChild(document.createElement(tag));
+
+        expect(thrown).toBeInstanceOf(Error);
+        expect(thrown.message).toMatch(/expects a lifecycle symbol/);
     });
 });
 
@@ -599,10 +964,14 @@ describe('attributes() reflection + coercion (DEV)', () => {
     it('reflect-only [undefined, serialize] pushes prop to attribute but does not observe inbound', async () => {
         const { defineElement, attributes, props } = await import('../src/index.js');
         const tag = uniqueTag('x-attr-reflect-only');
-        defineElement(tag, [attributes({ count: [undefined, propertyValue => (propertyValue == null ? null : String(propertyValue))] })], () => {
-            props({ count: 0 });
-            return null;
-        });
+        defineElement(
+            tag,
+            [attributes({ count: [undefined, propertyValue => (propertyValue == null ? null : String(propertyValue))] })],
+            () => {
+                props({ count: 0 });
+                return null;
+            }
+        );
         const element = document.createElement(tag);
         document.body.appendChild(element);
 
@@ -631,6 +1000,21 @@ describe('attributes() reflection + coercion (DEV)', () => {
 
         element.count = null;
         expect(element.hasAttribute('count')).toBe(false);
+    });
+
+    it('reflects a String prop out to the attribute', async () => {
+        const { defineElement, attributes, props, stringAttr } = await import('../src/index.js');
+        const tag = uniqueTag('x-attr-string-out');
+        defineElement(tag, [attributes({ label: stringAttr })], () => {
+            props({ label: '' });
+            return null;
+        });
+
+        const element = document.createElement(tag);
+        document.body.appendChild(element);
+
+        element.label = 'hello';
+        expect(element.getAttribute('label')).toBe('hello');
     });
 
     it('reflects a Boolean prop out by adding/removing the attribute', async () => {
@@ -684,27 +1068,33 @@ describe('attributes() reflection + coercion (DEV)', () => {
         expect(element.getAttribute('count')).toBe('5');
     });
 
-    it('throws in DEV when the parse/serialize pair is not round-trip stable', async () => {
-        const { defineElement, attributes, props } = await import('../src/index.js');
-        const tag = uniqueTag('x-attr-loop');
-        defineElement(tag, [attributes({ count: [rawValue => Number(rawValue), propertyValue => String(propertyValue + 1)] })], () => {
-            props({ count: 0 });
-            return null;
-        });
+    it('throws when a reflected parse/serialize pair is not round-trip stable', async () => {
+        const { attributes, MOUNT, UNMOUNT } = await import('../src/index.js');
+        const { createList, emit } = await import('../src/utils/pubsub.js');
+        const ElementConstructor = attributes({
+            value: [rawValue => rawValue?.toUpperCase(), propertyValue => String(propertyValue)],
+        })(
+            class {
+                constructor() {
+                    this[MOUNT] = createList();
+                    this[UNMOUNT] = createList();
+                    Object.defineProperty(this, 'value', {
+                        configurable: true,
+                        get() {
+                            return 'hello';
+                        },
+                    });
+                }
+            }
+        );
+        const element = new ElementConstructor();
+        const error = vi.spyOn(console, 'error').mockImplementation(() => {});
 
-        const errors = [];
-        const handler = event => {
-            errors.push(event.error ?? event.message ?? event);
-            event.preventDefault(); // mark handled so the runner doesn't treat it as unhandled
-        };
-        window.addEventListener('error', handler);
-        try {
-            document.body.appendChild(document.createElement(tag));
-        } finally {
-            window.removeEventListener('error', handler);
-        }
+        emit(element[MOUNT]);
 
-        expect(errors.some(error => /round-trip/.test(String(error?.message ?? error)))).toBe(true);
+        expect(error).toHaveBeenCalledWith(expect.any(Error));
+        expect(error.mock.calls[0][0].message).toMatch(/not round-trip stable/);
+        error.mockRestore();
     });
 
     it('warns when a reflected attribute is not declared via props()', async () => {

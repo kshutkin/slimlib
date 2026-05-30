@@ -8,6 +8,16 @@ setScheduler(scheduledCallback => scheduledCallback());
 
 let counter = 0;
 const uniqueTag = baseName => `${baseName}-${++counter}`;
+const supportsCustomizedBuiltIns = () => {
+    const tag = uniqueTag('x-slim-built-in-prod-probe');
+    try {
+        class ProbeButton extends HTMLButtonElement {}
+        customElements.define(tag, ProbeButton, { extends: 'button' });
+        return document.createElement('button', { is: tag }) instanceof ProbeButton;
+    } catch {
+        return false;
+    }
+};
 
 afterEach(() => {
     document.body.innerHTML = '';
@@ -47,6 +57,19 @@ describe('defineElement constructor naming (production)', () => {
 
         expect(ElementConstructor.name).toBe('');
         expect(customElements.get(tag)).toBe(ElementConstructor);
+    });
+
+    const customizedBuiltInIt = supportsCustomizedBuiltIns() ? it : it.skip;
+    customizedBuiltInIt('uses an anonymous customized built-in constructor', async () => {
+        const { defineBuiltinElement } = await import('../src/index.js');
+
+        const tag = uniqueTag('x-slim-button-prod');
+        defineBuiltinElement(tag, 'button', () => null);
+        const ElementConstructor = customElements.get(tag);
+        const element = document.createElement('button', { is: tag });
+
+        expect(ElementConstructor.name).toBe('');
+        expect(element).toBeInstanceOf(ElementConstructor);
     });
 });
 

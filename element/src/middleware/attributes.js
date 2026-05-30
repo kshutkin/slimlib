@@ -1,10 +1,13 @@
 import { DEV } from 'esm-env';
 
-import { effect } from '@slimlib/store';
+import { effect, scope } from '@slimlib/store';
+
+import { MOUNT, UNMOUNT } from '../lifecycle.js';
+import { on } from '../utils/pubsub.js';
 
 /** @typedef {import('../types.js').Middleware} Middleware */
 /** @typedef {import('../types.js').SlimHost} SlimHost */
-
+/** @typedef {import('@slimlib/store').Scope} Scope */
 /**
  * @typedef {[parse?: (rawValue: string | null) => unknown, serialize?: (propertyValue: unknown) => (string | null)]} AttributeDescriptor
  *   Positional tuple. `parse` converts an inbound attribute string (`string | null`)
@@ -27,18 +30,70 @@ import { effect } from '@slimlib/store';
  */
 export const attributes = attributeConfig => {
     const attributeNames = Object.keys(attributeConfig);
-    const observedAttributeNames = attributeNames.filter(attributeName => attributeConfig[attributeName]?.[0]);
-    const reflectedAttributeNames = attributeNames.filter(attributeName => attributeConfig[attributeName]?.[1]);
+    const observedAttributeNames = attributeNames.filter(
+        attributeName => /** @type {AttributeDescriptor} */ (attributeConfig[attributeName])[0]
+    );
+    const reflectedAttributeNames = attributeNames.filter(
+        attributeName => /** @type {AttributeDescriptor} */ (attributeConfig[attributeName])[1]
+    );
 
-    return ElementBase => {
-        return class extends /** @type {new (...constructorArguments: unknown[]) => HTMLElement & { connectedCallback(): void; disconnectedCallback(): void }} */ (
-            /** @type {unknown} */ (ElementBase)
-        ) {
-            /** @type {null | (() => void)} */
-            #reflectDispose = null;
-
+    return ElementBase =>
+        class extends ElementBase {
             static get observedAttributes() {
                 return observedAttributeNames;
+            }
+
+            constructor() {
+                super();
+
+                if (reflectedAttributeNames.length > 0) {
+                    /** @type {Scope | null} */
+                    let reflectScope = null;
+
+                    on(/** @type {any} */ (this)[MOUNT], () => {
+                        if (DEV) {
+                            for (const attributeName of reflectedAttributeNames) {
+                                if (!Object.getOwnPropertyDescriptor(this, attributeName)?.get) {
+                                    console.warn(
+                                        `[@slimlib/element] attribute "${attributeName}" is reflected (has a serialize function) but was not declared via props(); reflection won't track changes.`
+                                    );
+                                }
+                            }
+                        }
+
+                        reflectScope = scope(() => {
+                            for (const attributeName of reflectedAttributeNames) {
+                                const attributeDescriptor = /** @type {AttributeDescriptor} */ (attributeConfig[attributeName]);
+                                const parseAttribute = attributeDescriptor[0];
+                                const serializeAttribute = /** @type {NonNullable<AttributeDescriptor[1]>} */ (attributeDescriptor[1]);
+                                effect(() => {
+                                    const elementHost = /** @type {SlimHost} */ (/** @type {unknown} */ (this));
+                                    const serializedValue = serializeAttribute(elementHost[attributeName]);
+                                    if (DEV && parseAttribute) {
+                                        const roundTripValue = serializeAttribute(parseAttribute(serializedValue));
+                                        if (roundTripValue !== serializedValue) {
+                                            throw new Error(
+                                                `[@slimlib/element] attribute "${attributeName}" [parse, serialize] pair is not round-trip stable: serialize(parse(${JSON.stringify(serializedValue)})) === ${JSON.stringify(roundTripValue)} (expected ${JSON.stringify(serializedValue)}); reflection would loop.`
+                                            );
+                                        }
+                                    }
+                                    if (serializedValue == null) {
+                                        if (elementHost.hasAttribute(attributeName)) {
+                                            elementHost.removeAttribute(attributeName);
+                                        }
+                                    } else if (elementHost.getAttribute(attributeName) !== serializedValue) {
+                                        elementHost.setAttribute(attributeName, serializedValue);
+                                    }
+                                }, 1 /* EAGER */);
+                            }
+                        });
+                    });
+
+                    on(/** @type {any} */ (this)[UNMOUNT], () => {
+                        reflectScope?.();
+                        reflectScope = null;
+                    });
+                }
             }
 
             attributeChangedCallback(
@@ -46,68 +101,17 @@ export const attributes = attributeConfig => {
                 /** @type {string | null} */ _oldValue,
                 /** @type {string | null} */ newValue
             ) {
-                /** @type {SlimHost} */ (/** @type {unknown} */ (this))[attributeName] = /** @type {[parse: (rawValue: string | null) => unknown]} */ (
-                    attributeConfig[attributeName]
-                )[0](newValue);
-            }
-
-            connectedCallback() {
-                super.connectedCallback();
-
-                if (DEV) {
-                    for (const attributeName of reflectedAttributeNames) {
-                        if (!Object.getOwnPropertyDescriptor(this, attributeName)?.get) {
-                            console.warn(
-                                `[@slimlib/element] attribute "${attributeName}" is reflected (has a serialize function) but was not declared via props(); reflection won't track changes.`
-                            );
-                        }
-                    }
-                }
-
-                if (!this.#reflectDispose && reflectedAttributeNames.length > 0) {
-                    const disposeCallbacks = reflectedAttributeNames.map(attributeName => {
-                        const attributeDescriptor = /** @type {AttributeDescriptor} */ (attributeConfig[attributeName]);
-                        const parseAttribute = attributeDescriptor[0];
-                        const serializeAttribute = /** @type {NonNullable<AttributeDescriptor[1]>} */ (attributeDescriptor[1]);
-                        return effect(() => {
-                            const elementHost = /** @type {SlimHost} */ (/** @type {unknown} */ (this));
-                            const serializedValue = serializeAttribute(elementHost[attributeName]);
-                            if (DEV && parseAttribute) {
-                                const roundTripValue = serializeAttribute(parseAttribute(serializedValue));
-                                if (roundTripValue !== serializedValue) {
-                                    throw new Error(
-                                        `[@slimlib/element] attribute "${attributeName}" [parse, serialize] pair is not round-trip stable: serialize(parse(${JSON.stringify(serializedValue)})) === ${JSON.stringify(roundTripValue)} (expected ${JSON.stringify(serializedValue)}); reflection would loop.`
-                                    );
-                                }
-                            }
-                            if (serializedValue == null) {
-                                if (elementHost.hasAttribute(attributeName)) {
-                                    elementHost.removeAttribute(attributeName);
-                                }
-                            } else if (elementHost.getAttribute(attributeName) !== serializedValue) {
-                                elementHost.setAttribute(attributeName, serializedValue);
-                            }
-                        }, 1 /* EAGER */);
-                    });
-                    this.#reflectDispose = () => {
-                        for (const disposeCallback of disposeCallbacks) {
-                            disposeCallback();
-                        }
-                    };
-                }
-            }
-
-            disconnectedCallback() {
-                this.#reflectDispose?.();
-                this.#reflectDispose = null;
-                super.disconnectedCallback();
+                /** @type {SlimHost} */ (/** @type {unknown} */ (this))[attributeName] =
+                    /** @type {[parse: (rawValue: string | null) => unknown]} */ (attributeConfig[attributeName])[0](newValue);
             }
         };
-    };
 };
 
 /** @type {AttributeDescriptor} */
-export const numberAttr = [rawValue => (rawValue === null ? null : Number(rawValue)), propertyValue => (propertyValue == null ? null : String(propertyValue))];
+export const numberAttr = [
+    rawValue => (rawValue === null ? null : Number(rawValue)),
+    propertyValue => (propertyValue == null ? null : String(propertyValue)),
+];
 
 /** @type {AttributeDescriptor} */
 export const boolAttr = [rawValue => rawValue !== null, propertyValue => (propertyValue ? '' : null)];

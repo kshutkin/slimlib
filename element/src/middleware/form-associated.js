@@ -1,61 +1,35 @@
 /** @typedef {import('../types.js').Middleware} Middleware */
-/** @typedef {import('../types.js').SlimHost} SlimHost */
+import { FORM_ASSOCIATED, FORM_DISABLED, FORM_RESET, FORM_STATE_RESTORE } from '../lifecycle.js';
+import { createList, emit } from '../utils/pubsub.js';
 
 /**
- * @typedef {object} FormAssociatedHandlers
- * @property {(host: SlimHost, form: HTMLFormElement | null) => void} [associated]
- * @property {(host: SlimHost, disabled: boolean) => void} [disabled]
- * @property {(host: SlimHost) => void} [reset]
- * @property {(host: SlimHost, state: unknown, mode: string) => void} [stateRestore]
- */
-
-/**
- * @param {FormAssociatedHandlers} [handlers]
  * @returns {Middleware}
  */
-export const formAssociated =
-    (handlers = {}) =>
-    ElementBase => {
-        class FormAssociatedElement extends ElementBase {
-            static formAssociated = true;
+export const formAssociated = () => ElementBase => {
+    class FormAssociatedElement extends ElementBase {
+        static formAssociated = true;
+
+        [FORM_ASSOCIATED] = createList();
+        [FORM_DISABLED] = createList();
+        [FORM_RESET] = createList();
+        [FORM_STATE_RESTORE] = createList();
+
+        formAssociatedCallback(/** @type {HTMLFormElement | null} */ form) {
+            emit(this[FORM_ASSOCIATED], form);
         }
 
-        if (Object.hasOwn(handlers, 'associated')) {
-            const associatedHandler = /** @type {NonNullable<FormAssociatedHandlers['associated']>} */ (handlers.associated);
-            Object.defineProperty(FormAssociatedElement.prototype, 'formAssociatedCallback', {
-                configurable: true,
-                value(/** @type {HTMLFormElement | null} */ form) {
-                    return associatedHandler(this, form);
-                },
-            });
-        }
-        if (Object.hasOwn(handlers, 'disabled')) {
-            const disabledHandler = /** @type {NonNullable<FormAssociatedHandlers['disabled']>} */ (handlers.disabled);
-            Object.defineProperty(FormAssociatedElement.prototype, 'formDisabledCallback', {
-                configurable: true,
-                value(/** @type {boolean} */ isDisabled) {
-                    return disabledHandler(this, isDisabled);
-                },
-            });
-        }
-        if (Object.hasOwn(handlers, 'reset')) {
-            const resetHandler = /** @type {NonNullable<FormAssociatedHandlers['reset']>} */ (handlers.reset);
-            Object.defineProperty(FormAssociatedElement.prototype, 'formResetCallback', {
-                configurable: true,
-                value() {
-                    return resetHandler(this);
-                },
-            });
-        }
-        if (Object.hasOwn(handlers, 'stateRestore')) {
-            const stateRestoreHandler = /** @type {NonNullable<FormAssociatedHandlers['stateRestore']>} */ (handlers.stateRestore);
-            Object.defineProperty(FormAssociatedElement.prototype, 'formStateRestoreCallback', {
-                configurable: true,
-                value(/** @type {unknown} */ state, /** @type {string} */ mode) {
-                    return stateRestoreHandler(this, state, mode);
-                },
-            });
+        formDisabledCallback(/** @type {boolean} */ isDisabled) {
+            emit(this[FORM_DISABLED], isDisabled);
         }
 
-        return FormAssociatedElement;
-    };
+        formResetCallback() {
+            emit(this[FORM_RESET]);
+        }
+
+        formStateRestoreCallback(/** @type {unknown} */ state, /** @type {string} */ mode) {
+            emit(this[FORM_STATE_RESTORE], state, mode);
+        }
+    }
+
+    return FormAssociatedElement;
+};

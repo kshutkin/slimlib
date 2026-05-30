@@ -1,13 +1,15 @@
 /** @typedef {import('../types.js').Middleware} Middleware */
-/** @typedef {import('../types.js').SlimHost} SlimHost */
+import { MOVE } from '../lifecycle.js';
+import { createList, emit } from '../utils/pubsub.js';
 
 /**
- * @param {(host: SlimHost) => void} callback
  * @returns {Middleware}
  */
-export const onMove = callback => ElementBase =>
+export const onMove = () => ElementBase =>
     class extends ElementBase {
+        [MOVE] = createList();
+
         connectedMoveCallback() {
-            callback(/** @type {SlimHost} */ (/** @type {unknown} */ (this)));
+            emit(this[MOVE]);
         }
     };

@@ -114,3 +114,5 @@ dist
 # vitest attachments and screenshot snapshots
 .vitest-attachments/
 __screenshots__/
+
+.DS_Store
