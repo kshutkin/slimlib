@@ -1,4 +1,5 @@
 /** @typedef {import('../types.js').Middleware} Middleware */
+/** @typedef {import('../utils/pubsub.js').GenHost} GenHost */
 import { FORM_ASSOCIATED, FORM_DISABLED, FORM_RESET, FORM_STATE_RESTORE } from '../lifecycle.js';
 import { createList, emit } from '../utils/pubsub.js';
 
@@ -15,19 +16,19 @@ export const formAssociated = () => ElementBase => {
         [FORM_STATE_RESTORE] = createList();
 
         formAssociatedCallback(/** @type {HTMLFormElement | null} */ form) {
-            emit(this[FORM_ASSOCIATED], form);
+            emit(/** @type {GenHost} */ (/** @type {unknown} */ (this)), FORM_ASSOCIATED, form);
         }
 
         formDisabledCallback(/** @type {boolean} */ isDisabled) {
-            emit(this[FORM_DISABLED], isDisabled);
+            emit(/** @type {GenHost} */ (/** @type {unknown} */ (this)), FORM_DISABLED, isDisabled);
         }
 
         formResetCallback() {
-            emit(this[FORM_RESET]);
+            emit(/** @type {GenHost} */ (/** @type {unknown} */ (this)), FORM_RESET);
         }
 
         formStateRestoreCallback(/** @type {unknown} */ state, /** @type {string} */ mode) {
-            emit(this[FORM_STATE_RESTORE], state, mode);
+            emit(/** @type {GenHost} */ (/** @type {unknown} */ (this)), FORM_STATE_RESTORE, state, mode);
         }
     }
 

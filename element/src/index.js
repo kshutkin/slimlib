@@ -15,20 +15,8 @@ import {
     MOVE,
     UNMOUNT,
 } from './lifecycle.js';
-import { createList, emit, on } from './utils/pubsub.js';
+import { createList, emit, RENDER_GEN } from './utils/pubsub.js';
 
-export {
-    ADOPTED,
-    CONNECT,
-    DISCONNECT,
-    FORM_ASSOCIATED,
-    FORM_DISABLED,
-    FORM_RESET,
-    FORM_STATE_RESTORE,
-    MOUNT,
-    MOVE,
-    UNMOUNT,
-} from './lifecycle.js';
 export { attributes, boolAttr, numberAttr, stringAttr } from './middleware/attributes.js';
 export { disabledFeatures } from './middleware/disabled-features.js';
 export { formAssociated } from './middleware/form-associated.js';
@@ -45,9 +33,15 @@ export { withInternals } from './middleware/with-internals.js';
 /** @type {SlimHost | undefined} */
 let currentHost;
 
-/** Host-scoped key for the list of render-time unsubscribe fns, cleared on unmount. */
-const RENDER_SUBS = Symbol();
-/** @typedef {SlimHost & Record<symbol, LifecycleListener[]> & Record<typeof RENDER_SUBS, (() => void)[]>} LifecycleHost */
+// DEV-only cross-instance detection. A render-time listener is stamped with a
+// WeakRef to the host it was registered on, so a shared/long-lived function
+// identity never retains the component (the ref stays weak and the host can be
+// collected). Re-registering the same identity on a different instance is the
+// unsupported case and is warned about (the per-list generation tag lives on
+// the function, so cross-instance reuse breaks).
+const OWNER = Symbol();
+
+/** @typedef {SlimHost & Record<symbol, LifecycleListener[]> & Record<typeof RENDER_GEN, number>} LifecycleHost */
 
 /**
  * Create an unregistered light-DOM custom element constructor backed by `@slimlib/jsx`.
@@ -182,7 +176,7 @@ const applySlimCore = (ElementBase, userRender) =>
         [UNMOUNT] = createList();
         [CONNECT] = createList();
         [DISCONNECT] = createList();
-        [RENDER_SUBS] = createList();
+        [RENDER_GEN] = 0;
 
         connectedCallback() {
             if (!this.#mounted) {
@@ -194,23 +188,20 @@ const applySlimCore = (ElementBase, userRender) =>
                     this
                 );
                 currentHost = previousHost;
-                emit(this[MOUNT]);
+                emit(/** @type {LifecycleHost} */ (this), MOUNT);
             }
-            emit(this[CONNECT]);
+            emit(/** @type {LifecycleHost} */ (this), CONNECT);
         }
 
         async disconnectedCallback() {
-            emit(this[DISCONNECT]);
+            emit(/** @type {LifecycleHost} */ (this), DISCONNECT);
             await Promise.resolve();
             if (!this.isConnected && this.#mounted) {
                 this.#mounted = false;
-                emit(this[UNMOUNT]);
+                emit(/** @type {LifecycleHost} */ (this), UNMOUNT);
                 this.#disposeRender?.();
                 this.#disposeRender = null;
-                for (let index = 0; index < /** @type {LifecycleHost} */ (this)[RENDER_SUBS].length; index++) {
-                    /** @type {() => void} */ (/** @type {LifecycleHost} */ (this)[RENDER_SUBS][index])();
-                }
-                /** @type {LifecycleHost} */ (this)[RENDER_SUBS].length = 0;
+                /** @type {LifecycleHost} */ (this)[RENDER_GEN]++;
             }
         }
     };
@@ -256,9 +247,10 @@ export const props = initialProps => {
  * Subscribe to a lifecycle message on the current slim element.
  *
  * Must be called synchronously inside a render callback (like `props`).
- * Listeners are dropped automatically on unmount and re-registered when the
- * element re-renders. Subscribing to the same message during an emit is
- * unsupported.
+ * Render-time listeners are tagged with the current render generation and become
+ * stale (lazily dropped) once the element genuinely unmounts and the generation
+ * advances, so re-renders register fresh listeners without leaking old ones.
+ * Subscribing to the same message during an emit is unsupported.
  *
  * @param {symbol} key
  * @template {unknown[]} Args
@@ -275,12 +267,28 @@ const subscribeToLifecycle = (key, listener) => {
         );
         return;
     }
-    /** @type {LifecycleHost} */ (currentHost)[RENDER_SUBS].push(
-        on(
-            /** @type {LifecycleListener[]} */ (/** @type {LifecycleHost} */ (currentHost)[key]),
-            /** @type {LifecycleListener} */ (/** @type {unknown} */ (listener))
-        )
-    );
+    const list = /** @type {LifecycleListener[]} */ (/** @type {LifecycleHost} */ (currentHost)[key]);
+    const taggedListener = /** @type {Record<symbol, number | undefined>} */ (/** @type {unknown} */ (listener));
+    if (DEV) {
+        const ownerView = /** @type {Record<symbol, WeakRef<SlimHost> | undefined>} */ (/** @type {unknown} */ (listener));
+        const previous = ownerView[OWNER];
+        if (previous !== undefined && previous.deref() !== currentHost) {
+            console.warn(
+                '[@slimlib/element] the same listener function was subscribed on more than one element instance; render-time subscriptions must use a distinct function per instance.'
+            );
+        }
+        ownerView[OWNER] = new WeakRef(/** @type {SlimHost} */ (currentHost));
+    }
+    // The list's own symbol doubles as the per-list generation tag on the
+    // listener, so a re-subscribed identity refreshes its existing slot in this
+    // list (no duplicate) while staying independent across other lists. The tag
+    // lives on the function, so the same identity registered on two different
+    // host instances for the same key is unsupported (use a distinct function
+    // per instance); render closures are distinct, so this is a non-issue.
+    if (taggedListener[key] === undefined) {
+        list.push(/** @type {LifecycleListener} */ (/** @type {unknown} */ (listener)));
+    }
+    taggedListener[key] = /** @type {LifecycleHost} */ (currentHost)[RENDER_GEN];
 };
 
 /**
@@ -296,9 +304,22 @@ export const onMount = listener => {
     subscribeToLifecycle(MOUNT, () => {
         const cleanup = listener();
         if (typeof cleanup === 'function') {
-            /** @type {LifecycleHost} */ (host)[RENDER_SUBS].push(
-                on(/** @type {LifecycleListener[]} */ (/** @type {LifecycleHost} */ (host)[UNMOUNT]), cleanup)
-            );
+            const list = /** @type {LifecycleListener[]} */ (/** @type {LifecycleHost} */ (host)[UNMOUNT]);
+            const taggedCleanup = /** @type {Record<symbol, number | undefined>} */ (/** @type {unknown} */ (cleanup));
+            if (DEV) {
+                const ownerView = /** @type {Record<symbol, WeakRef<SlimHost> | undefined>} */ (/** @type {unknown} */ (cleanup));
+                const previous = ownerView[OWNER];
+                if (previous !== undefined && previous.deref() !== host) {
+                    console.warn(
+                        '[@slimlib/element] the same listener function was subscribed on more than one element instance; render-time subscriptions must use a distinct function per instance.'
+                    );
+                }
+                ownerView[OWNER] = new WeakRef(/** @type {SlimHost} */ (host));
+            }
+            if (taggedCleanup[UNMOUNT] === undefined) {
+                list.push(/** @type {LifecycleListener} */ (/** @type {unknown} */ (cleanup)));
+            }
+            taggedCleanup[UNMOUNT] = /** @type {LifecycleHost} */ (host)[RENDER_GEN];
         }
     });
 };

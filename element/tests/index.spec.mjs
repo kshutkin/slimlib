@@ -411,7 +411,7 @@ describe('middleware-composed defineElement (DEV)', () => {
 });
 
 describe('lifecycle message bus (DEV)', () => {
-    it('exports lifecycle hooks and symbols', async () => {
+    it('exports lifecycle hooks but keeps lifecycle symbols internal', async () => {
         const elementModule = await import('../src/index.js');
         for (const name of [
             'onMount',
@@ -440,7 +440,7 @@ describe('lifecycle message bus (DEV)', () => {
             'FORM_RESET',
             'FORM_STATE_RESTORE',
         ]) {
-            expect(typeof elementModule[name]).toBe('symbol');
+            expect(name in elementModule).toBe(false);
         }
     });
 
@@ -525,31 +525,34 @@ describe('lifecycle message bus (DEV)', () => {
         expect(cleanup).toHaveBeenCalledTimes(2);
     });
 
-    it('tolerates mount cleanup removed before render-scope cleanup', async () => {
-        const { defineElement, onMount, UNMOUNT } = await import('../src/index.js');
-        let element;
-        const cleanup = vi.fn(() => {
-            element[UNMOUNT].length = 0;
-        });
+    it('refreshes a reused mount cleanup slot across cycles instead of stacking it', async () => {
+        const { defineElement, onMount } = await import('../src/index.js');
+        const { UNMOUNT } = await import('../src/lifecycle.js');
+        // A stable cleanup identity is returned on every mount. Its UNMOUNT slot is
+        // reused (tag refreshed) rather than duplicated across genuine cycles.
+        const cleanup = vi.fn();
         const tag = uniqueTag('x-bus-stale-mount-cleanup');
         defineElement(tag, () => {
             onMount(() => cleanup);
             return null;
         });
 
-        element = document.createElement(tag);
+        const element = document.createElement(tag);
         document.body.appendChild(element);
         element.remove();
         await nextMicrotask();
 
         expect(cleanup).toHaveBeenCalledTimes(1);
+        expect(element[UNMOUNT].length).toBe(1);
 
         document.body.appendChild(element);
         await nextMicrotask();
         element.remove();
         await nextMicrotask();
 
+        // Fires once per genuine disconnect, and the slot was reused (not stacked).
         expect(cleanup).toHaveBeenCalledTimes(2);
+        expect(element[UNMOUNT].length).toBe(1);
     });
 
     it('clears render listeners on unmount so a remount does not stack duplicates', async () => {
@@ -565,7 +568,7 @@ describe('lifecycle message bus (DEV)', () => {
         document.body.appendChild(element);
         expect(connect).toHaveBeenCalledTimes(1);
 
-        // Genuine disconnect: render-time listeners are torn down.
+        // Genuine disconnect: the render generation advances, marking render-time listeners stale.
         element.remove();
         await nextMicrotask();
 
@@ -577,7 +580,8 @@ describe('lifecycle message bus (DEV)', () => {
     });
 
     it('keeps middleware-style on() subscriptions across remounts while clearing render-time ones', async () => {
-        const { defineElement, onConnect, CONNECT } = await import('../src/index.js');
+        const { defineElement, onConnect } = await import('../src/index.js');
+        const { CONNECT } = await import('../src/lifecycle.js');
         const { on } = await import('../src/utils/pubsub.js');
         const persistent = vi.fn();
         const renderScoped = vi.fn();
@@ -602,6 +606,119 @@ describe('lifecycle message bus (DEV)', () => {
         // Persistent survived both connects; render-scoped was cleared and re-registered (no stacking).
         expect(persistent).toHaveBeenCalledTimes(2);
         expect(renderScoped).toHaveBeenCalledTimes(2);
+    });
+
+    it('compacts stale render-time listeners across remounts instead of accumulating them', async () => {
+        const { defineElement, onConnect } = await import('../src/index.js');
+        const { CONNECT } = await import('../src/lifecycle.js');
+        const tag = uniqueTag('x-bus-compact');
+        defineElement(tag, () => {
+            onConnect(vi.fn());
+            return null;
+        });
+
+        const element = document.createElement(tag);
+        document.body.appendChild(element);
+
+        // Several genuine unmount + remount cycles; each render re-registers one listener.
+        for (let cycle = 0; cycle < 3; ++cycle) {
+            element.remove();
+            await nextMicrotask();
+            document.body.appendChild(element);
+            await nextMicrotask();
+        }
+
+        // Stale listeners from prior generations are compacted away, not stacked.
+        expect(element[CONNECT].length).toBe(1);
+    });
+
+    it('does not double-invoke a render-time listener reused across renders', async () => {
+        const { defineElement, onConnect } = await import('../src/index.js');
+        const stableConnect = vi.fn();
+        const tag = uniqueTag('x-bus-stable-reuse');
+        defineElement(tag, () => {
+            onConnect(stableConnect);
+            return null;
+        });
+
+        const element = document.createElement(tag);
+        document.body.appendChild(element);
+        expect(stableConnect).toHaveBeenCalledTimes(1);
+
+        // Genuine unmount + remount: the same function identity re-subscribes.
+        element.remove();
+        await nextMicrotask();
+        document.body.appendChild(element);
+        await nextMicrotask();
+
+        // Exactly one call per connect — the aliasing fix prevents a stale copy firing too.
+        expect(stableConnect).toHaveBeenCalledTimes(2);
+    });
+
+    it('keeps one shared listener identity independent across different hooks', async () => {
+        const { defineElement, onConnect, onDisconnect } = await import('../src/index.js');
+        const { CONNECT, DISCONNECT } = await import('../src/lifecycle.js');
+        // The same function backs two different hooks. Tags are keyed per list, so
+        // it lands in both lists and stays in both across a genuine remount.
+        const shared = vi.fn();
+        const tag = uniqueTag('x-bus-shared-hooks');
+        defineElement(tag, () => {
+            onConnect(shared);
+            onDisconnect(shared);
+            return null;
+        });
+
+        const element = document.createElement(tag);
+        document.body.appendChild(element); // connect → shared (1)
+        expect(shared).toHaveBeenCalledTimes(1);
+
+        element.remove(); // disconnect → shared (2)
+        await nextMicrotask(); // genuine unmount
+        document.body.appendChild(element); // remount re-renders → connect → shared (3)
+        await nextMicrotask();
+
+        expect(shared).toHaveBeenCalledTimes(3);
+        // Each list reused its single slot rather than dropping or stacking it.
+        expect(element[CONNECT].length).toBe(1);
+        expect(element[DISCONNECT].length).toBe(1);
+    });
+
+    it('warns in DEV when a listener identity is shared across instances', async () => {
+        const { defineElement, onConnect } = await import('../src/index.js');
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        // One module-level function reused by every instance of the element.
+        const shared = () => {};
+        const tag = uniqueTag('x-bus-cross-instance');
+        defineElement(tag, () => {
+            onConnect(shared);
+            return null;
+        });
+
+        document.body.appendChild(document.createElement(tag)); // first owner — no warning
+        expect(warn).not.toHaveBeenCalled();
+
+        document.body.appendChild(document.createElement(tag)); // second instance — warns
+        expect(warn).toHaveBeenCalledWith(expect.stringContaining('more than one element instance'));
+        warn.mockRestore();
+    });
+
+    it('warns in DEV when an onMount cleanup identity is shared across instances', async () => {
+        const { defineElement, onMount } = await import('../src/index.js');
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        // A stable cleanup identity returned by every instance's mount.
+        const cleanup = () => {};
+        const tag = uniqueTag('x-bus-cross-instance-cleanup');
+        defineElement(tag, () => {
+            onMount(() => cleanup);
+            return null;
+        });
+
+        document.body.appendChild(document.createElement(tag)); // first owner — no warning
+        expect(warn).not.toHaveBeenCalled();
+
+        document.body.appendChild(document.createElement(tag)); // second instance — warns
+        expect(warn).toHaveBeenCalledWith(expect.stringContaining('more than one element instance'));
+        warn.mockRestore();
     });
 
     it('returns undefined from render-time lifecycle hooks', async () => {
@@ -1066,7 +1183,8 @@ describe('attributes() reflection + coercion (DEV)', () => {
     });
 
     it('throws when a reflected parse/serialize pair is not round-trip stable', async () => {
-        const { attributes, MOUNT, UNMOUNT } = await import('../src/index.js');
+        const { attributes } = await import('../src/index.js');
+        const { MOUNT, UNMOUNT } = await import('../src/lifecycle.js');
         const { createList, emit } = await import('../src/utils/pubsub.js');
         const ElementConstructor = attributes({
             value: [rawValue => rawValue?.toUpperCase(), propertyValue => String(propertyValue)],
@@ -1087,7 +1205,7 @@ describe('attributes() reflection + coercion (DEV)', () => {
         const element = new ElementConstructor();
         const error = vi.spyOn(console, 'error').mockImplementation(() => {});
 
-        emit(element[MOUNT]);
+        emit(element, MOUNT);
 
         expect(error).toHaveBeenCalledWith(expect.any(Error));
         expect(error.mock.calls[0][0].message).toMatch(/not round-trip stable/);

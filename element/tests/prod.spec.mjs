@@ -104,3 +104,42 @@ describe('attributes() reflection (production)', () => {
         warnSpy.mockRestore();
     });
 });
+
+describe('lifecycle hooks (production)', () => {
+    it('runs render-time hooks without DEV checks or warnings', async () => {
+        const { defineElement, onConnect } = await import('../src/index.js');
+        const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        const connect = vi.fn();
+        const tag = uniqueTag('x-hook-prod');
+        defineElement(tag, () => {
+            onConnect(connect);
+            return null;
+        });
+
+        document.body.appendChild(document.createElement(tag));
+
+        expect(connect).toHaveBeenCalledTimes(1);
+        expect(warnSpy).not.toHaveBeenCalled();
+        warnSpy.mockRestore();
+    });
+
+    it('registers onMount cleanup without DEV checks or warnings', async () => {
+        const { defineElement, onMount } = await import('../src/index.js');
+        const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        const cleanup = vi.fn();
+        const tag = uniqueTag('x-hook-cleanup-prod');
+        defineElement(tag, () => {
+            onMount(() => cleanup);
+            return null;
+        });
+
+        const element = document.createElement(tag);
+        document.body.appendChild(element);
+        element.remove();
+        await Promise.resolve();
+
+        expect(cleanup).toHaveBeenCalledTimes(1);
+        expect(warnSpy).not.toHaveBeenCalled();
+        warnSpy.mockRestore();
+    });
+});

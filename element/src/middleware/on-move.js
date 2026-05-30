@@ -1,4 +1,5 @@
 /** @typedef {import('../types.js').Middleware} Middleware */
+/** @typedef {import('../utils/pubsub.js').GenHost} GenHost */
 import { MOVE } from '../lifecycle.js';
 import { createList, emit } from '../utils/pubsub.js';
 
@@ -10,6 +11,6 @@ export const onMove = () => ElementBase =>
         [MOVE] = createList();
 
         connectedMoveCallback() {
-            emit(this[MOVE]);
+            emit(/** @type {GenHost} */ (/** @type {unknown} */ (this)), MOVE);
         }
     };
