@@ -77,14 +77,15 @@ defineElement('mouse-x', () => {
 ### A form-associated control
 
 ```jsx
-import { defineElement, formAssociated, onFormReset, props, withInternals } from '@slimlib/element';
+import { defineElement, formAssociated, internals, onFormReset, props, withInternals } from '@slimlib/element';
 
-defineElement('my-field', [withInternals(), formAssociated()], (host) => {
+defineElement('my-field', [withInternals(), formAssociated()], () => {
     const state = props({ value: '' });
-    onFormReset(() => { state.value = ''; host._internals.setFormValue(''); });
+    const elementInternals = internals();
+    onFormReset(() => { state.value = ''; elementInternals.setFormValue(''); });
     return <input value={() => state.value} on:input={(e) => {
         state.value = e.target.value;
-        host._internals.setFormValue(state.value);
+        elementInternals.setFormValue(state.value);
     }} />;
 });
 ```
@@ -140,7 +141,7 @@ middleware; in DEV a missing one logs a warning and the subscription is ignored.
 | --- | --- |
 | `attributes(config)` | Observed attributes, parsing into props, and reflection. |
 | `formAssociated()` | `static formAssociated = true` and the form lifecycle callbacks. |
-| `withInternals()` | `attachInternals()`, exposed as `host._internals`. |
+| `withInternals()` | `attachInternals()`, accessed via `internals()`. |
 | `onAdopted()` | `adoptedCallback`, surfaced via `onAdoptedCallback`. |
 | `onMove()` | `connectedMoveCallback`, surfaced via `onConnectedMove`. |
 | `disabledFeatures(features)` | `static disabledFeatures` (e.g. `['shadow']`). |

@@ -129,14 +129,18 @@ describe('middleware-composed defineElement (DEV)', () => {
     });
 
     it('allocates ElementInternals once with withInternals()', async () => {
-        const { defineElement, withInternals } = await import('../src/index.js');
+        const { defineElement, withInternals, internals } = await import('../src/index.js');
         const tag = uniqueTag('x-slim-internals');
-        defineElement(tag, [withInternals()], () => null);
+        let captured;
+        defineElement(tag, [withInternals()], () => {
+            captured = internals();
+            return null;
+        });
 
         const element = document.createElement(tag);
         document.body.appendChild(element);
 
-        expect(element._internals).toBeInstanceOf(ElementInternals);
+        expect(captured).toBeInstanceOf(ElementInternals);
         expect(() => element.attachInternals()).toThrow();
     });
 

@@ -11,6 +11,7 @@ import {
     FORM_DISABLED,
     FORM_RESET,
     FORM_STATE_RESTORE,
+    INTERNALS,
     MOUNT,
     MOVE,
     RENDER_GEN,
@@ -248,6 +249,29 @@ export const props = initialProps => {
         });
     }
     return reactiveProps;
+};
+
+/**
+ * Access the `ElementInternals` attached by `withInternals()` middleware.
+ *
+ * Must be called synchronously inside a `defineElement` render callback (like `props`).
+ *
+ * @returns {ElementInternals}
+ */
+export const internals = () => {
+    if (DEV && currentHost === undefined) {
+        throw new Error('internals() must be called synchronously inside a defineElement render callback');
+    }
+    if (
+        DEV &&
+        /** @type {Record<typeof INTERNALS, ElementInternals | undefined>} */ (/** @type {unknown} */ (currentHost))[INTERNALS] ===
+            undefined
+    ) {
+        throw new Error('internals() requires the withInternals() middleware');
+    }
+    return /** @type {ElementInternals} */ (
+        /** @type {Record<typeof INTERNALS, ElementInternals>} */ (/** @type {unknown} */ (currentHost))[INTERNALS]
+    );
 };
 
 /**
