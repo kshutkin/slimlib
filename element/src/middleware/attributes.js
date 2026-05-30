@@ -5,9 +5,9 @@ import { effect, scope } from '@slimlib/store';
 import { MOUNT, UNMOUNT } from '../symbols.js';
 
 /** @typedef {import('../types.js').Middleware} Middleware */
-/** @typedef {import('../types.js').SlimHost} SlimHost */
+/** @typedef {import('../types.js').ElementHost} ElementHost */
 /** @typedef {import('@slimlib/store').Scope} Scope */
-/** @typedef {SlimHost & Record<typeof MOUNT | typeof UNMOUNT, (() => void)[]>} AttributeHost */
+/** @typedef {ElementHost & Record<typeof MOUNT | typeof UNMOUNT, (() => void)[]>} AttributeHost */
 /**
  * @typedef {[parse?: (rawValue: string | null) => unknown, serialize?: (propertyValue: unknown) => (string | null)]} AttributeDescriptor
  *   Positional tuple. `parse` converts an inbound attribute string (`string | null`)
@@ -68,7 +68,7 @@ export const attributes = attributeConfig => {
                                     const serializeAttribute = /** @type {NonNullable<AttributeDescriptor[1]>} */ (attributeDescriptor[1]);
                                     effect(() => {
                                         const serializedValue = serializeAttribute(
-                                            /** @type {SlimHost} */ (/** @type {unknown} */ (this))[attributeName]
+                                            /** @type {ElementHost} */ (/** @type {unknown} */ (this))[attributeName]
                                         );
                                         if (DEV && parseAttribute) {
                                             const roundTripValue = serializeAttribute(parseAttribute(serializedValue));
@@ -79,14 +79,14 @@ export const attributes = attributeConfig => {
                                             }
                                         }
                                         if (serializedValue == null) {
-                                            if (/** @type {SlimHost} */ (/** @type {unknown} */ (this)).hasAttribute(attributeName)) {
-                                                /** @type {SlimHost} */ (/** @type {unknown} */ (this)).removeAttribute(attributeName);
+                                            if (/** @type {ElementHost} */ (/** @type {unknown} */ (this)).hasAttribute(attributeName)) {
+                                                /** @type {ElementHost} */ (/** @type {unknown} */ (this)).removeAttribute(attributeName);
                                             }
                                         } else if (
-                                            /** @type {SlimHost} */ (/** @type {unknown} */ (this)).getAttribute(attributeName) !==
+                                            /** @type {ElementHost} */ (/** @type {unknown} */ (this)).getAttribute(attributeName) !==
                                             serializedValue
                                         ) {
-                                            /** @type {SlimHost} */ (/** @type {unknown} */ (this)).setAttribute(
+                                            /** @type {ElementHost} */ (/** @type {unknown} */ (this)).setAttribute(
                                                 attributeName,
                                                 serializedValue
                                             );
@@ -104,7 +104,7 @@ export const attributes = attributeConfig => {
                 /** @type {string | null} */ _oldValue,
                 /** @type {string | null} */ newValue
             ) {
-                /** @type {SlimHost} */ (/** @type {unknown} */ (this))[attributeName] =
+                /** @type {ElementHost} */ (/** @type {unknown} */ (this))[attributeName] =
                     /** @type {[parse: (rawValue: string | null) => unknown]} */ (attributeConfig[attributeName])[0](newValue);
             }
         };

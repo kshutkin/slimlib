@@ -1,5 +1,5 @@
 /** @typedef {import('../types.js').Middleware} Middleware */
-/** @typedef {import('../utils/pubsub.js').GenHost} GenHost */
+/** @typedef {import('../utils/pubsub.js').GenerationHost} GenerationHost */
 /** @typedef {import('../utils/pubsub.js').Listener} Listener */
 import { MOVE } from '../symbols.js';
 import { emit } from '../utils/pubsub.js';
@@ -13,6 +13,6 @@ export const onMove = () => ElementBase =>
         [MOVE] = [];
 
         connectedMoveCallback() {
-            emit(/** @type {GenHost} */ (/** @type {unknown} */ (this)), MOVE);
+            emit(/** @type {GenerationHost} */ (/** @type {unknown} */ (this)), MOVE);
         }
     };

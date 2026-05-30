@@ -1,9 +1,9 @@
 /**
- * @typedef {HTMLElement & Record<string, unknown>} SlimHost
+ * @typedef {HTMLElement & Record<string, unknown>} ElementHost
  */
 
 /**
- * @typedef {(host: SlimHost) => unknown} SlimRender
+ * @typedef {(host: ElementHost) => unknown} RenderFunction
  */
 
 /**

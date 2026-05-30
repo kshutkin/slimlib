@@ -169,8 +169,8 @@ reactively, so a reflected attribute must be declared via `props()`. A
 
 ### Exports for advanced use
 
-Exported types for authoring middleware and typing hosts: `SlimHost`,
-`SlimRender`, `Middleware`.
+Exported types for authoring middleware and typing hosts: `ElementHost`,
+`RenderFunction`, `Middleware`.
 
 ## Bring your own registry
 

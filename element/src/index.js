@@ -14,7 +14,7 @@ import {
     INTERNALS,
     MOUNT,
     MOVE,
-    RENDER_GEN,
+    RENDER_GENERATION,
     UNMOUNT,
 } from './symbols.js';
 import { emit } from './utils/pubsub.js';
@@ -26,13 +26,13 @@ export { onAdopted } from './middleware/on-adopted.js';
 export { onMove } from './middleware/on-move.js';
 export { withInternals } from './middleware/with-internals.js';
 
-/** @typedef {import('./types.js').SlimHost} SlimHost */
-/** @typedef {import('./types.js').SlimRender} SlimRender */
+/** @typedef {import('./types.js').ElementHost} ElementHost */
+/** @typedef {import('./types.js').RenderFunction} RenderFunction */
 /** @typedef {import('./types.js').Middleware} Middleware */
 /** @typedef {ReturnType<Parameters<typeof render>[0]>} JsxChild */
 /** @typedef {(...args: unknown[]) => void} LifecycleListener */
 
-/** @type {SlimHost | undefined} */
+/** @type {ElementHost | undefined} */
 let currentHost;
 
 // DEV-only cross-instance detection. A render-time listener is stamped with a
@@ -45,7 +45,7 @@ let currentHost;
 // DEV-guarded code paths and the minifier can drop it from production builds.
 const OWNER = Symbol();
 
-/** @typedef {SlimHost & Record<symbol, LifecycleListener[]> & Record<typeof RENDER_GEN, number>} LifecycleHost */
+/** @typedef {ElementHost & Record<symbol, LifecycleListener[]> & Record<typeof RENDER_GENERATION, number>} LifecycleHost */
 
 /**
  * Create an unregistered light-DOM custom element constructor backed by `@slimlib/jsx`.
@@ -54,19 +54,19 @@ const OWNER = Symbol();
  * Class-time custom element features are composed with middleware.
  *
  * @overload
- * @param {SlimRender} userRender
+ * @param {RenderFunction} userRender
  * @returns {CustomElementConstructor}
  */
 /**
  * @overload
  * @param {Middleware[]} middleware
- * @param {SlimRender} userRender
+ * @param {RenderFunction} userRender
  * @param {CustomElementConstructor} [ElementBase]
  * @returns {CustomElementConstructor}
  */
 /**
- * @param {SlimRender | Middleware[]} middlewareOrRender
- * @param {SlimRender} [maybeRender]
+ * @param {RenderFunction | Middleware[]} middlewareOrRender
+ * @param {RenderFunction} [maybeRender]
  * @param {CustomElementConstructor} [ElementBase]
  * @returns {CustomElementConstructor}
  */
@@ -75,10 +75,10 @@ export const createCustomElement = (middlewareOrRender, maybeRender, ElementBase
     if (DEV && !hasRenderOnly && !Array.isArray(middlewareOrRender)) {
         throw new Error('createCustomElement: middleware must be an array of (ElementBase) => ElementSubclass functions');
     }
-    const userRender = /** @type {SlimRender} */ (hasRenderOnly ? middlewareOrRender : maybeRender);
+    const userRender = /** @type {RenderFunction} */ (hasRenderOnly ? middlewareOrRender : maybeRender);
     const layers = /** @type {Middleware[]} */ (hasRenderOnly ? [] : middlewareOrRender);
 
-    const ElementConstructor = applySlimCore(ElementBase, userRender);
+    const ElementConstructor = createCoreElementClass(ElementBase, userRender);
     return layers.reduceRight((currentElementConstructor, layer) => layer(currentElementConstructor), ElementConstructor);
 };
 
@@ -87,26 +87,26 @@ export const createCustomElement = (middlewareOrRender, maybeRender, ElementBase
  *
  * @overload
  * @param {string} tag
- * @param {SlimRender} userRender
+ * @param {RenderFunction} userRender
  * @returns {void}
  */
 /**
  * @overload
  * @param {string} tag
  * @param {Middleware[]} middleware
- * @param {SlimRender} userRender
+ * @param {RenderFunction} userRender
  * @returns {void}
  */
 /**
  * @param {string} tag
- * @param {SlimRender | Middleware[]} middlewareOrRender
- * @param {SlimRender} [maybeRender]
+ * @param {RenderFunction | Middleware[]} middlewareOrRender
+ * @param {RenderFunction} [maybeRender]
  * @returns {void}
  */
 export const defineElement = (tag, middlewareOrRender, maybeRender) => {
     let ElementConstructor = createCustomElement(
         /** @type {Middleware[]} */ (/** @type {unknown} */ (middlewareOrRender)),
-        /** @type {SlimRender} */ (maybeRender)
+        /** @type {RenderFunction} */ (maybeRender)
     );
     if (DEV) {
         ElementConstructor = createNamedElementClass(tag, ElementConstructor);
@@ -121,7 +121,7 @@ export const defineElement = (tag, middlewareOrRender, maybeRender) => {
  * @overload
  * @param {string} tag
  * @param {string} extendElement
- * @param {SlimRender} userRender
+ * @param {RenderFunction} userRender
  * @returns {void}
  */
 /**
@@ -129,14 +129,14 @@ export const defineElement = (tag, middlewareOrRender, maybeRender) => {
  * @param {string} tag
  * @param {string} extendElement
  * @param {Middleware[]} middleware
- * @param {SlimRender} userRender
+ * @param {RenderFunction} userRender
  * @returns {void}
  */
 /**
  * @param {string} tag
  * @param {string} extendElement
- * @param {SlimRender | Middleware[]} middlewareOrRender
- * @param {SlimRender} [maybeRender]
+ * @param {RenderFunction | Middleware[]} middlewareOrRender
+ * @param {RenderFunction} [maybeRender]
  * @returns {void}
  */
 export const defineBuiltinElement = (tag, extendElement, middlewareOrRender, maybeRender) => {
@@ -145,7 +145,7 @@ export const defineBuiltinElement = (tag, extendElement, middlewareOrRender, may
     );
     let ElementConstructor = createCustomElement(
         /** @type {Middleware[]} */ (/** @type {unknown} */ (middlewareOrRender)),
-        /** @type {SlimRender} */ (maybeRender),
+        /** @type {RenderFunction} */ (maybeRender),
         ElementBase
     );
     if (DEV) {
@@ -167,10 +167,10 @@ const createNamedElementClass = (tag, ElementBase) => {
 
 /**
  * @param {CustomElementConstructor} ElementBase
- * @param {SlimRender} userRender
+ * @param {RenderFunction} userRender
  * @returns {CustomElementConstructor}
  */
-const applySlimCore = (ElementBase, userRender) =>
+const createCoreElementClass = (ElementBase, userRender) =>
     class extends ElementBase {
         #mounted = false;
         /** @type {null | (() => void)} */
@@ -184,15 +184,15 @@ const applySlimCore = (ElementBase, userRender) =>
         [CONNECT] = [];
         /** @type {LifecycleListener[]} */
         [DISCONNECT] = [];
-        [RENDER_GEN] = 0;
+        [RENDER_GENERATION] = 0;
 
         connectedCallback() {
             if (!this.#mounted) {
                 this.#mounted = true;
                 const previousHost = currentHost;
-                currentHost = /** @type {SlimHost} */ (/** @type {unknown} */ (this));
+                currentHost = /** @type {ElementHost} */ (/** @type {unknown} */ (this));
                 this.#disposeRender = render(
-                    () => /** @type {JsxChild} */ (userRender(/** @type {SlimHost} */ (/** @type {unknown} */ (this)))),
+                    () => /** @type {JsxChild} */ (userRender(/** @type {ElementHost} */ (/** @type {unknown} */ (this)))),
                     this
                 );
                 currentHost = previousHost;
@@ -209,7 +209,7 @@ const applySlimCore = (ElementBase, userRender) =>
                 emit(/** @type {LifecycleHost} */ (this), UNMOUNT);
                 this.#disposeRender?.();
                 this.#disposeRender = null;
-                /** @type {number} */ (/** @type {LifecycleHost} */ (this)[RENDER_GEN])++;
+                /** @type {number} */ (/** @type {LifecycleHost} */ (this)[RENDER_GENERATION])++;
             }
         }
     };
@@ -233,11 +233,11 @@ export const props = initialProps => {
     }
     const reactiveProps = /** @type {Props} */ (state(initialProps));
     for (const propertyName of Object.keys(initialProps)) {
-        if (Object.hasOwn(/** @type {SlimHost} */ (currentHost), propertyName)) {
-            /** @type {Record<string, unknown>} */ (reactiveProps)[propertyName] = /** @type {SlimHost} */ (currentHost)[propertyName];
-            delete (/** @type {SlimHost} */ (currentHost)[propertyName]);
+        if (Object.hasOwn(/** @type {ElementHost} */ (currentHost), propertyName)) {
+            /** @type {Record<string, unknown>} */ (reactiveProps)[propertyName] = /** @type {ElementHost} */ (currentHost)[propertyName];
+            delete (/** @type {ElementHost} */ (currentHost)[propertyName]);
         }
-        Object.defineProperty(/** @type {SlimHost} */ (currentHost), propertyName, {
+        Object.defineProperty(/** @type {ElementHost} */ (currentHost), propertyName, {
             configurable: true,
             enumerable: true,
             get() {
@@ -301,14 +301,14 @@ const subscribeToLifecycle = (key, listener) => {
     const list = /** @type {LifecycleListener[]} */ (/** @type {LifecycleHost} */ (currentHost)[key]);
     const taggedListener = /** @type {Record<symbol, number | undefined>} */ (/** @type {unknown} */ (listener));
     if (DEV) {
-        const ownerView = /** @type {Record<symbol, WeakRef<SlimHost> | undefined>} */ (/** @type {unknown} */ (listener));
+        const ownerView = /** @type {Record<symbol, WeakRef<ElementHost> | undefined>} */ (/** @type {unknown} */ (listener));
         const previous = ownerView[OWNER];
         if (previous !== undefined && previous.deref() !== currentHost) {
             console.warn(
                 '[@slimlib/element] the same listener function was subscribed on more than one element instance; render-time subscriptions must use a distinct function per instance.'
             );
         }
-        ownerView[OWNER] = new WeakRef(/** @type {SlimHost} */ (currentHost));
+        ownerView[OWNER] = new WeakRef(/** @type {ElementHost} */ (currentHost));
     }
     // The list's own symbol doubles as the per-list generation tag on the
     // listener, so a re-subscribed identity refreshes its existing slot in this
@@ -319,7 +319,7 @@ const subscribeToLifecycle = (key, listener) => {
     if (taggedListener[key] === undefined) {
         list.push(/** @type {LifecycleListener} */ (/** @type {unknown} */ (listener)));
     }
-    taggedListener[key] = /** @type {LifecycleHost} */ (currentHost)[RENDER_GEN];
+    taggedListener[key] = /** @type {LifecycleHost} */ (currentHost)[RENDER_GENERATION];
 };
 
 /**
@@ -338,19 +338,19 @@ export const onMount = listener => {
             const list = /** @type {LifecycleListener[]} */ (/** @type {LifecycleHost} */ (host)[UNMOUNT]);
             const taggedCleanup = /** @type {Record<symbol, number | undefined>} */ (/** @type {unknown} */ (cleanup));
             if (DEV) {
-                const ownerView = /** @type {Record<symbol, WeakRef<SlimHost> | undefined>} */ (/** @type {unknown} */ (cleanup));
+                const ownerView = /** @type {Record<symbol, WeakRef<ElementHost> | undefined>} */ (/** @type {unknown} */ (cleanup));
                 const previous = ownerView[OWNER];
                 if (previous !== undefined && previous.deref() !== host) {
                     console.warn(
                         '[@slimlib/element] the same listener function was subscribed on more than one element instance; render-time subscriptions must use a distinct function per instance.'
                     );
                 }
-                ownerView[OWNER] = new WeakRef(/** @type {SlimHost} */ (host));
+                ownerView[OWNER] = new WeakRef(/** @type {ElementHost} */ (host));
             }
             if (taggedCleanup[UNMOUNT] === undefined) {
                 list.push(/** @type {LifecycleListener} */ (/** @type {unknown} */ (cleanup)));
             }
-            taggedCleanup[UNMOUNT] = /** @type {LifecycleHost} */ (host)[RENDER_GEN];
+            taggedCleanup[UNMOUNT] = /** @type {LifecycleHost} */ (host)[RENDER_GENERATION];
         }
     });
 };

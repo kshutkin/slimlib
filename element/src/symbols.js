@@ -17,7 +17,7 @@ export const [
     FORM_DISABLED,
     FORM_RESET,
     FORM_STATE_RESTORE,
-    RENDER_GEN,
+    RENDER_GENERATION,
     INTERNALS,
 ] = /** @type {[symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol]} */ (
     Array.from({ length: 12 }, Symbol)
