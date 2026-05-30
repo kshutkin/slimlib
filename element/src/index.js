@@ -13,9 +13,10 @@ import {
     FORM_STATE_RESTORE,
     MOUNT,
     MOVE,
+    RENDER_GEN,
     UNMOUNT,
-} from './lifecycle.js';
-import { emit, RENDER_GEN } from './utils/pubsub.js';
+} from './symbols.js';
+import { emit } from './utils/pubsub.js';
 
 export { attributes, boolAttr, numberAttr, stringAttr } from './middleware/attributes.js';
 export { disabledFeatures } from './middleware/disabled-features.js';
@@ -39,6 +40,8 @@ let currentHost;
 // collected). Re-registering the same identity on a different instance is the
 // unsupported case and is warned about (the per-list generation tag lives on
 // the function, so cross-instance reuse breaks).
+// Kept private to this module (not in symbols.js) so it is only referenced from
+// DEV-guarded code paths and the minifier can drop it from production builds.
 const OWNER = Symbol();
 
 /** @typedef {SlimHost & Record<symbol, LifecycleListener[]> & Record<typeof RENDER_GEN, number>} LifecycleHost */

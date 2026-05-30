@@ -2,7 +2,7 @@ import { DEV } from 'esm-env';
 
 import { effect, scope } from '@slimlib/store';
 
-import { MOUNT, UNMOUNT } from '../lifecycle.js';
+import { MOUNT, UNMOUNT } from '../symbols.js';
 
 /** @typedef {import('../types.js').Middleware} Middleware */
 /** @typedef {import('../types.js').SlimHost} SlimHost */

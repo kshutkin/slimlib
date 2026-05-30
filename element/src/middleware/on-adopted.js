@@ -1,7 +1,7 @@
 /** @typedef {import('../types.js').Middleware} Middleware */
 /** @typedef {import('../utils/pubsub.js').GenHost} GenHost */
 /** @typedef {import('../utils/pubsub.js').Listener} Listener */
-import { ADOPTED } from '../lifecycle.js';
+import { ADOPTED } from '../symbols.js';
 import { emit } from '../utils/pubsub.js';
 
 /**

@@ -527,7 +527,7 @@ describe('lifecycle message bus (DEV)', () => {
 
     it('refreshes a reused mount cleanup slot across cycles instead of stacking it', async () => {
         const { defineElement, onMount } = await import('../src/index.js');
-        const { UNMOUNT } = await import('../src/lifecycle.js');
+        const { UNMOUNT } = await import('../src/symbols.js');
         // A stable cleanup identity is returned on every mount. Its UNMOUNT slot is
         // reused (tag refreshed) rather than duplicated across genuine cycles.
         const cleanup = vi.fn();
@@ -581,7 +581,7 @@ describe('lifecycle message bus (DEV)', () => {
 
     it('keeps middleware-style on() subscriptions across remounts while clearing render-time ones', async () => {
         const { defineElement, onConnect } = await import('../src/index.js');
-        const { CONNECT } = await import('../src/lifecycle.js');
+        const { CONNECT } = await import('../src/symbols.js');
         const persistent = vi.fn();
         const renderScoped = vi.fn();
         const tag = uniqueTag('x-bus-persist');
@@ -609,7 +609,7 @@ describe('lifecycle message bus (DEV)', () => {
 
     it('compacts stale render-time listeners across remounts instead of accumulating them', async () => {
         const { defineElement, onConnect } = await import('../src/index.js');
-        const { CONNECT } = await import('../src/lifecycle.js');
+        const { CONNECT } = await import('../src/symbols.js');
         const tag = uniqueTag('x-bus-compact');
         defineElement(tag, () => {
             onConnect(vi.fn());
@@ -656,7 +656,7 @@ describe('lifecycle message bus (DEV)', () => {
 
     it('keeps one shared listener identity independent across different hooks', async () => {
         const { defineElement, onConnect, onDisconnect } = await import('../src/index.js');
-        const { CONNECT, DISCONNECT } = await import('../src/lifecycle.js');
+        const { CONNECT, DISCONNECT } = await import('../src/symbols.js');
         // The same function backs two different hooks. Tags are keyed per list, so
         // it lands in both lists and stays in both across a genuine remount.
         const shared = vi.fn();
@@ -1183,7 +1183,7 @@ describe('attributes() reflection + coercion (DEV)', () => {
 
     it('throws when a reflected parse/serialize pair is not round-trip stable', async () => {
         const { attributes } = await import('../src/index.js');
-        const { MOUNT, UNMOUNT } = await import('../src/lifecycle.js');
+        const { MOUNT, UNMOUNT } = await import('../src/symbols.js');
         const { emit } = await import('../src/utils/pubsub.js');
         const ElementConstructor = attributes({
             value: [rawValue => rawValue?.toUpperCase(), propertyValue => String(propertyValue)],

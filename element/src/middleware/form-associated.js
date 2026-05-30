@@ -1,7 +1,7 @@
 /** @typedef {import('../types.js').Middleware} Middleware */
 /** @typedef {import('../utils/pubsub.js').GenHost} GenHost */
 /** @typedef {import('../utils/pubsub.js').Listener} Listener */
-import { FORM_ASSOCIATED, FORM_DISABLED, FORM_RESET, FORM_STATE_RESTORE } from '../lifecycle.js';
+import { FORM_ASSOCIATED, FORM_DISABLED, FORM_RESET, FORM_STATE_RESTORE } from '../symbols.js';
 import { emit } from '../utils/pubsub.js';
 
 /**

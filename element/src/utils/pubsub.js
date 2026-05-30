@@ -15,12 +15,11 @@
  * part in several lists without the lists interfering.
  */
 
+import { RENDER_GEN } from '../symbols.js';
+
 /** @typedef {(...args: any[]) => void} Listener */
 /** @typedef {Listener & Record<symbol, number | undefined>} TaggedListener */
 /** @typedef {Record<symbol, Listener[]> & Record<typeof RENDER_GEN, number>} GenHost */
-
-/** Host field holding the current render generation (number). */
-export const RENDER_GEN = Symbol();
 
 /**
  * Emit to every alive listener in `host[key]`, in registration order, compacting
