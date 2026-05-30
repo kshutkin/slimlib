@@ -1,4 +1,4 @@
-import { attributes, defineElement, props } from '@slimlib/element';
+import { attributes, boolAttr, defineElement, numberAttr, props, stringAttr } from '@slimlib/element';
 import { setScheduler } from '@slimlib/store';
 
 // Microtask scheduler so reflection is async-realistic (like the jsx playground).
@@ -12,9 +12,9 @@ defineElement(
     'reflect-demo',
     [
         attributes({
-            count: { type: Number, reflect: true },
-            open: { type: Boolean, reflect: true },
-            label: { type: String },
+            count: numberAttr,
+            open: boolAttr,
+            label: [stringAttr[0]],
         }),
     ],
     host => {

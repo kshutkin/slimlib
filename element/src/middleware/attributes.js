@@ -6,90 +6,45 @@ import { effect } from '@slimlib/store';
 /** @typedef {import('../types.js').SlimHost} SlimHost */
 
 /**
- * @typedef {object} AttributeDescriptor
- * @property {NumberConstructor | BooleanConstructor | StringConstructor | ((raw: string | null) => unknown)} [type]
- *   Coercion applied to inbound attribute values. `Number`/`Boolean`/`String`
- *   global constructors are recognized specially; any other function is called
- *   as `type(raw)`. Omitted means string passthrough.
- * @property {boolean} [reflect] When true, JS writes to the prop are reflected
- *   back to the DOM attribute.
+ * @typedef {[parse?: (raw: string | null) => unknown, serialize?: (value: unknown) => (string | null)]} AttributeDescriptor
+ *   Positional tuple. `parse` converts an inbound attribute string (`string | null`)
+ *   into a prop value; when omitted the attribute is not observed (no prop is
+ *   written on attribute changes). `serialize` converts a prop value into an
+ *   attribute string, or `null` to remove the attribute; when
+ *   `serialize` is present the attribute is reflected.
  */
 
 /**
- * Coerce an inbound attribute value (`string | null`) into a prop value.
- *
- * @param {AttributeDescriptor['type']} type
- * @param {string | null} raw
- * @returns {unknown}
- */
-const coerceIn = (type, raw) => {
-    if (type === Boolean) return raw !== null;
-    if (raw === null) return null;
-    if (type === Number) return Number(raw);
-    if (type === String || type === undefined) return raw;
-    return type(raw);
-};
-
-/**
- * Reflect a prop value out to the DOM attribute. The "only write if different"
- * checks are the loop guard: a redundant write is skipped, so the
- * reflect → setAttribute → attributeChangedCallback → prop cycle terminates.
- *
- * Reads `host[name]` itself so the read happens inside the reflecting effect and
- * tracks the reactive prop.
- *
- * @param {SlimHost} host
- * @param {string} name
- * @param {AttributeDescriptor['type']} type
- * @returns {void}
- */
-const reflectOut = (host, name, type) => {
-    const value = host[name];
-    if (type === Boolean) {
-        if (value) {
-            if (!host.hasAttribute(name)) host.setAttribute(name, '');
-        } else if (host.hasAttribute(name)) {
-            host.removeAttribute(name);
-        }
-    } else if (value == null) {
-        if (host.hasAttribute(name)) host.removeAttribute(name);
-    } else {
-        const s = String(value);
-        if (host.getAttribute(name) !== s) host.setAttribute(name, s);
-    }
-};
-
-/**
- * Observe HTML attributes, coerce them into props, and optionally reflect prop
+ * Observe HTML attributes, parse them into props, and optionally reflect prop
  * writes back to the DOM.
  *
- * `config` is a descriptor map (`{ count: { type: Number, reflect: true } }`).
+ * `config` is a tuple-descriptor map (`{ count: numberAttr }`). Each descriptor
+ * is a `[parse?, serialize?]` tuple; presence of `serialize` reflects the prop
+ * write back to the attribute.
  *
  * @param {Record<string, AttributeDescriptor>} config
  * @returns {Middleware}
  */
 export const attributes = config => {
-    /** @type {Record<string, AttributeDescriptor>} */
-    const map = config;
-    const names = Object.keys(map);
-    const reflectedKeys = names.filter(name => map[name]?.reflect);
+    const names = Object.keys(config);
+    const observedKeys = names.filter(name => config[name]?.[0]);
+    const reflectedKeys = names.filter(name => config[name]?.[1]);
 
     return Base => {
-        const SuperClass =
-            /** @type {new (...args: unknown[]) => HTMLElement & { connectedCallback?(): void; disconnectedCallback?(): void }} */ (
-                /** @type {unknown} */ (Base)
-            );
-
-        return class extends SuperClass {
+        return class extends /** @type {new (...args: unknown[]) => HTMLElement & { connectedCallback?(): void; disconnectedCallback?(): void }} */ (
+            /** @type {unknown} */ (Base)
+        ) {
             /** @type {null | (() => void)} */
             #reflectDispose = null;
 
             static get observedAttributes() {
-                return names;
+                return observedKeys;
             }
 
             attributeChangedCallback(/** @type {string} */ name, /** @type {string | null} */ _old, /** @type {string | null} */ value) {
-                /** @type {SlimHost} */ (/** @type {unknown} */ (this))[name] = coerceIn(map[name]?.type, value);
+                /** @type {SlimHost} */ (/** @type {unknown} */ (this))[name] = /** @type {[parse: (raw: string | null) => unknown]} */ (
+                    config[name]
+                )[0](value);
             }
 
             connectedCallback() {
@@ -99,7 +54,7 @@ export const attributes = config => {
                     for (const name of reflectedKeys) {
                         if (!Object.getOwnPropertyDescriptor(this, name)?.get) {
                             console.warn(
-                                `[@slimlib/element] attribute "${name}" is declared reflect: true but was not declared via props(); reflection won't track changes.`
+                                `[@slimlib/element] attribute "${name}" is reflected (has a serialize function) but was not declared via props(); reflection won't track changes.`
                             );
                         }
                     }
@@ -107,32 +62,26 @@ export const attributes = config => {
 
                 if (!this.#reflectDispose && reflectedKeys.length > 0) {
                     const disposers = reflectedKeys.map(name => {
-                        if (DEV) {
-                            // Runaway-loop detector: a non-round-trip-stable custom `type`
-                            // reflects → coerces → reflects forever. Count writes within a
-                            // single synchronous flush and bail (warn once) past a threshold.
-                            let writes = 0;
-                            return effect(() => {
-                                if (writes > 100) {
-                                    if (writes === 101) {
-                                        writes = 102;
-                                        console.warn(
-                                            `[@slimlib/element] attribute "${name}" reflected over 100 times in one flush; its custom "type" is likely not round-trip stable.`
-                                        );
-                                    }
-                                    return;
+                        const descriptor = /** @type {AttributeDescriptor} */ (config[name]);
+                        const parse = descriptor[0];
+                        const serialize = /** @type {NonNullable<AttributeDescriptor[1]>} */ (descriptor[1]);
+                        return effect(() => {
+                            const host = /** @type {SlimHost} */ (/** @type {unknown} */ (this));
+                            const out = serialize(host[name]);
+                            if (DEV && parse) {
+                                const back = serialize(parse(out));
+                                if (back !== out) {
+                                    throw new Error(
+                                        `[@slimlib/element] attribute "${name}" [parse, serialize] pair is not round-trip stable: serialize(parse(${JSON.stringify(out)})) === ${JSON.stringify(back)} (expected ${JSON.stringify(out)}); reflection would loop.`
+                                    );
                                 }
-                                if (writes++ === 0)
-                                    queueMicrotask(() => {
-                                        writes = 0;
-                                    });
-                                reflectOut(/** @type {SlimHost} */ (/** @type {unknown} */ (this)), name, map[name]?.type);
-                            }, 1 /* EAGER */);
-                        }
-                        return effect(
-                            () => reflectOut(/** @type {SlimHost} */ (/** @type {unknown} */ (this)), name, map[name]?.type),
-                            1 /* EAGER */
-                        );
+                            }
+                            if (out == null) {
+                                if (host.hasAttribute(name)) host.removeAttribute(name);
+                            } else if (host.getAttribute(name) !== out) {
+                                host.setAttribute(name, out);
+                            }
+                        }, 1 /* EAGER */);
                     });
                     this.#reflectDispose = () => {
                         for (const dispose of disposers) dispose();
@@ -148,3 +97,12 @@ export const attributes = config => {
         };
     };
 };
+
+/** @type {AttributeDescriptor} */
+export const numberAttr = [raw => (raw === null ? null : Number(raw)), value => (value == null ? null : String(value))];
+
+/** @type {AttributeDescriptor} */
+export const boolAttr = [raw => raw !== null, value => (value ? '' : null)];
+
+/** @type {AttributeDescriptor} */
+export const stringAttr = [raw => raw, value => (value == null ? null : String(value))];

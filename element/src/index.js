@@ -3,7 +3,7 @@ import { DEV } from 'esm-env';
 import { render } from '@slimlib/jsx';
 import { state } from '@slimlib/store';
 
-export { attributes } from './middleware/attributes.js';
+export { attributes, boolAttr, numberAttr, stringAttr } from './middleware/attributes.js';
 export { disabledFeatures } from './middleware/disabled-features.js';
 export { formAssociated } from './middleware/form-associated.js';
 export { onAdopted } from './middleware/on-adopted.js';

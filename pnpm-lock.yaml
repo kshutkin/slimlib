@@ -53,6 +53,10 @@ importers:
       esm-env:
         specifier: ^1.2.1
         version: 1.2.2
+    devDependencies:
+      esbuild:
+        specifier: ^0.24.0
+        version: 0.24.2
 
   get-parameter-names: {}
 

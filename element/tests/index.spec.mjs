@@ -52,9 +52,9 @@ describe('@slimlib/element public API (DEV)', () => {
     });
 
     it('attributeChangedCallback writes the named property to the host', async () => {
-        const { defineElement, attributes } = await import('../src/index.js');
+        const { defineElement, attributes, stringAttr } = await import('../src/index.js');
         const tag = uniqueTag('x-slim-attrs');
-        defineElement(tag, [attributes({ value: {} })], () => null);
+        defineElement(tag, [attributes({ value: [stringAttr[0]] })], () => null);
 
         const element = document.createElement(tag);
         element.setAttribute('value', 'hello');
@@ -96,9 +96,9 @@ describe('middleware-composed defineElement (DEV)', () => {
     });
 
     it('observes attributes through attributes({...}) middleware', async () => {
-        const { defineElement, attributes } = await import('../src/index.js');
+        const { defineElement, attributes, stringAttr } = await import('../src/index.js');
         const tag = uniqueTag('x-slim-observed-middleware');
-        defineElement(tag, [attributes({ value: {} })], () => null);
+        defineElement(tag, [attributes({ value: [stringAttr[0]] })], () => null);
 
         const element = document.createElement(tag);
         element.setAttribute('value', 'hello');
@@ -109,7 +109,7 @@ describe('middleware-composed defineElement (DEV)', () => {
     it('rejects a non-array middleware argument in DEV', async () => {
         const { defineElement, attributes } = await import('../src/index.js');
         const tag = uniqueTag('x-slim-bad-middleware');
-        expect(() => defineElement(tag, attributes({ x: {} }), () => null)).toThrow(/middleware must be an array/);
+        expect(() => defineElement(tag, attributes({ x: [] }), () => null)).toThrow(/middleware must be an array/);
     });
 
     it('disables requested platform features with disabledFeatures([...])', async () => {
@@ -314,10 +314,10 @@ describe('middleware-composed defineElement (DEV)', () => {
     const customizedBuiltInIt = supportsCustomizedBuiltIns() ? it : it.skip;
     // Skip outside browsers that implement customized built-ins and createElement(type, { is }).
     customizedBuiltInIt('supports customized built-ins through extendElement', async () => {
-        const { defineBuiltinElement, attributes } = await import('../src/index.js');
+        const { defineBuiltinElement, attributes, stringAttr } = await import('../src/index.js');
         const tag = uniqueTag('x-slim-button');
         let renderCount = 0;
-        defineBuiltinElement(tag, 'button', [attributes({ 'data-x': {} })], () => {
+        defineBuiltinElement(tag, 'button', [attributes({ 'data-x': [stringAttr[0]] })], () => {
             renderCount++;
             return null;
         });
@@ -335,11 +335,11 @@ describe('middleware-composed defineElement (DEV)', () => {
     });
 
     customizedBuiltInIt('upgrades a defineBuiltinElement element through the jsx is= runtime', async () => {
-        const { defineBuiltinElement, attributes } = await import('../src/index.js');
+        const { defineBuiltinElement, attributes, stringAttr } = await import('../src/index.js');
         const { createElement: jsxCreateElement } = await import('@slimlib/jsx');
         const tag = uniqueTag('x-slim-jsx-button');
         let renderCount = 0;
-        defineBuiltinElement(tag, 'button', [attributes({ 'data-label': {} })], () => {
+        defineBuiltinElement(tag, 'button', [attributes({ 'data-label': [stringAttr[0]] })], () => {
             renderCount++;
             return jsxCreateElement('span', null, 'inner');
         });
@@ -415,11 +415,11 @@ describe('props() (DEV)', () => {
     });
 
     it('adopts own properties already present on the host before connect', async () => {
-        const { defineElement, attributes, props } = await import('../src/index.js');
+        const { defineElement, attributes, props, stringAttr } = await import('../src/index.js');
 
         let reactiveState;
         const tag = uniqueTag('x-props-adopt');
-        defineElement(tag, [attributes({ value: {} })], () => {
+        defineElement(tag, [attributes({ value: [stringAttr[0]] })], () => {
             reactiveState = props({ value: 'default' });
             return null;
         });
@@ -561,9 +561,9 @@ describe('connected/disconnected lifecycle (DEV)', () => {
 
 describe('attributes() reflection + coercion (DEV)', () => {
     it('coerces a Number attribute in', async () => {
-        const { defineElement, attributes, props } = await import('../src/index.js');
+        const { defineElement, attributes, numberAttr, props } = await import('../src/index.js');
         const tag = uniqueTag('x-attr-num-in');
-        defineElement(tag, [attributes({ count: { type: Number } })], () => {
+        defineElement(tag, [attributes({ count: [numberAttr[0]] })], () => {
             props({ count: 0 });
             return null;
         });
@@ -577,9 +577,9 @@ describe('attributes() reflection + coercion (DEV)', () => {
     });
 
     it('coerces a Boolean attribute in by presence/absence', async () => {
-        const { defineElement, attributes, props } = await import('../src/index.js');
+        const { defineElement, attributes, boolAttr, props } = await import('../src/index.js');
         const tag = uniqueTag('x-attr-bool-in');
-        defineElement(tag, [attributes({ open: { type: Boolean } })], () => {
+        defineElement(tag, [attributes({ open: [boolAttr[0]] })], () => {
             props({ open: false });
             return null;
         });
@@ -594,10 +594,29 @@ describe('attributes() reflection + coercion (DEV)', () => {
         expect(element.open).toBe(false);
     });
 
-    it('reflects a Number prop out to the attribute', async () => {
+    it('reflect-only [undefined, serialize] pushes prop to attribute but does not observe inbound', async () => {
         const { defineElement, attributes, props } = await import('../src/index.js');
+        const tag = uniqueTag('x-attr-reflect-only');
+        defineElement(tag, [attributes({ count: [undefined, value => (value == null ? null : String(value))] })], () => {
+            props({ count: 0 });
+            return null;
+        });
+        const element = document.createElement(tag);
+        document.body.appendChild(element);
+
+        // prop -> attribute reflection works
+        element.count = 4;
+        expect(element.getAttribute('count')).toBe('4');
+
+        // inbound attribute change is NOT parsed back into the prop (no observe)
+        element.setAttribute('count', '99');
+        expect(element.count).toBe(4);
+    });
+
+    it('reflects a Number prop out to the attribute', async () => {
+        const { defineElement, attributes, numberAttr, props } = await import('../src/index.js');
         const tag = uniqueTag('x-attr-num-out');
-        defineElement(tag, [attributes({ count: { type: Number, reflect: true } })], () => {
+        defineElement(tag, [attributes({ count: numberAttr })], () => {
             props({ count: 0 });
             return null;
         });
@@ -613,9 +632,9 @@ describe('attributes() reflection + coercion (DEV)', () => {
     });
 
     it('reflects a Boolean prop out by adding/removing the attribute', async () => {
-        const { defineElement, attributes, props } = await import('../src/index.js');
+        const { defineElement, attributes, boolAttr, props } = await import('../src/index.js');
         const tag = uniqueTag('x-attr-bool-out');
-        defineElement(tag, [attributes({ open: { type: Boolean, reflect: true } })], () => {
+        defineElement(tag, [attributes({ open: boolAttr })], () => {
             props({ open: false });
             return null;
         });
@@ -631,10 +650,10 @@ describe('attributes() reflection + coercion (DEV)', () => {
     });
 
     it('reflects when the reactive proxy is mutated directly', async () => {
-        const { defineElement, attributes, props } = await import('../src/index.js');
+        const { defineElement, attributes, numberAttr, props } = await import('../src/index.js');
         let reactiveState;
         const tag = uniqueTag('x-attr-proxy');
-        defineElement(tag, [attributes({ count: { type: Number, reflect: true } })], () => {
+        defineElement(tag, [attributes({ count: numberAttr })], () => {
             reactiveState = props({ count: 0 });
             return null;
         });
@@ -647,9 +666,9 @@ describe('attributes() reflection + coercion (DEV)', () => {
     });
 
     it('settles a reflected round-trip without looping', async () => {
-        const { defineElement, attributes, props } = await import('../src/index.js');
+        const { defineElement, attributes, numberAttr, props } = await import('../src/index.js');
         const tag = uniqueTag('x-attr-roundtrip');
-        defineElement(tag, [attributes({ count: { type: Number, reflect: true } })], () => {
+        defineElement(tag, [attributes({ count: numberAttr })], () => {
             props({ count: 0 });
             return null;
         });
@@ -663,11 +682,34 @@ describe('attributes() reflection + coercion (DEV)', () => {
         expect(element.getAttribute('count')).toBe('5');
     });
 
+    it('throws in DEV when the parse/serialize pair is not round-trip stable', async () => {
+        const { defineElement, attributes, props } = await import('../src/index.js');
+        const tag = uniqueTag('x-attr-loop');
+        defineElement(tag, [attributes({ n: [raw => Number(raw), value => String(value + 1)] })], () => {
+            props({ n: 0 });
+            return null;
+        });
+
+        const errors = [];
+        const handler = e => {
+            errors.push(e.error ?? e.message ?? e);
+            e.preventDefault(); // mark handled so the runner doesn't treat it as unhandled
+        };
+        window.addEventListener('error', handler);
+        try {
+            document.body.appendChild(document.createElement(tag));
+        } finally {
+            window.removeEventListener('error', handler);
+        }
+
+        expect(errors.some(err => /round-trip/.test(String(err?.message ?? err)))).toBe(true);
+    });
+
     it('warns when a reflected attribute is not declared via props()', async () => {
-        const { defineElement, attributes } = await import('../src/index.js');
+        const { defineElement, attributes, stringAttr } = await import('../src/index.js');
         const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
         const tag = uniqueTag('x-attr-undeclared');
-        defineElement(tag, [attributes({ ghost: { reflect: true } })], () => null);
+        defineElement(tag, [attributes({ ghost: stringAttr })], () => null);
 
         document.body.appendChild(document.createElement(tag));
 
@@ -676,9 +718,9 @@ describe('attributes() reflection + coercion (DEV)', () => {
     });
 
     it('keeps reflecting after the element is moved to a new parent', async () => {
-        const { defineElement, attributes, props } = await import('../src/index.js');
+        const { defineElement, attributes, numberAttr, props } = await import('../src/index.js');
         const tag = uniqueTag('x-attr-move');
-        defineElement(tag, [attributes({ count: { type: Number, reflect: true } })], () => {
+        defineElement(tag, [attributes({ count: numberAttr })], () => {
             props({ count: 0 });
             return null;
         });
@@ -697,10 +739,10 @@ describe('attributes() reflection + coercion (DEV)', () => {
     });
 
     it('recreates the reflect effect on remount and tracks the new state proxy', async () => {
-        const { defineElement, attributes, props } = await import('../src/index.js');
+        const { defineElement, attributes, numberAttr, props } = await import('../src/index.js');
         let reactiveState;
         const tag = uniqueTag('x-attr-remount');
-        defineElement(tag, [attributes({ count: { type: Number, reflect: true } })], () => {
+        defineElement(tag, [attributes({ count: numberAttr })], () => {
             reactiveState = props({ count: 0 });
             return null;
         });
@@ -721,9 +763,9 @@ describe('attributes() reflection + coercion (DEV)', () => {
     });
 
     it('observes a non-reflected descriptor without auto-reflecting JS writes', async () => {
-        const { defineElement, attributes, props } = await import('../src/index.js');
+        const { defineElement, attributes, props, stringAttr } = await import('../src/index.js');
         const tag = uniqueTag('x-attr-observe-only');
-        defineElement(tag, [attributes({ label: {} })], () => {
+        defineElement(tag, [attributes({ label: [stringAttr[0]] })], () => {
             props({ label: '' });
             return null;
         });
@@ -741,7 +783,7 @@ describe('attributes() reflection + coercion (DEV)', () => {
     it('coerces an inbound attribute with a custom type function', async () => {
         const { defineElement, attributes, props } = await import('../src/index.js');
         const tag = uniqueTag('x-attr-custom-in');
-        defineElement(tag, [attributes({ csv: { type: raw => (raw ? raw.split(',') : []) } })], () => {
+        defineElement(tag, [attributes({ csv: [raw => (raw ? raw.split(',') : [])] })], () => {
             props({ csv: [] });
             return null;
         });
