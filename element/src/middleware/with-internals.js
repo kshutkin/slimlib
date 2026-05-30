@@ -4,8 +4,8 @@
 /**
  * @returns {Middleware}
  */
-export const withInternals = () => Base =>
-    class extends Base {
+export const withInternals = () => ElementBase =>
+    class extends ElementBase {
         constructor() {
             super();
             /** @type {SlimHost & { _internals: ElementInternals }} */ (/** @type {unknown} */ (this))._internals = this.attachInternals();

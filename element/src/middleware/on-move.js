@@ -2,12 +2,12 @@
 /** @typedef {import('../types.js').SlimHost} SlimHost */
 
 /**
- * @param {(host: SlimHost) => void} fn
+ * @param {(host: SlimHost) => void} callback
  * @returns {Middleware}
  */
-export const onMove = fn => Base =>
-    class extends Base {
+export const onMove = callback => ElementBase =>
+    class extends ElementBase {
         connectedMoveCallback() {
-            fn(/** @type {SlimHost} */ (/** @type {unknown} */ (this)));
+            callback(/** @type {SlimHost} */ (/** @type {unknown} */ (this)));
         }
     };

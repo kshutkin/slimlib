@@ -31,25 +31,25 @@ let currentHost;
  * @overload
  * @param {Middleware[]} middleware
  * @param {SlimRender} userRender
- * @param {CustomElementConstructor} [Base]
+ * @param {CustomElementConstructor} [ElementBase]
  * @returns {CustomElementConstructor}
  */
 /**
  * @param {SlimRender | Middleware[]} middlewareOrRender
  * @param {SlimRender} [maybeRender]
- * @param {CustomElementConstructor} [Base]
+ * @param {CustomElementConstructor} [ElementBase]
  * @returns {CustomElementConstructor}
  */
-export const createCustomElement = (middlewareOrRender, maybeRender, Base = HTMLElement) => {
+export const createCustomElement = (middlewareOrRender, maybeRender, ElementBase = HTMLElement) => {
     const hasRenderOnly = typeof middlewareOrRender === 'function' && maybeRender === undefined;
     if (DEV && !hasRenderOnly && !Array.isArray(middlewareOrRender)) {
-        throw new Error('createCustomElement: middleware must be an array of (Base) => SubClass functions');
+        throw new Error('createCustomElement: middleware must be an array of (ElementBase) => ElementSubclass functions');
     }
     const userRender = /** @type {SlimRender} */ (hasRenderOnly ? middlewareOrRender : maybeRender);
     const layers = /** @type {Middleware[]} */ (hasRenderOnly ? [] : middlewareOrRender);
 
-    const Ctor = applySlimCore(Base, userRender);
-    return layers.reduceRight((acc, layer) => layer(acc), Ctor);
+    const ElementConstructor = applySlimCore(ElementBase, userRender);
+    return layers.reduceRight((currentElementConstructor, layer) => layer(currentElementConstructor), ElementConstructor);
 };
 
 /**
@@ -74,13 +74,15 @@ export const createCustomElement = (middlewareOrRender, maybeRender, Base = HTML
  * @returns {void}
  */
 export const defineElement = (tag, middlewareOrRender, maybeRender) => {
-    let Ctor = createCustomElement(
+    let ElementConstructor = createCustomElement(
         /** @type {Middleware[]} */ (/** @type {unknown} */ (middlewareOrRender)),
         /** @type {SlimRender} */ (maybeRender)
     );
-    if (DEV) Ctor = createNamedElementClass(tag, Ctor);
+    if (DEV) {
+        ElementConstructor = createNamedElementClass(tag, ElementConstructor);
+    }
 
-    customElements.define(tag, Ctor);
+    customElements.define(tag, ElementConstructor);
 };
 
 /**
@@ -108,15 +110,17 @@ export const defineElement = (tag, middlewareOrRender, maybeRender) => {
  * @returns {void}
  */
 export const defineBuiltinElement = (tag, extendElement, middlewareOrRender, maybeRender) => {
-    const Base = /** @type {CustomElementConstructor} */ (/** @type {unknown} */ (document.createElement(extendElement).constructor));
-    let Ctor = createCustomElement(
+    const ElementBase = /** @type {CustomElementConstructor} */ (/** @type {unknown} */ (document.createElement(extendElement).constructor));
+    let ElementConstructor = createCustomElement(
         /** @type {Middleware[]} */ (/** @type {unknown} */ (middlewareOrRender)),
         /** @type {SlimRender} */ (maybeRender),
-        Base
+        ElementBase
     );
-    if (DEV) Ctor = createNamedElementClass(tag, Ctor);
+    if (DEV) {
+        ElementConstructor = createNamedElementClass(tag, ElementConstructor);
+    }
 
-    customElements.define(tag, Ctor, { extends: extendElement });
+    customElements.define(tag, ElementConstructor, { extends: extendElement });
 };
 
 /**
@@ -125,27 +129,27 @@ export const defineBuiltinElement = (tag, extendElement, middlewareOrRender, may
  * @returns {CustomElementConstructor}
  */
 const createNamedElementClass = (tag, ElementBase) => {
-    const className = tag.replace(/(^|-)(\w)/g, (_, _d, c) => c.toUpperCase());
+    const className = tag.replace(/(^|-)(\w)/g, (_match, _separator, character) => character.toUpperCase());
     return /** @type {CustomElementConstructor} */ ({ [className]: class extends ElementBase {} }[className]);
 };
 
 /**
- * @param {CustomElementConstructor} Base
+ * @param {CustomElementConstructor} ElementBase
  * @param {SlimRender} userRender
  * @returns {CustomElementConstructor}
  */
-const applySlimCore = (Base, userRender) =>
-    class extends Base {
+const applySlimCore = (ElementBase, userRender) =>
+    class extends ElementBase {
         #mounted = false;
         /** @type {null | (() => void)} */
-        #dispose = null;
+        #disposeRender = null;
 
         connectedCallback() {
             if (!this.#mounted) {
                 this.#mounted = true;
                 const previousHost = currentHost;
                 currentHost = /** @type {SlimHost} */ (/** @type {unknown} */ (this));
-                this.#dispose = render(
+                this.#disposeRender = render(
                     () => /** @type {any} */ (userRender(/** @type {SlimHost} */ (/** @type {unknown} */ (this)))),
                     this
                 );
@@ -157,8 +161,8 @@ const applySlimCore = (Base, userRender) =>
             await Promise.resolve();
             if (!this.isConnected && this.#mounted) {
                 this.#mounted = false;
-                this.#dispose?.();
-                this.#dispose = null;
+                this.#disposeRender?.();
+                this.#disposeRender = null;
             }
         }
     };
@@ -172,28 +176,28 @@ const applySlimCore = (Base, userRender) =>
  * `host.count` accessor. Adopts any own property already on the host (e.g.
  * from `attributeChangedCallback` or a pre-define `el.count = …`).
  *
- * @template {Record<string, unknown>} P
- * @param {P} initialProps
- * @returns {P}
+ * @template {Record<string, unknown>} Props
+ * @param {Props} initialProps
+ * @returns {Props}
  */
 export const props = initialProps => {
     if (DEV && currentHost === undefined) {
         throw new Error('props() must be called synchronously inside a defineElement render callback');
     }
-    const reactiveProps = /** @type {P} */ (state(initialProps));
-    for (const key of Object.keys(initialProps)) {
-        if (Object.hasOwn(/** @type {SlimHost} */ (currentHost), key)) {
-            /** @type {Record<string, unknown>} */ (reactiveProps)[key] = /** @type {SlimHost} */ (currentHost)[key];
-            delete (/** @type {SlimHost} */ (currentHost)[key]);
+    const reactiveProps = /** @type {Props} */ (state(initialProps));
+    for (const propertyName of Object.keys(initialProps)) {
+        if (Object.hasOwn(/** @type {SlimHost} */ (currentHost), propertyName)) {
+            /** @type {Record<string, unknown>} */ (reactiveProps)[propertyName] = /** @type {SlimHost} */ (currentHost)[propertyName];
+            delete (/** @type {SlimHost} */ (currentHost)[propertyName]);
         }
-        Object.defineProperty(/** @type {SlimHost} */ (currentHost), key, {
+        Object.defineProperty(/** @type {SlimHost} */ (currentHost), propertyName, {
             configurable: true,
             enumerable: true,
             get() {
-                return reactiveProps[key];
+                return reactiveProps[propertyName];
             },
-            set(value) {
-                /** @type {Record<string, unknown>} */ (reactiveProps)[key] = value;
+            set(propertyValue) {
+                /** @type {Record<string, unknown>} */ (reactiveProps)[propertyName] = propertyValue;
             },
         });
     }

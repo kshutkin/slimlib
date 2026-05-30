@@ -4,7 +4,7 @@
  * @param {string[]} features
  * @returns {Middleware}
  */
-export const disabledFeatures = features => Base =>
-    class extends Base {
+export const disabledFeatures = features => ElementBase =>
+    class extends ElementBase {
         static disabledFeatures = features;
     };

@@ -2,12 +2,12 @@
 /** @typedef {import('../types.js').SlimHost} SlimHost */
 
 /**
- * @param {(host: SlimHost, oldDoc: Document, newDoc: Document) => void} fn
+ * @param {(host: SlimHost, oldDocument: Document, newDocument: Document) => void} callback
  * @returns {Middleware}
  */
-export const onAdopted = fn => Base =>
-    class extends Base {
-        adoptedCallback(/** @type {Document} */ oldDoc, /** @type {Document} */ newDoc) {
-            fn(/** @type {SlimHost} */ (/** @type {unknown} */ (this)), oldDoc, newDoc);
+export const onAdopted = callback => ElementBase =>
+    class extends ElementBase {
+        adoptedCallback(/** @type {Document} */ oldDocument, /** @type {Document} */ newDocument) {
+            callback(/** @type {SlimHost} */ (/** @type {unknown} */ (this)), oldDocument, newDocument);
         }
     };

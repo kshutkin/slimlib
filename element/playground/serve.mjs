@@ -7,8 +7,8 @@ import { fileURLToPath } from 'node:url';
 
 import { context } from 'esbuild';
 
-const here = dirname(fileURLToPath(import.meta.url));
-const elementRoot = resolve(here, '..');
+const playgroundDirectory = dirname(fileURLToPath(import.meta.url));
+const elementRoot = resolve(playgroundDirectory, '..');
 const repoRoot = resolve(elementRoot, '..');
 const jsxRoot = resolve(repoRoot, 'jsx');
 const storeRoot = resolve(repoRoot, 'store');
@@ -30,11 +30,11 @@ const aliasPlugin = {
     },
 };
 
-const ctx = await context({
-    entryPoints: { main: resolve(here, 'main.jsx') },
+const buildContext = await context({
+    entryPoints: { main: resolve(playgroundDirectory, 'main.jsx') },
     bundle: true,
     format: 'esm',
-    outdir: here,
+    outdir: playgroundDirectory,
     write: false,
     jsx: 'automatic',
     jsxImportSource: '@slimlib/jsx',
@@ -44,10 +44,10 @@ const ctx = await context({
 });
 
 const port = Number(process.env.PORT ?? 5181);
-const result = await ctx.serve({ servedir: here, port, host: '127.0.0.1' });
+const serverResult = await buildContext.serve({ servedir: playgroundDirectory, port, host: '127.0.0.1' });
 
-const host = result.hosts?.[0] ?? result.host ?? '127.0.0.1';
-const actualPort = result.port;
-const url = `http://${host}:${actualPort}/`;
-console.log(`@slimlib/element playground → ${url}`);
+const host = serverResult.hosts?.[0] ?? serverResult.host ?? '127.0.0.1';
+const actualPort = serverResult.port;
+const serverUrl = `http://${host}:${actualPort}/`;
+console.log(`@slimlib/element playground → ${serverUrl}`);
 console.log('  (Ctrl-C to stop)');

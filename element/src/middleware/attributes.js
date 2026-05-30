@@ -6,7 +6,7 @@ import { effect } from '@slimlib/store';
 /** @typedef {import('../types.js').SlimHost} SlimHost */
 
 /**
- * @typedef {[parse?: (raw: string | null) => unknown, serialize?: (value: unknown) => (string | null)]} AttributeDescriptor
+ * @typedef {[parse?: (rawValue: string | null) => unknown, serialize?: (propertyValue: unknown) => (string | null)]} AttributeDescriptor
  *   Positional tuple. `parse` converts an inbound attribute string (`string | null`)
  *   into a prop value; when omitted the attribute is not observed (no prop is
  *   written on attribute changes). `serialize` converts a prop value into an
@@ -22,69 +22,77 @@ import { effect } from '@slimlib/store';
  * is a `[parse?, serialize?]` tuple; presence of `serialize` reflects the prop
  * write back to the attribute.
  *
- * @param {Record<string, AttributeDescriptor>} config
+ * @param {Record<string, AttributeDescriptor>} attributeConfig
  * @returns {Middleware}
  */
-export const attributes = config => {
-    const names = Object.keys(config);
-    const observedKeys = names.filter(name => config[name]?.[0]);
-    const reflectedKeys = names.filter(name => config[name]?.[1]);
+export const attributes = attributeConfig => {
+    const attributeNames = Object.keys(attributeConfig);
+    const observedAttributeNames = attributeNames.filter(attributeName => attributeConfig[attributeName]?.[0]);
+    const reflectedAttributeNames = attributeNames.filter(attributeName => attributeConfig[attributeName]?.[1]);
 
-    return Base => {
-        return class extends /** @type {new (...args: unknown[]) => HTMLElement & { connectedCallback(): void; disconnectedCallback(): void }} */ (
-            /** @type {unknown} */ (Base)
+    return ElementBase => {
+        return class extends /** @type {new (...constructorArguments: unknown[]) => HTMLElement & { connectedCallback(): void; disconnectedCallback(): void }} */ (
+            /** @type {unknown} */ (ElementBase)
         ) {
             /** @type {null | (() => void)} */
             #reflectDispose = null;
 
             static get observedAttributes() {
-                return observedKeys;
+                return observedAttributeNames;
             }
 
-            attributeChangedCallback(/** @type {string} */ name, /** @type {string | null} */ _old, /** @type {string | null} */ value) {
-                /** @type {SlimHost} */ (/** @type {unknown} */ (this))[name] = /** @type {[parse: (raw: string | null) => unknown]} */ (
-                    config[name]
-                )[0](value);
+            attributeChangedCallback(
+                /** @type {string} */ attributeName,
+                /** @type {string | null} */ _oldValue,
+                /** @type {string | null} */ newValue
+            ) {
+                /** @type {SlimHost} */ (/** @type {unknown} */ (this))[attributeName] = /** @type {[parse: (rawValue: string | null) => unknown]} */ (
+                    attributeConfig[attributeName]
+                )[0](newValue);
             }
 
             connectedCallback() {
                 super.connectedCallback();
 
                 if (DEV) {
-                    for (const name of reflectedKeys) {
-                        if (!Object.getOwnPropertyDescriptor(this, name)?.get) {
+                    for (const attributeName of reflectedAttributeNames) {
+                        if (!Object.getOwnPropertyDescriptor(this, attributeName)?.get) {
                             console.warn(
-                                `[@slimlib/element] attribute "${name}" is reflected (has a serialize function) but was not declared via props(); reflection won't track changes.`
+                                `[@slimlib/element] attribute "${attributeName}" is reflected (has a serialize function) but was not declared via props(); reflection won't track changes.`
                             );
                         }
                     }
                 }
 
-                if (!this.#reflectDispose && reflectedKeys.length > 0) {
-                    const disposers = reflectedKeys.map(name => {
-                        const descriptor = /** @type {AttributeDescriptor} */ (config[name]);
-                        const parse = descriptor[0];
-                        const serialize = /** @type {NonNullable<AttributeDescriptor[1]>} */ (descriptor[1]);
+                if (!this.#reflectDispose && reflectedAttributeNames.length > 0) {
+                    const disposeCallbacks = reflectedAttributeNames.map(attributeName => {
+                        const attributeDescriptor = /** @type {AttributeDescriptor} */ (attributeConfig[attributeName]);
+                        const parseAttribute = attributeDescriptor[0];
+                        const serializeAttribute = /** @type {NonNullable<AttributeDescriptor[1]>} */ (attributeDescriptor[1]);
                         return effect(() => {
-                            const host = /** @type {SlimHost} */ (/** @type {unknown} */ (this));
-                            const out = serialize(host[name]);
-                            if (DEV && parse) {
-                                const back = serialize(parse(out));
-                                if (back !== out) {
+                            const elementHost = /** @type {SlimHost} */ (/** @type {unknown} */ (this));
+                            const serializedValue = serializeAttribute(elementHost[attributeName]);
+                            if (DEV && parseAttribute) {
+                                const roundTripValue = serializeAttribute(parseAttribute(serializedValue));
+                                if (roundTripValue !== serializedValue) {
                                     throw new Error(
-                                        `[@slimlib/element] attribute "${name}" [parse, serialize] pair is not round-trip stable: serialize(parse(${JSON.stringify(out)})) === ${JSON.stringify(back)} (expected ${JSON.stringify(out)}); reflection would loop.`
+                                        `[@slimlib/element] attribute "${attributeName}" [parse, serialize] pair is not round-trip stable: serialize(parse(${JSON.stringify(serializedValue)})) === ${JSON.stringify(roundTripValue)} (expected ${JSON.stringify(serializedValue)}); reflection would loop.`
                                     );
                                 }
                             }
-                            if (out == null) {
-                                if (host.hasAttribute(name)) host.removeAttribute(name);
-                            } else if (host.getAttribute(name) !== out) {
-                                host.setAttribute(name, out);
+                            if (serializedValue == null) {
+                                if (elementHost.hasAttribute(attributeName)) {
+                                    elementHost.removeAttribute(attributeName);
+                                }
+                            } else if (elementHost.getAttribute(attributeName) !== serializedValue) {
+                                elementHost.setAttribute(attributeName, serializedValue);
                             }
                         }, 1 /* EAGER */);
                     });
                     this.#reflectDispose = () => {
-                        for (const dispose of disposers) dispose();
+                        for (const disposeCallback of disposeCallbacks) {
+                            disposeCallback();
+                        }
                     };
                 }
             }
@@ -99,10 +107,10 @@ export const attributes = config => {
 };
 
 /** @type {AttributeDescriptor} */
-export const numberAttr = [raw => (raw === null ? null : Number(raw)), value => (value == null ? null : String(value))];
+export const numberAttr = [rawValue => (rawValue === null ? null : Number(rawValue)), propertyValue => (propertyValue == null ? null : String(propertyValue))];
 
 /** @type {AttributeDescriptor} */
-export const boolAttr = [raw => raw !== null, value => (value ? '' : null)];
+export const boolAttr = [rawValue => rawValue !== null, propertyValue => (propertyValue ? '' : null)];
 
 /** @type {AttributeDescriptor} */
-export const stringAttr = [raw => raw, value => (value == null ? null : String(value))];
+export const stringAttr = [rawValue => rawValue, propertyValue => (propertyValue == null ? null : String(propertyValue))];

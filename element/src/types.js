@@ -7,7 +7,7 @@
  */
 
 /**
- * @typedef {(Base: CustomElementConstructor) => CustomElementConstructor} Middleware
+ * @typedef {(ElementBase: CustomElementConstructor) => CustomElementConstructor} Middleware
  */
 
 export {};

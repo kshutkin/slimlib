@@ -18,30 +18,30 @@ defineElement(
         }),
     ],
     host => {
-        const state = props({ count: 0, open: false, label: 'hello' });
+        const demoState = props({ count: 0, open: false, label: 'hello' });
         // Expose the reactive proxy so the page-level buttons can mutate it.
-        host._state = state;
+        host._state = demoState;
         return (
             <div class='row'>
-                <button type='button' on:click={() => state.count--}>
+                <button type='button' on:click={() => demoState.count--}>
                     −
                 </button>
-                <output>{() => state.count}</output>
-                <button type='button' on:click={() => state.count++}>
+                <output>{() => demoState.count}</output>
+                <button type='button' on:click={() => demoState.count++}>
                     +
                 </button>
-                <button type='button' on:click={() => (state.open = !state.open)}>
-                    {() => (state.open ? 'open' : 'closed')}
+                <button type='button' on:click={() => (demoState.open = !demoState.open)}>
+                    {() => (demoState.open ? 'open' : 'closed')}
                 </button>
                 <span>
-                    label: <strong>{() => state.label}</strong>
+                    label: <strong>{() => demoState.label}</strong>
                 </span>
             </div>
         );
     }
 );
 
-const app = document.getElementById('app');
+const appRoot = document.getElementById('app');
 
 const element = document.createElement('reflect-demo');
 
@@ -53,29 +53,29 @@ panel.innerHTML = `
 `;
 panel.appendChild(element);
 
-const attrPanel = document.createElement('div');
-attrPanel.className = 'demo';
-attrPanel.innerHTML = '<h2>attribute → prop (coercion)</h2>';
+const attributePanel = document.createElement('div');
+attributePanel.className = 'demo';
+attributePanel.innerHTML = '<h2>attribute → prop (coercion)</h2>';
 
 const row = document.createElement('div');
 row.className = 'row';
 
-const mkButton = (text, onClick) => {
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.textContent = text;
-    b.addEventListener('click', onClick);
-    return b;
+const createButton = (text, onClick) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = text;
+    button.addEventListener('click', onClick);
+    return button;
 };
 
 row.append(
-    mkButton('setAttribute count="42"', () => element.setAttribute('count', '42')),
-    mkButton('removeAttribute count', () => element.removeAttribute('count')),
-    mkButton('setAttribute open', () => element.setAttribute('open', '')),
-    mkButton('removeAttribute open', () => element.removeAttribute('open')),
-    mkButton('setAttribute label="world"', () => element.setAttribute('label', 'world'))
+    createButton('setAttribute count="42"', () => element.setAttribute('count', '42')),
+    createButton('removeAttribute count', () => element.removeAttribute('count')),
+    createButton('setAttribute open', () => element.setAttribute('open', '')),
+    createButton('removeAttribute open', () => element.removeAttribute('open')),
+    createButton('setAttribute label="world"', () => element.setAttribute('label', 'world'))
 );
 
-attrPanel.append(row);
+attributePanel.append(row);
 
-app.append(panel, attrPanel);
+appRoot.append(panel, attributePanel);

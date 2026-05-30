@@ -4,10 +4,10 @@ import { setScheduler } from '@slimlib/store';
 
 vi.mock('esm-env', () => ({ DEV: false }));
 
-setScheduler(fn => fn());
+setScheduler(scheduledCallback => scheduledCallback());
 
 let counter = 0;
-const uniqueTag = base => `${base}-${++counter}`;
+const uniqueTag = baseName => `${baseName}-${++counter}`;
 
 afterEach(() => {
     document.body.innerHTML = '';
@@ -43,17 +43,17 @@ describe('defineElement constructor naming (production)', () => {
 
         const tag = uniqueTag('x-slim-counter-prod');
         defineElement(tag, () => null);
-        const Element = customElements.get(tag);
+        const ElementConstructor = customElements.get(tag);
 
-        expect(Element.name).toBe('');
-        expect(customElements.get(tag)).toBe(Element);
+        expect(ElementConstructor.name).toBe('');
+        expect(customElements.get(tag)).toBe(ElementConstructor);
     });
 });
 
 describe('attributes() reflection (production)', () => {
     it('reflects a Number prop without emitting DEV warnings', async () => {
         const { defineElement, attributes, numberAttr, props } = await import('../src/index.js');
-        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
         const tag = uniqueTag('x-attr-reflect-prod');
         defineElement(tag, [attributes({ count: numberAttr })], () => {
             props({ count: 0 });
@@ -65,19 +65,19 @@ describe('attributes() reflection (production)', () => {
 
         element.count = 9;
         expect(element.getAttribute('count')).toBe('9');
-        expect(warn).not.toHaveBeenCalled();
-        warn.mockRestore();
+        expect(warnSpy).not.toHaveBeenCalled();
+        warnSpy.mockRestore();
     });
 
     it('does not warn for an undeclared reflected key in production', async () => {
         const { defineElement, attributes, stringAttr } = await import('../src/index.js');
-        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
         const tag = uniqueTag('x-attr-undeclared-prod');
         defineElement(tag, [attributes({ ghost: stringAttr })], () => null);
 
         document.body.appendChild(document.createElement(tag));
 
-        expect(warn).not.toHaveBeenCalled();
-        warn.mockRestore();
+        expect(warnSpy).not.toHaveBeenCalled();
+        warnSpy.mockRestore();
     });
 });

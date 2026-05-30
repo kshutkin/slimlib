@@ -4,10 +4,10 @@ import { setScheduler } from '@slimlib/store';
 
 vi.mock('esm-env', () => ({ DEV: true }));
 
-setScheduler(fn => fn());
+setScheduler(scheduledCallback => scheduledCallback());
 
 let counter = 0;
-const uniqueTag = base => `${base}-${++counter}`;
+const uniqueTag = baseName => `${baseName}-${++counter}`;
 const nextMicrotask = () => Promise.resolve();
 const supportsCustomizedBuiltIns = () => {
     const tag = uniqueTag('x-slim-built-in-probe');
@@ -37,18 +37,18 @@ afterEach(() => {
 
 describe('@slimlib/element public API (DEV)', () => {
     it('exports defineElement, props, and middleware helpers', async () => {
-        const api = await import('../src/index.js');
-        const { defineElement, props } = api;
-        expect(typeof api.createCustomElement).toBe('function');
+        const elementModule = await import('../src/index.js');
+        const { defineElement, props } = elementModule;
+        expect(typeof elementModule.createCustomElement).toBe('function');
         expect(typeof defineElement).toBe('function');
-        expect(typeof api.defineBuiltinElement).toBe('function');
+        expect(typeof elementModule.defineBuiltinElement).toBe('function');
         expect(typeof props).toBe('function');
-        expect(typeof api.attributes).toBe('function');
-        expect(typeof api.disabledFeatures).toBe('function');
-        expect(typeof api.formAssociated).toBe('function');
-        expect(typeof api.withInternals).toBe('function');
-        expect(typeof api.onAdopted).toBe('function');
-        expect(typeof api.onMove).toBe('function');
+        expect(typeof elementModule.attributes).toBe('function');
+        expect(typeof elementModule.disabledFeatures).toBe('function');
+        expect(typeof elementModule.formAssociated).toBe('function');
+        expect(typeof elementModule.withInternals).toBe('function');
+        expect(typeof elementModule.onAdopted).toBe('function');
+        expect(typeof elementModule.onMove).toBe('function');
     });
 
     it('attributeChangedCallback writes the named property to the host', async () => {
@@ -67,26 +67,26 @@ describe('middleware-composed defineElement (DEV)', () => {
     it('createCustomElement returns an unregistered class', async () => {
         const { createCustomElement } = await import('../src/index.js');
         const tag = uniqueTag('x-slim-unregistered');
-        const Ctor = createCustomElement(() => null);
+        const ElementConstructor = createCustomElement(() => null);
 
-        expect(typeof Ctor).toBe('function');
+        expect(typeof ElementConstructor).toBe('function');
         expect(customElements.get(tag)).toBeUndefined();
 
-        customElements.define(tag, Ctor);
+        customElements.define(tag, ElementConstructor);
         const element = document.createElement(tag);
 
-        expect(element).toBeInstanceOf(Ctor);
+        expect(element).toBeInstanceOf(ElementConstructor);
     });
 
     scopedRegistryIt('registers in a scoped registry without touching the global one', async () => {
         const { createCustomElement } = await import('../src/index.js');
         const tag = uniqueTag('x-slim-scoped');
-        const Ctor = createCustomElement(() => null);
+        const ElementConstructor = createCustomElement(() => null);
 
         const registry = new CustomElementRegistry();
-        registry.define(tag, Ctor);
+        registry.define(tag, ElementConstructor);
 
-        expect(registry.get(tag)).toBe(Ctor);
+        expect(registry.get(tag)).toBe(ElementConstructor);
         expect(customElements.get(tag)).toBeUndefined();
 
         // Element upgrade through a scoped registry (attachShadow({ customElements }),
@@ -212,10 +212,10 @@ describe('middleware-composed defineElement (DEV)', () => {
         const stateRestore = vi.fn();
         defineElement(tag, [withInternals(), formAssociated({ stateRestore })], () => null);
         const element = document.createElement(tag);
-        const Ctor = customElements.get(tag);
+        const ElementConstructor = customElements.get(tag);
 
         // Browser restoration needs bfcache/autofill, so invoke the platform callback directly.
-        Ctor.prototype.formStateRestoreCallback.call(element, 'state-value', 'restore');
+        ElementConstructor.prototype.formStateRestoreCallback.call(element, 'state-value', 'restore');
 
         expect(stateRestore).toHaveBeenCalledTimes(1);
         expect(stateRestore).toHaveBeenCalledWith(element, 'state-value', 'restore');
@@ -225,46 +225,46 @@ describe('middleware-composed defineElement (DEV)', () => {
         const { defineElement, formAssociated } = await import('../src/index.js');
         const tag = uniqueTag('x-slim-form-absent');
         defineElement(tag, [formAssociated({ reset: vi.fn() })], () => null);
-        const Ctor = customElements.get(tag);
+        const ElementConstructor = customElements.get(tag);
 
-        expect('formResetCallback' in Ctor.prototype).toBe(true);
-        expect('formDisabledCallback' in Ctor.prototype).toBe(false);
+        expect('formResetCallback' in ElementConstructor.prototype).toBe(true);
+        expect('formDisabledCallback' in ElementConstructor.prototype).toBe(false);
     });
 
-    it('installs adoptedCallback through onAdopted(fn)', async () => {
+    it('installs adoptedCallback through onAdopted(callback)', async () => {
         const { defineElement, onAdopted } = await import('../src/index.js');
         const tag = uniqueTag('x-slim-adopted');
         defineElement(tag, [onAdopted(() => {})], () => null);
-        const Ctor = customElements.get(tag);
+        const ElementConstructor = customElements.get(tag);
 
-        expect('adoptedCallback' in Ctor.prototype).toBe(true);
+        expect('adoptedCallback' in ElementConstructor.prototype).toBe(true);
     });
 
-    it('forwards adopted callbacks to onAdopted(fn)', async () => {
+    it('forwards adopted callbacks to onAdopted(callback)', async () => {
         const { defineElement, onAdopted } = await import('../src/index.js');
         const tag = uniqueTag('x-slim-adopted-body');
         const adopted = vi.fn();
         defineElement(tag, [onAdopted(adopted)], () => null);
         const element = document.createElement(tag);
-        const oldDoc = element.ownerDocument;
-        const newDoc = document.implementation.createHTMLDocument('new-owner');
+        const oldDocument = element.ownerDocument;
+        const newDocument = document.implementation.createHTMLDocument('new-owner');
 
-        newDoc.adoptNode(element);
+        newDocument.adoptNode(element);
 
         expect(adopted).toHaveBeenCalledTimes(1);
-        expect(adopted).toHaveBeenCalledWith(element, oldDoc, newDoc);
+        expect(adopted).toHaveBeenCalledWith(element, oldDocument, newDocument);
     });
 
-    it('installs connectedMoveCallback through onMove(fn)', async () => {
+    it('installs connectedMoveCallback through onMove(callback)', async () => {
         const { defineElement, onMove } = await import('../src/index.js');
         const tag = uniqueTag('x-slim-move');
         defineElement(tag, [onMove(() => {})], () => null);
-        const Ctor = customElements.get(tag);
+        const ElementConstructor = customElements.get(tag);
 
-        expect('connectedMoveCallback' in Ctor.prototype).toBe(true);
+        expect('connectedMoveCallback' in ElementConstructor.prototype).toBe(true);
     });
 
-    it('forwards connectedMoveCallback to onMove(fn)', async () => {
+    it('forwards connectedMoveCallback to onMove(callback)', async () => {
         const { defineElement, onMove } = await import('../src/index.js');
         const tag = uniqueTag('x-slim-move-body');
         const moved = vi.fn();
@@ -278,9 +278,9 @@ describe('middleware-composed defineElement (DEV)', () => {
         if (typeof parent.moveBefore === 'function') {
             parent.moveBefore(element, anotherChild);
         } else {
-            const Ctor = customElements.get(tag);
+            const ElementConstructor = customElements.get(tag);
             // Element.moveBefore is not available in every test browser, so invoke the hook directly.
-            Ctor.prototype.connectedMoveCallback.call(element);
+            ElementConstructor.prototype.connectedMoveCallback.call(element);
         }
 
         expect(moved).toHaveBeenCalledTimes(1);
@@ -289,13 +289,13 @@ describe('middleware-composed defineElement (DEV)', () => {
 
     it('applies middleware from inside out while preserving outer-to-inner prototype order', async () => {
         const { defineElement } = await import('../src/index.js');
-        const applied = [];
+        const appliedLayerNames = [];
         const layerNames = [];
-        const createLayer = name => Base => {
-            applied.push(name);
-            class Layer extends Base {}
-            Object.defineProperty(Layer, name, { value: true });
-            Object.defineProperty(Layer.prototype, 'layerName', { value: name });
+        const createLayer = layerName => ElementBase => {
+            appliedLayerNames.push(layerName);
+            class Layer extends ElementBase {}
+            Object.defineProperty(Layer, layerName, { value: true });
+            Object.defineProperty(Layer.prototype, 'layerName', { value: layerName });
             return Layer;
         };
         const tag = uniqueTag('x-slim-order');
@@ -303,11 +303,13 @@ describe('middleware-composed defineElement (DEV)', () => {
         let prototype = customElements.get(tag).prototype;
 
         while (prototype && prototype !== HTMLElement.prototype) {
-            if (Object.hasOwn(prototype, 'layerName')) layerNames.push(prototype.layerName);
+            if (Object.hasOwn(prototype, 'layerName')) {
+                layerNames.push(prototype.layerName);
+            }
             prototype = Object.getPrototypeOf(prototype);
         }
 
-        expect(applied).toEqual(['C', 'B', 'A']);
+        expect(appliedLayerNames).toEqual(['C', 'B', 'A']);
         expect(layerNames).toEqual(['A', 'B', 'C']);
     });
 
@@ -321,15 +323,15 @@ describe('middleware-composed defineElement (DEV)', () => {
             renderCount++;
             return null;
         });
-        const Element = customElements.get(tag);
+        const ElementConstructor = customElements.get(tag);
 
         const element = document.createElement('button', { is: tag });
         element.setAttribute('data-x', 'hello');
         document.body.appendChild(element);
 
-        expect(customElements.get(tag)).toBe(Element);
+        expect(customElements.get(tag)).toBe(ElementConstructor);
         expect(element).toBeInstanceOf(HTMLButtonElement);
-        expect(element).toBeInstanceOf(Element);
+        expect(element).toBeInstanceOf(ElementConstructor);
         expect(element['data-x']).toBe('hello');
         expect(renderCount).toBe(1);
     });
@@ -343,11 +345,11 @@ describe('middleware-composed defineElement (DEV)', () => {
             renderCount++;
             return jsxCreateElement('span', null, 'inner');
         });
-        const Ctor = customElements.get(tag);
+        const ElementConstructor = customElements.get(tag);
 
         const element = jsxCreateElement('button', { is: tag });
 
-        expect(element).toBeInstanceOf(Ctor);
+        expect(element).toBeInstanceOf(ElementConstructor);
         expect(element).toBeInstanceOf(HTMLButtonElement);
         expect(element.getAttribute('is')).toBe(tag);
 
@@ -365,8 +367,8 @@ describe('middleware-composed defineElement (DEV)', () => {
         const tag = uniqueTag('x-slim-connected-override');
         let renderCount = 0;
         let connectedCount = 0;
-        const markConnected = Base =>
-            class extends Base {
+        const markConnected = ElementBase =>
+            class extends ElementBase {
                 connectedCallback() {
                     super.connectedCallback();
                     connectedCount++;
@@ -443,11 +445,11 @@ describe('defineElement constructor naming (DEV)', () => {
 
         const tag = uniqueTag('x-slim-counter-dev');
         defineElement(tag, () => null);
-        const Element = customElements.get(tag);
+        const ElementConstructor = customElements.get(tag);
 
-        const expected = tag.replace(/(^|-)(\w)/g, (_, _d, c) => c.toUpperCase());
-        expect(Element.name).toBe(expected);
-        expect(customElements.get(tag)).toBe(Element);
+        const expectedName = tag.replace(/(^|-)(\w)/g, (_match, _separator, character) => character.toUpperCase());
+        expect(ElementConstructor.name).toBe(expectedName);
+        expect(customElements.get(tag)).toBe(ElementConstructor);
     });
 });
 
@@ -597,7 +599,7 @@ describe('attributes() reflection + coercion (DEV)', () => {
     it('reflect-only [undefined, serialize] pushes prop to attribute but does not observe inbound', async () => {
         const { defineElement, attributes, props } = await import('../src/index.js');
         const tag = uniqueTag('x-attr-reflect-only');
-        defineElement(tag, [attributes({ count: [undefined, value => (value == null ? null : String(value))] })], () => {
+        defineElement(tag, [attributes({ count: [undefined, propertyValue => (propertyValue == null ? null : String(propertyValue))] })], () => {
             props({ count: 0 });
             return null;
         });
@@ -685,15 +687,15 @@ describe('attributes() reflection + coercion (DEV)', () => {
     it('throws in DEV when the parse/serialize pair is not round-trip stable', async () => {
         const { defineElement, attributes, props } = await import('../src/index.js');
         const tag = uniqueTag('x-attr-loop');
-        defineElement(tag, [attributes({ n: [raw => Number(raw), value => String(value + 1)] })], () => {
-            props({ n: 0 });
+        defineElement(tag, [attributes({ count: [rawValue => Number(rawValue), propertyValue => String(propertyValue + 1)] })], () => {
+            props({ count: 0 });
             return null;
         });
 
         const errors = [];
-        const handler = e => {
-            errors.push(e.error ?? e.message ?? e);
-            e.preventDefault(); // mark handled so the runner doesn't treat it as unhandled
+        const handler = event => {
+            errors.push(event.error ?? event.message ?? event);
+            event.preventDefault(); // mark handled so the runner doesn't treat it as unhandled
         };
         window.addEventListener('error', handler);
         try {
@@ -702,7 +704,7 @@ describe('attributes() reflection + coercion (DEV)', () => {
             window.removeEventListener('error', handler);
         }
 
-        expect(errors.some(err => /round-trip/.test(String(err?.message ?? err)))).toBe(true);
+        expect(errors.some(error => /round-trip/.test(String(error?.message ?? error)))).toBe(true);
     });
 
     it('warns when a reflected attribute is not declared via props()', async () => {
@@ -783,7 +785,7 @@ describe('attributes() reflection + coercion (DEV)', () => {
     it('coerces an inbound attribute with a custom type function', async () => {
         const { defineElement, attributes, props } = await import('../src/index.js');
         const tag = uniqueTag('x-attr-custom-in');
-        defineElement(tag, [attributes({ csv: [raw => (raw ? raw.split(',') : [])] })], () => {
+        defineElement(tag, [attributes({ csv: [rawValue => (rawValue ? rawValue.split(',') : [])] })], () => {
             props({ csv: [] });
             return null;
         });
