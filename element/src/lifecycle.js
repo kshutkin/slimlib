@@ -14,17 +14,3 @@ export const FORM_ASSOCIATED = Symbol();
 export const FORM_DISABLED = Symbol();
 export const FORM_RESET = Symbol();
 export const FORM_STATE_RESTORE = Symbol();
-
-/** Every lifecycle symbol, used to validate render-time subscriptions. */
-export const LIFECYCLE_SYMBOLS = [
-    MOUNT,
-    UNMOUNT,
-    CONNECT,
-    DISCONNECT,
-    ADOPTED,
-    MOVE,
-    FORM_ASSOCIATED,
-    FORM_DISABLED,
-    FORM_RESET,
-    FORM_STATE_RESTORE,
-];

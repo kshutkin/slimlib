@@ -11,7 +11,6 @@ import {
     FORM_DISABLED,
     FORM_RESET,
     FORM_STATE_RESTORE,
-    LIFECYCLE_SYMBOLS,
     MOUNT,
     MOVE,
     UNMOUNT,
@@ -252,26 +251,30 @@ export const props = initialProps => {
 };
 
 /**
- * Subscribe to an internal lifecycle message on the current slim element.
+ * Subscribe to a lifecycle message on the current slim element.
  *
  * Must be called synchronously inside a render callback (like `props`).
  * Listeners are dropped automatically on unmount and re-registered when the
  * element re-renders. Subscribing to the same message during an emit is
  * unsupported.
  *
- * @param {symbol} key one of the exported lifecycle symbols (e.g. `CONNECT`, `ADOPTED`)
+ * @param {symbol} key
  * @param {(...args: any[]) => void} listener
  * @returns {void}
  */
-export const subscribe = (key, listener) => {
+const subscribeToLifecycle = (key, listener) => {
     if (DEV && currentHost === undefined) {
         throw new Error('lifecycle subscriptions must be called synchronously inside a defineElement render callback');
     }
-    if (DEV && !LIFECYCLE_SYMBOLS.includes(key)) {
-        throw new Error('subscribe() expects a lifecycle symbol exported by @slimlib/element (e.g. CONNECT, UNMOUNT, ADOPTED)');
+    const host = /** @type {SlimHost} */ (currentHost);
+    if (DEV && !(key in host)) {
+        console.warn(
+            '[@slimlib/element] lifecycle subscription ignored: this element does not implement the requested lifecycle. Add the matching middleware before subscribing to optional lifecycle callbacks.'
+        );
+        return;
     }
-    const off = on(/** @type {any} */ (currentHost)[key], listener);
-    const renderSubs = /** @type {(() => void)[]} */ (/** @type {any} */ (currentHost)[RENDER_SUBS]);
+    const off = on(/** @type {any} */ (host)[key], listener);
+    const renderSubs = /** @type {(() => void)[]} */ (/** @type {any} */ (host)[RENDER_SUBS]);
     renderSubs.push(off);
 };
 
@@ -285,7 +288,7 @@ export const subscribe = (key, listener) => {
  */
 export const onMount = listener => {
     const host = /** @type {SlimHost} */ (currentHost);
-    subscribe(MOUNT, () => {
+    subscribeToLifecycle(MOUNT, () => {
         const cleanup = listener();
         if (typeof cleanup === 'function') {
             const off = on(/** @type {any} */ (host)[UNMOUNT], cleanup);
@@ -301,7 +304,7 @@ export const onMount = listener => {
  * @param {() => void} listener
  * @returns {void}
  */
-export const onConnect = listener => subscribe(CONNECT, listener);
+export const onConnect = listener => subscribeToLifecycle(CONNECT, listener);
 
 /**
  * Subscribe to the element's genuine disconnect.
@@ -309,7 +312,7 @@ export const onConnect = listener => subscribe(CONNECT, listener);
  * @param {() => void} listener
  * @returns {void}
  */
-export const onDisconnect = listener => subscribe(DISCONNECT, listener);
+export const onDisconnect = listener => subscribeToLifecycle(DISCONNECT, listener);
 
 /**
  * Subscribe to `adoptedCallback` events emitted by `onAdopted()` middleware.
@@ -317,7 +320,7 @@ export const onDisconnect = listener => subscribe(DISCONNECT, listener);
  * @param {(oldDocument: Document, newDocument: Document) => void} listener
  * @returns {void}
  */
-export const onAdoptedCallback = listener => subscribe(ADOPTED, listener);
+export const onAdoptedCallback = listener => subscribeToLifecycle(ADOPTED, listener);
 
 /**
  * Subscribe to `connectedMoveCallback` events emitted by `onMove()` middleware.
@@ -325,7 +328,7 @@ export const onAdoptedCallback = listener => subscribe(ADOPTED, listener);
  * @param {() => void} listener
  * @returns {void}
  */
-export const onConnectedMove = listener => subscribe(MOVE, listener);
+export const onConnectedMove = listener => subscribeToLifecycle(MOVE, listener);
 
 /**
  * Subscribe to form owner changes emitted by `formAssociated()` middleware.
@@ -333,7 +336,7 @@ export const onConnectedMove = listener => subscribe(MOVE, listener);
  * @param {(form: HTMLFormElement | null) => void} listener
  * @returns {void}
  */
-export const onFormAssociated = listener => subscribe(FORM_ASSOCIATED, listener);
+export const onFormAssociated = listener => subscribeToLifecycle(FORM_ASSOCIATED, listener);
 
 /**
  * Subscribe to disabled state changes emitted by `formAssociated()` middleware.
@@ -341,7 +344,7 @@ export const onFormAssociated = listener => subscribe(FORM_ASSOCIATED, listener)
  * @param {(isDisabled: boolean) => void} listener
  * @returns {void}
  */
-export const onFormDisabled = listener => subscribe(FORM_DISABLED, listener);
+export const onFormDisabled = listener => subscribeToLifecycle(FORM_DISABLED, listener);
 
 /**
  * Subscribe to form reset events emitted by `formAssociated()` middleware.
@@ -349,7 +352,7 @@ export const onFormDisabled = listener => subscribe(FORM_DISABLED, listener);
  * @param {() => void} listener
  * @returns {void}
  */
-export const onFormReset = listener => subscribe(FORM_RESET, listener);
+export const onFormReset = listener => subscribeToLifecycle(FORM_RESET, listener);
 
 /**
  * Subscribe to form state restore events emitted by `formAssociated()` middleware.
@@ -357,4 +360,4 @@ export const onFormReset = listener => subscribe(FORM_RESET, listener);
  * @param {(state: unknown, mode: string) => void} listener
  * @returns {void}
  */
-export const onFormStateRestore = listener => subscribe(FORM_STATE_RESTORE, listener);
+export const onFormStateRestore = listener => subscribeToLifecycle(FORM_STATE_RESTORE, listener);

@@ -411,7 +411,7 @@ describe('middleware-composed defineElement (DEV)', () => {
 });
 
 describe('lifecycle message bus (DEV)', () => {
-    it('exports lifecycle hooks, subscribe, and symbols', async () => {
+    it('exports lifecycle hooks and symbols', async () => {
         const elementModule = await import('../src/index.js');
         for (const name of [
             'onMount',
@@ -423,11 +423,11 @@ describe('lifecycle message bus (DEV)', () => {
             'onFormDisabled',
             'onFormReset',
             'onFormStateRestore',
-            'subscribe',
         ]) {
             expect(typeof elementModule[name]).toBe('function');
         }
         expect('onUnmount' in elementModule).toBe(false);
+        expect('subscribe' in elementModule).toBe(false);
         for (const name of [
             'MOUNT',
             'UNMOUNT',
@@ -604,28 +604,27 @@ describe('lifecycle message bus (DEV)', () => {
         expect(renderScoped).toHaveBeenCalledTimes(2);
     });
 
-    it('returns undefined from render-time lifecycle subscriptions', async () => {
-        const { defineElement, onMount, onConnect, subscribe, CONNECT } = await import('../src/index.js');
+    it('returns undefined from render-time lifecycle hooks', async () => {
+        const { defineElement, onMount, onConnect } = await import('../src/index.js');
         const subscriptionResults = [];
-        const tag = uniqueTag('x-bus-subscribe-return');
+        const tag = uniqueTag('x-bus-hook-return');
         defineElement(tag, () => {
             subscriptionResults.push(onMount(() => () => {}));
             subscriptionResults.push(onConnect(() => {}));
-            subscriptionResults.push(subscribe(CONNECT, () => {}));
             return null;
         });
 
         document.body.appendChild(document.createElement(tag));
 
-        expect(subscriptionResults).toEqual([undefined, undefined, undefined]);
+        expect(subscriptionResults).toEqual([undefined, undefined]);
     });
 
     it('routes onAdopted middleware events to render-time subscribers via the bus', async () => {
-        const { defineElement, onAdopted, subscribe, ADOPTED } = await import('../src/index.js');
+        const { defineElement, onAdopted, onAdoptedCallback } = await import('../src/index.js');
         const busListener = vi.fn();
         const tag = uniqueTag('x-bus-adopted');
         defineElement(tag, [onAdopted()], () => {
-            subscribe(ADOPTED, busListener);
+            onAdoptedCallback(busListener);
             return null;
         });
 
@@ -639,11 +638,11 @@ describe('lifecycle message bus (DEV)', () => {
     });
 
     it('routes formAssociated middleware events to render-time subscribers via the bus', async () => {
-        const { defineElement, formAssociated, withInternals, subscribe, FORM_STATE_RESTORE } = await import('../src/index.js');
+        const { defineElement, formAssociated, withInternals, onFormStateRestore } = await import('../src/index.js');
         const busListener = vi.fn();
         const tag = uniqueTag('x-bus-form-state');
         defineElement(tag, [withInternals(), formAssociated()], () => {
-            subscribe(FORM_STATE_RESTORE, busListener);
+            onFormStateRestore(busListener);
             return null;
         });
         const element = document.createElement(tag);
@@ -655,12 +654,29 @@ describe('lifecycle message bus (DEV)', () => {
         expect(busListener).toHaveBeenCalledWith('state-value', 'restore');
     });
 
+    it('warns and ignores optional lifecycle hooks without matching middleware', async () => {
+        const { defineElement, onFormStateRestore } = await import('../src/index.js');
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        const listener = vi.fn();
+        const tag = uniqueTag('x-bus-missing-lifecycle');
+        defineElement(tag, () => {
+            onFormStateRestore(listener);
+            return null;
+        });
+
+        document.body.appendChild(document.createElement(tag));
+
+        expect(warn).toHaveBeenCalledWith(expect.stringContaining('does not implement the requested lifecycle'));
+        expect(listener).not.toHaveBeenCalled();
+        warn.mockRestore();
+    });
+
     it('routes onMove middleware events to render-time subscribers via the bus', async () => {
-        const { defineElement, onMove, subscribe, MOVE } = await import('../src/index.js');
+        const { defineElement, onMove, onConnectedMove } = await import('../src/index.js');
         const busListener = vi.fn();
         const tag = uniqueTag('x-bus-move');
         defineElement(tag, [onMove()], () => {
-            subscribe(MOVE, busListener);
+            onConnectedMove(busListener);
             return null;
         });
         const element = document.createElement(tag);
@@ -729,25 +745,6 @@ describe('lifecycle message bus (DEV)', () => {
         await nextMicrotask();
 
         expect(connect).toHaveBeenCalledTimes(2);
-    });
-
-    it('rejects subscribe() with a non-lifecycle symbol in DEV', async () => {
-        const { defineElement, subscribe } = await import('../src/index.js');
-        let thrown;
-        const tag = uniqueTag('x-bus-bad-symbol');
-        defineElement(tag, () => {
-            try {
-                subscribe(Symbol('custom'), () => {});
-            } catch (error) {
-                thrown = error;
-            }
-            return null;
-        });
-
-        document.body.appendChild(document.createElement(tag));
-
-        expect(thrown).toBeInstanceOf(Error);
-        expect(thrown.message).toMatch(/expects a lifecycle symbol/);
     });
 });
 
