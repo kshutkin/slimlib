@@ -3,7 +3,6 @@ import { DEV } from 'esm-env';
 import { effect, scope } from '@slimlib/store';
 
 import { MOUNT, UNMOUNT } from '../lifecycle.js';
-import { on } from '../utils/pubsub.js';
 
 /** @typedef {import('../types.js').Middleware} Middleware */
 /** @typedef {import('../types.js').SlimHost} SlimHost */
@@ -51,7 +50,7 @@ export const attributes = attributeConfig => {
                     /** @type {Scope | null} */
                     let reflectScope = null;
 
-                    on(/** @type {AttributeHost} */ (this)[MOUNT], () => {
+                    /** @type {AttributeHost} */ (this)[MOUNT].push(() => {
                         if (DEV) {
                             for (const attributeName of reflectedAttributeNames) {
                                 if (!Object.getOwnPropertyDescriptor(this, attributeName)?.get) {
@@ -99,7 +98,7 @@ export const attributes = attributeConfig => {
                         });
                     });
 
-                    on(/** @type {AttributeHost} */ (this)[UNMOUNT], () => {
+                    /** @type {AttributeHost} */ (this)[UNMOUNT].push(() => {
                         reflectScope?.();
                         reflectScope = null;
                     });

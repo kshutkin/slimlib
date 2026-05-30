@@ -27,7 +27,10 @@
         "esm-env": "^1.2.1"
     },
     "devDependencies": {
-        "esbuild": "^0.24.0"
+        "@rollup/plugin-node-resolve": "^16.0.3",
+        "@rollup/plugin-terser": "^0.4.4",
+        "esbuild": "^0.24.0",
+        "rollup": "^4.59.0"
     },
     "repository": {
         "type": "git",
@@ -47,6 +50,7 @@
         "build": "dts-buddy",
         "test": "vitest run --coverage --config ./vitest.config.mjs",
         "play": "node playground/serve.mjs",
+        "size": "node tests/bundle-size.mjs",
         "prepack": "pkgprn-internal --strip-comments --flatten=src,types"
     }
 }

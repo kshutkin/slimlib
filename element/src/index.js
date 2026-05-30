@@ -15,7 +15,7 @@ import {
     MOVE,
     UNMOUNT,
 } from './lifecycle.js';
-import { createList, emit, RENDER_GEN } from './utils/pubsub.js';
+import { emit, RENDER_GEN } from './utils/pubsub.js';
 
 export { attributes, boolAttr, numberAttr, stringAttr } from './middleware/attributes.js';
 export { disabledFeatures } from './middleware/disabled-features.js';
@@ -172,10 +172,14 @@ const applySlimCore = (ElementBase, userRender) =>
         /** @type {null | (() => void)} */
         #disposeRender = null;
 
-        [MOUNT] = createList();
-        [UNMOUNT] = createList();
-        [CONNECT] = createList();
-        [DISCONNECT] = createList();
+        /** @type {LifecycleListener[]} */
+        [MOUNT] = [];
+        /** @type {LifecycleListener[]} */
+        [UNMOUNT] = [];
+        /** @type {LifecycleListener[]} */
+        [CONNECT] = [];
+        /** @type {LifecycleListener[]} */
+        [DISCONNECT] = [];
         [RENDER_GEN] = 0;
 
         connectedCallback() {

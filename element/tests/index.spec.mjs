@@ -582,7 +582,6 @@ describe('lifecycle message bus (DEV)', () => {
     it('keeps middleware-style on() subscriptions across remounts while clearing render-time ones', async () => {
         const { defineElement, onConnect } = await import('../src/index.js');
         const { CONNECT } = await import('../src/lifecycle.js');
-        const { on } = await import('../src/utils/pubsub.js');
         const persistent = vi.fn();
         const renderScoped = vi.fn();
         const tag = uniqueTag('x-bus-persist');
@@ -593,7 +592,7 @@ describe('lifecycle message bus (DEV)', () => {
 
         const element = document.createElement(tag);
         // Middleware-style subscription: registered once, directly on the host.
-        on(element[CONNECT], persistent);
+        element[CONNECT].push(persistent);
         document.body.appendChild(element);
         expect(persistent).toHaveBeenCalledTimes(1);
         expect(renderScoped).toHaveBeenCalledTimes(1);
@@ -1185,14 +1184,14 @@ describe('attributes() reflection + coercion (DEV)', () => {
     it('throws when a reflected parse/serialize pair is not round-trip stable', async () => {
         const { attributes } = await import('../src/index.js');
         const { MOUNT, UNMOUNT } = await import('../src/lifecycle.js');
-        const { createList, emit } = await import('../src/utils/pubsub.js');
+        const { emit } = await import('../src/utils/pubsub.js');
         const ElementConstructor = attributes({
             value: [rawValue => rawValue?.toUpperCase(), propertyValue => String(propertyValue)],
         })(
             class {
                 constructor() {
-                    this[MOUNT] = createList();
-                    this[UNMOUNT] = createList();
+                    this[MOUNT] = [];
+                    this[UNMOUNT] = [];
                     Object.defineProperty(this, 'value', {
                         configurable: true,
                         get() {
