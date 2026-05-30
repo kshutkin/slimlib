@@ -47,9 +47,6 @@ export const attributes = attributeConfig => {
                 super();
 
                 if (reflectedAttributeNames.length > 0) {
-                    /** @type {Scope | null} */
-                    let reflectScope = null;
-
                     /** @type {(() => void)[]} */ (/** @type {AttributeHost} */ (this)[MOUNT]).push(() => {
                         if (DEV) {
                             for (const attributeName of reflectedAttributeNames) {
@@ -61,46 +58,43 @@ export const attributes = attributeConfig => {
                             }
                         }
 
-                        reflectScope = scope(() => {
-                            const length = reflectedAttributeNames.length;
-                            for (let index = 0; index < length; ++index) {
-                                const attributeName = /** @type {string} */ (reflectedAttributeNames[index]);
-                                const attributeDescriptor = /** @type {AttributeDescriptor} */ (attributeConfig[attributeName]);
-                                const parseAttribute = /** @type {AttributeDescriptor[0]} */ (attributeDescriptor[0]);
-                                const serializeAttribute = /** @type {NonNullable<AttributeDescriptor[1]>} */ (attributeDescriptor[1]);
-                                effect(() => {
-                                    const serializedValue = serializeAttribute(
-                                        /** @type {SlimHost} */ (/** @type {unknown} */ (this))[attributeName]
-                                    );
-                                    if (DEV && parseAttribute) {
-                                        const roundTripValue = serializeAttribute(parseAttribute(serializedValue));
-                                        if (roundTripValue !== serializedValue) {
-                                            throw new Error(
-                                                `[@slimlib/element] attribute "${attributeName}" [parse, serialize] pair is not round-trip stable: serialize(parse(${JSON.stringify(serializedValue)})) === ${JSON.stringify(roundTripValue)} (expected ${JSON.stringify(serializedValue)}); reflection would loop.`
+                        /** @type {(() => void)[]} */ (/** @type {AttributeHost} */ (this)[UNMOUNT]).push(
+                            scope(() => {
+                                const length = reflectedAttributeNames.length;
+                                for (let index = 0; index < length; ++index) {
+                                    const attributeName = /** @type {string} */ (reflectedAttributeNames[index]);
+                                    const attributeDescriptor = /** @type {AttributeDescriptor} */ (attributeConfig[attributeName]);
+                                    const parseAttribute = /** @type {AttributeDescriptor[0]} */ (attributeDescriptor[0]);
+                                    const serializeAttribute = /** @type {NonNullable<AttributeDescriptor[1]>} */ (attributeDescriptor[1]);
+                                    effect(() => {
+                                        const serializedValue = serializeAttribute(
+                                            /** @type {SlimHost} */ (/** @type {unknown} */ (this))[attributeName]
+                                        );
+                                        if (DEV && parseAttribute) {
+                                            const roundTripValue = serializeAttribute(parseAttribute(serializedValue));
+                                            if (roundTripValue !== serializedValue) {
+                                                throw new Error(
+                                                    `[@slimlib/element] attribute "${attributeName}" [parse, serialize] pair is not round-trip stable: serialize(parse(${JSON.stringify(serializedValue)})) === ${JSON.stringify(roundTripValue)} (expected ${JSON.stringify(serializedValue)}); reflection would loop.`
+                                                );
+                                            }
+                                        }
+                                        if (serializedValue == null) {
+                                            if (/** @type {SlimHost} */ (/** @type {unknown} */ (this)).hasAttribute(attributeName)) {
+                                                /** @type {SlimHost} */ (/** @type {unknown} */ (this)).removeAttribute(attributeName);
+                                            }
+                                        } else if (
+                                            /** @type {SlimHost} */ (/** @type {unknown} */ (this)).getAttribute(attributeName) !==
+                                            serializedValue
+                                        ) {
+                                            /** @type {SlimHost} */ (/** @type {unknown} */ (this)).setAttribute(
+                                                attributeName,
+                                                serializedValue
                                             );
                                         }
-                                    }
-                                    if (serializedValue == null) {
-                                        if (/** @type {SlimHost} */ (/** @type {unknown} */ (this)).hasAttribute(attributeName)) {
-                                            /** @type {SlimHost} */ (/** @type {unknown} */ (this)).removeAttribute(attributeName);
-                                        }
-                                    } else if (
-                                        /** @type {SlimHost} */ (/** @type {unknown} */ (this)).getAttribute(attributeName) !==
-                                        serializedValue
-                                    ) {
-                                        /** @type {SlimHost} */ (/** @type {unknown} */ (this)).setAttribute(
-                                            attributeName,
-                                            serializedValue
-                                        );
-                                    }
-                                }, 1 /* EAGER */);
-                            }
-                        });
-                    });
-
-                    /** @type {(() => void)[]} */ (/** @type {AttributeHost} */ (this)[UNMOUNT]).push(() => {
-                        reflectScope?.();
-                        reflectScope = null;
+                                    }, 1 /* EAGER */);
+                                }
+                            })
+                        );
                     });
                 }
             }
