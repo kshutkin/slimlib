@@ -41,7 +41,7 @@ export const on = (list, listener) => {
 export const emit = (list, ...args) => {
     for (let index = 0; index < list.length; index++) {
         try {
-            list[index]?.(...args);
+            /** @type {Listener} */ (list[index])(...args);
         } catch (error) {
             console.error(error);
         }
