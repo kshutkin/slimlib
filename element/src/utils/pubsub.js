@@ -39,7 +39,8 @@ export const on = (list, listener) => {
  * @returns {void}
  */
 export const emit = (list, ...args) => {
-    for (let index = 0; index < list.length; index++) {
+    const length = list.length;
+    for (let index = 0; index < length; ++index) {
         try {
             /** @type {Listener} */ (list[index])(...args);
         } catch (error) {

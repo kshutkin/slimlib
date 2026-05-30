@@ -63,7 +63,9 @@ export const attributes = attributeConfig => {
                         }
 
                         reflectScope = scope(() => {
-                            for (const attributeName of reflectedAttributeNames) {
+                            const length = reflectedAttributeNames.length;
+                            for (let index = 0; index < length; ++index) {
+                                const attributeName = /** @type {string} */ (reflectedAttributeNames[index]);
                                 const attributeDescriptor = /** @type {AttributeDescriptor} */ (attributeConfig[attributeName]);
                                 const parseAttribute = /** @type {AttributeDescriptor[0]} */ (attributeDescriptor[0]);
                                 const serializeAttribute = /** @type {NonNullable<AttributeDescriptor[1]>} */ (attributeDescriptor[1]);
