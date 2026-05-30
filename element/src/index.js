@@ -208,7 +208,7 @@ const applySlimCore = (ElementBase, userRender) =>
                 emit(/** @type {LifecycleHost} */ (this), UNMOUNT);
                 this.#disposeRender?.();
                 this.#disposeRender = null;
-                /** @type {LifecycleHost} */ (this)[RENDER_GEN]++;
+                /** @type {number} */ (/** @type {LifecycleHost} */ (this)[RENDER_GEN])++;
             }
         }
     };

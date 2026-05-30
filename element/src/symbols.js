@@ -6,10 +6,7 @@
  * inspect other message types.
  */
 
-export const [MOUNT, UNMOUNT, CONNECT, DISCONNECT, ADOPTED, MOVE, FORM_ASSOCIATED, FORM_DISABLED, FORM_RESET, FORM_STATE_RESTORE] =
-    /** @type {[symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol]} */ (
-        Array.from({ length: 10 }, () => Symbol())
+export const [MOUNT, UNMOUNT, CONNECT, DISCONNECT, ADOPTED, MOVE, FORM_ASSOCIATED, FORM_DISABLED, FORM_RESET, FORM_STATE_RESTORE, RENDER_GEN] =
+    /** @type {[symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol]} */ (
+        Array.from({ length: 11 }, () => Symbol())
     );
-
-/** Host field holding the current render generation (number). */
-export const RENDER_GEN = Symbol();
