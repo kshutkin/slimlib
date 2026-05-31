@@ -1,5 +1,5 @@
 import { createElementArray, Fragment } from './core';
-import type { Child, ElementType, Props } from './types';
+import type { Child, ElementType, Props, Reactive } from './types';
 
 // Modern JSX transform entry points. We share one implementation across
 // jsx / jsxs / jsxDEV so V8 keeps a single, well-trained inline cache —
@@ -19,3 +19,23 @@ export const jsx = <P extends Props>(type: ElementType<P>, props: P, _key?: stri
 export const jsxs = jsx;
 export const jsxDEV = jsx;
 export { Fragment };
+
+/** Base prop shape for all DOM intrinsic elements. */
+type HTMLProps = {
+    children?: Child;
+    class?: Reactive<string>;
+    className?: Reactive<string>;
+    style?: Reactive<string>;
+    ref?: (el: globalThis.Element | null) => void;
+    [key: string]: unknown;
+};
+
+// eslint-disable-next-line @typescript-eslint/no-namespace
+export namespace JSX {
+    export type Element = Node;
+    export interface ElementClass {}
+    export interface IntrinsicElements {
+        [tag: string]: HTMLProps;
+    }
+    export interface IntrinsicAttributes {}
+}
