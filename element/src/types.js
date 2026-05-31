@@ -7,7 +7,8 @@
  */
 
 /**
- * @typedef {(ElementBase: CustomElementConstructor) => CustomElementConstructor} Middleware
+ * @template {object} [InstanceExt={}]
+ * @typedef {((ElementBase: CustomElementConstructor) => CustomElementConstructor) & { readonly __instanceExt?: InstanceExt }} Middleware
  */
 
 export {};

@@ -9,7 +9,8 @@ import { MOUNT, UNMOUNT } from '../symbols.js';
 /** @typedef {import('@slimlib/store').Scope} Scope */
 /** @typedef {ElementHost & Record<typeof MOUNT | typeof UNMOUNT, (() => void)[]>} AttributeHost */
 /**
- * @typedef {[parse?: (rawValue: string | null) => unknown, serialize?: (propertyValue: unknown) => (string | null)]} AttributeDescriptor
+ * @template [T=unknown]
+ * @typedef {[parse?: (rawValue: string | null) => T, serialize?: (propertyValue: T) => (string | null)]} AttributeDescriptor
  *   Positional tuple. `parse` converts an inbound attribute string (`string | null`)
  *   into a prop value; when omitted the attribute is not observed (no prop is
  *   written on attribute changes). `serialize` converts a prop value into an
@@ -25,8 +26,9 @@ import { MOUNT, UNMOUNT } from '../symbols.js';
  * is a `[parse?, serialize?]` tuple; presence of `serialize` reflects the prop
  * write back to the attribute.
  *
- * @param {Record<string, AttributeDescriptor>} attributeConfig
- * @returns {Middleware}
+ * @template {Record<string, AttributeDescriptor<any>>} Config
+ * @param {Config} attributeConfig
+ * @returns {import('../types.js').Middleware<{ [K in keyof Config]: Config[K] extends AttributeDescriptor<infer T> ? T : never }>}
  */
 export const attributes = attributeConfig => {
     const attributeNames = Object.keys(attributeConfig);
@@ -110,14 +112,14 @@ export const attributes = attributeConfig => {
         };
 };
 
-/** @type {AttributeDescriptor} */
+/** @type {AttributeDescriptor<number | null>} */
 export const numberAttribute = [
     rawValue => (rawValue === null ? null : Number(rawValue)),
     propertyValue => (propertyValue == null ? null : String(propertyValue)),
 ];
 
-/** @type {AttributeDescriptor} */
+/** @type {AttributeDescriptor<boolean>} */
 export const booleanAttribute = [rawValue => rawValue !== null, propertyValue => (propertyValue ? '' : null)];
 
-/** @type {AttributeDescriptor} */
+/** @type {AttributeDescriptor<string | null>} */
 export const stringAttribute = [rawValue => rawValue, propertyValue => (propertyValue == null ? null : String(propertyValue))];

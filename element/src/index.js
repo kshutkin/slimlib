@@ -55,14 +55,15 @@ const OWNER = Symbol();
  *
  * @overload
  * @param {RenderFunction} userRender
- * @returns {CustomElementConstructor}
+ * @returns {new(...params: any[]) => HTMLElement}
  */
 /**
+ * @template {readonly (import('./types.js').Middleware<any>)[]} M
  * @overload
- * @param {Middleware[]} middleware
+ * @param {M} middleware
  * @param {RenderFunction} userRender
  * @param {CustomElementConstructor} [ElementBase]
- * @returns {CustomElementConstructor}
+ * @returns {new(...params: any[]) => HTMLElement & import('./utils/element-types.js').MergeInstanceExts<M>}
  */
 /**
  * @param {RenderFunction | Middleware[]} middlewareOrRender
