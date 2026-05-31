@@ -189,3 +189,6 @@ customElements.define('my-el', MyEl);     // global registry
 [Changelog](./CHANGELOG.md)
 
 
+## License
+
+[MIT](https://github.com/kshutkin/slimlib/blob/main/LICENSE)
