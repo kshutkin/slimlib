@@ -33,9 +33,11 @@ type HTMLProps = {
 // eslint-disable-next-line @typescript-eslint/no-namespace
 export namespace JSX {
     export type Element = Node;
+    // biome-ignore lint/suspicious/noEmptyInterface: required by TypeScript JSX type system
     export interface ElementClass {}
     export interface IntrinsicElements {
         [tag: string]: HTMLProps;
     }
+    // biome-ignore lint/suspicious/noEmptyInterface: required by TypeScript JSX type system
     export interface IntrinsicAttributes {}
 }

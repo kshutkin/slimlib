@@ -1,10 +1,14 @@
 import { expectTypeOf, it } from 'vitest';
-import { createCustomElement, attributes, numberAttribute, booleanAttribute, stringAttribute } from '@slimlib/element';
+
+import { attributes, booleanAttribute, createCustomElement, numberAttribute, stringAttribute } from '@slimlib/element';
+
 import type { RenderFunction } from '@slimlib/element';
 
 // createCustomElement uses HTMLElement as the default ElementBase — stub it for Node.js
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-if (typeof HTMLElement === 'undefined') { (globalThis as any).HTMLElement = class HTMLElement {}; }
+if (typeof HTMLElement === 'undefined') {
+    // biome-ignore lint/suspicious/noExplicitAny: test stub for Node.js env
+    (globalThis as any).HTMLElement = class HTMLElement {};
+}
 
 const renderFn = (() => null) as unknown as RenderFunction;
 
@@ -35,10 +39,7 @@ it('multiple attributes in one config', () => {
 });
 
 it('two separate attributes middleware merge on instance', () => {
-    const El = createCustomElement([
-        attributes({ count: numberAttribute }),
-        attributes({ label: stringAttribute }),
-    ], renderFn);
+    const El = createCustomElement([attributes({ count: numberAttribute }), attributes({ label: stringAttribute })], renderFn);
     expectTypeOf<InstanceType<typeof El>['count']>().toEqualTypeOf<number | null>();
     expectTypeOf<InstanceType<typeof El>['label']>().toEqualTypeOf<string | null>();
 });

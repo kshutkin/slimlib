@@ -1,6 +1,7 @@
 // biome-ignore-all lint: test file
 
 import { it } from 'vitest';
+
 import {
     activeScope,
     type Computed,
