@@ -1,16 +1,21 @@
 diff --git a/dist/changesets-assemble-release-plan.cjs.js b/dist/changesets-assemble-release-plan.cjs.js
-index e07ba6e793021b6cfdec898afca517e293386ddb..27d1f32b2859cd4644b581238d804c0b4eee60c4 100644
+index e07ba6e793021b6cfdec898afca517e293386ddb..cda6f42a31355da45d29ee53e145affb08100c07 100644
 --- a/dist/changesets-assemble-release-plan.cjs.js
 +++ b/dist/changesets-assemble-release-plan.cjs.js
-@@ -317,6 +317,7 @@ function shouldBumpMajor({
+@@ -317,13 +317,19 @@ function shouldBumpMajor({
    preInfo,
    onlyUpdatePeerDependentsWhenOutOfRange
  }) {
 +  if (depType === "peerDependencies") {
++  // don't trigger major bump if the new version is still in the 0.x.x pre-release range
++  if (semverSatisfies__default["default"](incrementVersion(nextRelease, preInfo), "<1.0.0")) {
++  return false;
++  }
    // we check if it is a peerDependency because if it is, our dependent bump type might need to be major.
-   return depType === "peerDependencies" && nextRelease.type !== "none" && nextRelease.type !== "patch" && (
+-  return depType === "peerDependencies" && nextRelease.type !== "none" && nextRelease.type !== "patch" && (
++  return nextRelease.type !== "none" && nextRelease.type !== "patch" && (
    // 1. If onlyUpdatePeerDependentsWhenOutOfRange set to true, bump major if the version is leaving the range.
-@@ -324,6 +325,7 @@ function shouldBumpMajor({
+   // 2. If onlyUpdatePeerDependentsWhenOutOfRange set to false, bump major regardless whether or not the version is leaving the range.
    !onlyUpdatePeerDependentsWhenOutOfRange || !semverSatisfies__default["default"](incrementVersion(nextRelease, preInfo), versionRange)) && (
    // bump major only if the dependent doesn't already has a major release.
    !releases.has(dependent) || releases.has(dependent) && releases.get(dependent).type !== "major");
@@ -19,18 +24,23 @@ index e07ba6e793021b6cfdec898afca517e293386ddb..27d1f32b2859cd4644b581238d804c0b
  
  // This function takes in changesets and returns one release per
 diff --git a/dist/changesets-assemble-release-plan.esm.js b/dist/changesets-assemble-release-plan.esm.js
-index ea2be567403c4ef94a65f3218ccb683cf5cb4bc1..1405aff12cf788b7a5dc5d9d69620a514fd9df9d 100644
+index ea2be567403c4ef94a65f3218ccb683cf5cb4bc1..466f16e9e05dadfb3cbaba5658f26c4a9a47b5f5 100644
 --- a/dist/changesets-assemble-release-plan.esm.js
 +++ b/dist/changesets-assemble-release-plan.esm.js
-@@ -306,6 +306,7 @@ function shouldBumpMajor({
+@@ -306,13 +306,19 @@ function shouldBumpMajor({
    preInfo,
    onlyUpdatePeerDependentsWhenOutOfRange
  }) {
 +  if (depType === "peerDependencies") {
++  // don't trigger major bump if the new version is still in the 0.x.x pre-release range
++  if (semverSatisfies(incrementVersion(nextRelease, preInfo), "<1.0.0")) {
++  return false;
++  }
    // we check if it is a peerDependency because if it is, our dependent bump type might need to be major.
-   return depType === "peerDependencies" && nextRelease.type !== "none" && nextRelease.type !== "patch" && (
+-  return depType === "peerDependencies" && nextRelease.type !== "none" && nextRelease.type !== "patch" && (
++  return nextRelease.type !== "none" && nextRelease.type !== "patch" && (
    // 1. If onlyUpdatePeerDependentsWhenOutOfRange set to true, bump major if the version is leaving the range.
-@@ -313,6 +314,7 @@ function shouldBumpMajor({
+   // 2. If onlyUpdatePeerDependentsWhenOutOfRange set to false, bump major regardless whether or not the version is leaving the range.
    !onlyUpdatePeerDependentsWhenOutOfRange || !semverSatisfies(incrementVersion(nextRelease, preInfo), versionRange)) && (
    // bump major only if the dependent doesn't already has a major release.
    !releases.has(dependent) || releases.has(dependent) && releases.get(dependent).type !== "major");
