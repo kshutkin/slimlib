@@ -1,10 +1,61 @@
 import { batchedAddNew, checkComputedSources, clearSources, DepsSet, noopGetter, runWithTracking, scheduleFlush } from './core';
 import { cycleMessage, registerEffect, unregisterEffect, warnIfNoActiveScope } from './debug';
 import { Flag } from './flags';
-import { activeScope } from './globals';
+import { activeScope, setActiveScope } from './globals';
 import { trackSymbol } from './symbols';
 import type { ReactiveNode } from './internal-types';
 import type { EffectCleanup } from './types';
+
+// biome-ignore lint/suspicious/noConstEnum: optimization
+const enum EffectOptionsValues {
+    DEFERRED = 0, // Default behavior: schedule effect to run in a microtask after the current execution context
+    EAGER = 1 << 0, // Run effect immediately during setup instead of scheduling a microtask
+}
+
+/**
+ * Bitflag-style options controlling effect creation.
+ *
+ * Pass one of these values as the second argument to {@link effect}.
+ *
+ * Today only the first-run scheduling mode is encoded; future flags will be
+ * combinable via bitwise OR. Internal callers in @slimlib/* can also pass the
+ * raw numeric literals (`0` for DEFERRED, `1` for EAGER) to avoid pulling the
+ * enum-like struct into their bundle.
+ *
+ * | Member     | Value | First run                                              | Error handling                                                                                  |
+ * | ---------- | ----- | ------------------------------------------------------ | ----------------------------------------------------------------------------------------------- |
+ * | `DEFERRED` | `0`   | Scheduled on the active scheduler (default microtask). | Caught by the flush loop and logged via `console.error` — caller of `effect()` never sees them. |
+ * | `EAGER`    | `1`   | Runs synchronously inside the `effect()` call.         | Thrown synchronously to the caller — preserves the stack trace and is catchable with try/catch. |
+ *
+ * Behavior shared by both modes:
+ *  - Dependency tracking is identical: signals/state/computed reads inside the
+ *    callback subscribe the effect to re-run on change.
+ *  - Re-runs (after the first one) always go through the scheduler.
+ *  - The returned dispose function and the optional cleanup-function-return
+ *    contract are identical.
+ *
+ * Implications worth knowing:
+ *  - Both modes run the callback with `activeScope` set to the scope that
+ *    was active when `effect()` was called. This holds for the first run
+ *    and every subsequent re-run, so sub-scopes and grandchild effects
+ *    default-parent to the creation scope consistently.
+ *  - `EAGER` makes signal mutations that synchronously trigger an effect
+ *    cycle visible at the call site. With `DEFERRED` they're noticed only
+ *    once the flush runs.
+ *  - Choosing `EAGER` does not change re-run semantics; only the first run is
+ *    promoted from a microtask to inline execution. The dispose function
+ *    and cleanup-return contract are identical between modes.
+ */
+export const EffectOptions = {
+    DEFERRED: 0,
+    EAGER: 1,
+} as const;
+
+/**
+ * Numeric union of the values in {@link EffectOptions} (`0 | 1`). Accepted as
+ * the second argument to {@link effect}.
+ */
+export type EffectOptions = (typeof EffectOptions)[keyof typeof EffectOptions];
 
 /**
  * Effect creation counter - increments on every effect creation
@@ -13,10 +64,21 @@ import type { EffectCleanup } from './types';
 let effectCreationCounter = 0;
 
 /**
- * Creates a reactive effect that runs when dependencies change
+ * Creates a reactive effect that runs when dependencies change.
+ *
+ * @param callback - Function to run; may return an {@link EffectCleanup} to be
+ *                   invoked before each re-run and on dispose.
+ * @param eager    - One of {@link EffectOptions}. Default `DEFERRED` schedules
+ *                   the first run on the active scheduler. `EAGER` runs the
+ *                   first invocation synchronously inside `effect()` — errors
+ *                   propagate to the caller (catchable with try/catch),
+ *                   whereas errors in deferred first runs are caught by the
+ *                   flush loop and reported via `console.error`.
+ * @returns        - Dispose function that stops re-runs and invokes the last
+ *                   cleanup.
  */
 // biome-ignore lint/suspicious/noConfusingVoidType: void is semantically correct here - callback may return nothing or a cleanup function
-export const effect = (callback: () => void | EffectCleanup): (() => void) => {
+export const effect = (callback: () => void | EffectCleanup, eager: EffectOptions = EffectOptionsValues.DEFERRED): (() => void) => {
     let disposed = false;
 
     // Register effect for GC tracking (only in DEV mode)
@@ -28,6 +90,8 @@ export const effect = (callback: () => void | EffectCleanup): (() => void) => {
     // Declare node first so the runner closure can capture it.
     // The variable will be assigned before the runner is ever called.
     let node: ReactiveNode;
+
+    const effectScope = activeScope;
 
     // Define the runner function BEFORE creating the node so that $_fn
     // is a function from the start (Fix #1: avoids hidden class transition
@@ -59,18 +123,25 @@ export const effect = (callback: () => void | EffectCleanup): (() => void) => {
             }
         }
 
+        const previousScope = activeScope;
+        setActiveScope(effectScope);
+
         // ----------------------------------------------------------------
         // PULL PHASE: Execute effect and track dependencies
         // ----------------------------------------------------------------
-        runWithTracking(node, () => {
-            // Run previous cleanup if it exists (stored in $_value)
-            if (typeof node.$_value === 'function') {
-                (node.$_value as EffectCleanup)();
-            }
-            // Run the callback and store new cleanup in $_value
-            // (callback will PULL values from signals/state/computed)
-            node.$_value = callback();
-        });
+        try {
+            runWithTracking(node, () => {
+                // Run previous cleanup if it exists (stored in $_value)
+                if (typeof node.$_value === 'function') {
+                    (node.$_value as EffectCleanup)();
+                }
+                // Run the callback and store new cleanup in $_value
+                // (callback will PULL values from signals/state/computed)
+                node.$_value = callback();
+            });
+        } finally {
+            setActiveScope(previousScope);
+        }
     };
 
     // Create effect node as a plain object with IDENTICAL initial field types
@@ -108,8 +179,8 @@ export const effect = (callback: () => void | EffectCleanup): (() => void) => {
     };
 
     // Track to appropriate scope
-    if (activeScope) {
-        (activeScope[trackSymbol] as (dispose: () => void) => void)(dispose);
+    if (effectScope) {
+        (effectScope[trackSymbol] as (dispose: () => void) => void)(dispose);
     }
 
     // ----------------------------------------------------------------
@@ -118,8 +189,20 @@ export const effect = (callback: () => void | EffectCleanup): (() => void) => {
     // Trigger first run via batched queue
     // node is already dirty
     // and effect is for sure with the latest id so we directly adding without the sort
-    batchedAddNew(node, effectId);
-    scheduleFlush();
+    if (eager === EffectOptionsValues.DEFERRED) {
+        batchedAddNew(node, effectId);
+        scheduleFlush();
+    } else {
+        // For eager effects, run immediately (in the same tick) instead of
+        // scheduling a microtask. Errors thrown by the first run propagate
+        // synchronously to the caller of effect() — by design: this gives a
+        // useful stack trace and lets surrounding code handle the failure
+        // with try/catch. (Deferred runs cannot do this because the runner
+        // executes inside a queueMicrotask callback, where thrown errors
+        // would become unhandled rejections; the flush loop logs them via
+        // console.error instead.)
+        runner();
+    }
 
     return dispose;
 };

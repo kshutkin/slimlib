@@ -1,8 +1,10 @@
 {
     "files": [],
     "references": [
+        { "path": "element" },
         { "path": "get-parameter-names" },
         { "path": "injector" },
+        { "path": "jsx" },
         { "path": "list" },
         { "path": "refine-partition" },
         { "path": "smart-mock" },

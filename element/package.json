@@ -1,0 +1,56 @@
+{
+    "type": "module",
+    "version": "0.0.0",
+    "name": "@slimlib/element",
+    "description": "Functional Custom Elements wrapper backed by @slimlib/jsx and @slimlib/store",
+    "license": "MIT",
+    "author": "Konstantin Shutkin",
+    "main": "./src/index.js",
+    "module": "./src/index.js",
+    "exports": {
+        ".": {
+            "types": "./types/index.d.ts",
+            "default": "./src/index.js"
+        },
+        "./package.json": "./package.json"
+    },
+    "types": "./types/index.d.ts",
+    "files": [
+        "src",
+        "types"
+    ],
+    "peerDependencies": {
+        "@slimlib/jsx": "workspace:^",
+        "@slimlib/store": "workspace:^"
+    },
+    "dependencies": {
+        "esm-env": "^1.2.1"
+    },
+    "devDependencies": {
+        "@rollup/plugin-node-resolve": "^16.0.3",
+        "@rollup/plugin-terser": "^0.4.4",
+        "esbuild": "^0.24.0",
+        "rollup": "^4.59.0"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/kshutkin/slimlib.git",
+        "directory": "element"
+    },
+    "bugs": "https://github.com/kshutkin/slimlib/issues",
+    "homepage": "https://github.com/kshutkin/slimlib/blob/main/element/README.md",
+    "readme": "README.md",
+    "keywords": [
+        "@slimlib",
+        "custom-element",
+        "web-component",
+        "jsx"
+    ],
+    "scripts": {
+        "build": "dts-buddy",
+        "test": "vitest run --coverage --config ./vitest.config.mjs",
+        "play": "node playground/serve.mjs",
+        "size": "node tests/bundle-size.mjs",
+        "prepack": "pkgprn-internal --strip-comments --flatten=src,types"
+    }
+}

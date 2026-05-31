@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>@slimlib/element playground</title>
+        <style>
+            :root {
+                color-scheme: light dark;
+                font-family: system-ui, sans-serif;
+            }
+            body {
+                margin: 0;
+                padding: 2rem;
+                max-width: 48rem;
+                margin-inline: auto;
+                line-height: 1.5;
+            }
+            h1 {
+                margin-block-end: 0;
+            }
+            .hint {
+                opacity: 0.7;
+                font-size: 0.9rem;
+            }
+            .demo {
+                border: 1px solid color-mix(in srgb, currentColor 20%, transparent);
+                border-radius: 0.5rem;
+                padding: 1rem 1.25rem;
+                margin-block: 1rem;
+            }
+            .demo > h2 {
+                margin: 0 0 0.5rem;
+                font-size: 1rem;
+                opacity: 0.7;
+            }
+            button {
+                font: inherit;
+                padding: 0.25rem 0.75rem;
+                cursor: pointer;
+            }
+            .row {
+                display: flex;
+                gap: 0.5rem;
+                align-items: center;
+                flex-wrap: wrap;
+            }
+            code {
+                background: color-mix(in srgb, currentColor 10%, transparent);
+                padding: 0.1rem 0.3rem;
+                border-radius: 0.25rem;
+            }
+        </style>
+    </head>
+    <body>
+        <h1>@slimlib/element</h1>
+        <p class="hint">
+            Open devtools and select the <code>&lt;reflect-demo&gt;</code> element. Watch its <strong>attributes</strong> update live as you
+            click the buttons below — JS prop writes reflect out to the DOM, and attribute writes coerce back in.
+        </p>
+        <div id="app"></div>
+        <script type="module" src="/main.js"></script>
+    </body>
+</html>

@@ -12,6 +12,7 @@ import {
     computed,
     debugConfig,
     type EffectCleanup,
+    EffectOptions,
     effect,
     flushEffects,
     type OnDisposeCallback,
@@ -128,6 +129,36 @@ effect(() => {
 
 // @ts-expect-error - effect callback must be function
 effect('not a function');
+
+// === EffectOptions type tests ===
+
+// EffectOptions value object and type alias are both available.
+const eagerVal: EffectOptions = EffectOptions.EAGER;
+const deferredVal: EffectOptions = EffectOptions.DEFERRED;
+
+// EffectOptions members are typed as their literal numeric values.
+const eagerLit: 1 = EffectOptions.EAGER;
+const deferredLit: 0 = EffectOptions.DEFERRED;
+
+// effect accepts EffectOptions as optional second argument.
+effect(() => {}, EffectOptions.EAGER);
+effect(() => {}, EffectOptions.DEFERRED);
+
+// effect accepts the underlying literal numeric values too.
+effect(() => {}, 0);
+effect(() => {}, 1);
+
+// effect returns dispose function with EAGER option set.
+const eagerDispose: () => void = effect(() => {}, EffectOptions.EAGER);
+
+// @ts-expect-error - EffectOptions only accepts 0 or 1, not arbitrary numbers
+effect(() => {}, 2);
+
+// @ts-expect-error - EffectOptions does not accept string
+effect(() => {}, 'eager');
+
+// @ts-expect-error - EffectOptions does not accept boolean
+effect(() => {}, true);
 
 // === state tests ===
 

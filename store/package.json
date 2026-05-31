@@ -34,6 +34,7 @@
     "scripts": {
         "build": "rollup -c && dts-buddy -m @slimlib/store:./src/index.ts",
         "test": "vitest run --coverage --config ../vitest.config.mjs",
+        "test:types": "vitest run --config ./vitest.typecheck.config.mjs",
         "bench": "node tests/benchmark.mjs -n 50 -f ./results.csv",
         "bench:mitata": "node tests/benchmark-mitata.mjs",
         "build-compress": "BUILD_COMPRESS=true rollup -c && dts-buddy -m @slimlib/store:./src/index.ts",

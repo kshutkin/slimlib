@@ -82,9 +82,6 @@ typings/
 .nuxt
 dist
 
-# Generated package type declarations
-*/types/
-
 # Gatsby files
 .cache/
 # Comment in the public line in if your project uses Gatsby and *not* Next.js
@@ -106,13 +103,13 @@ dist
 # TernJS port file
 .tern-port
 
-.github/agents
-# bench-browser scratch dir
-.bench-browser/
-# bundle-size scratch dir
-.bundle-size/
-# vitest attachments and screenshot snapshots
-.vitest-attachments/
-__screenshots__/
+# dts-buddy types
+types
+
+# results
+results.csv
+size-results.json
 
 .DS_Store
+.bundle-size
+results-browser.csv

@@ -81,9 +81,7 @@ typings/
 # Nuxt.js build / generate output
 .nuxt
 dist
-
-# Generated package type declarations
-*/types/
+types
 
 # Gatsby files
 .cache/
@@ -105,14 +103,3 @@ dist
 
 # TernJS port file
 .tern-port
-
-.github/agents
-# bench-browser scratch dir
-.bench-browser/
-# bundle-size scratch dir
-.bundle-size/
-# vitest attachments and screenshot snapshots
-.vitest-attachments/
-__screenshots__/
-
-.DS_Store
