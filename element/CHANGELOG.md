@@ -1,5 +1,11 @@
 # @slimlib/element
 
+## 0.1.1
+
+### Patch Changes
+
+- fd6566f: add license in readme
+
 ## 0.1.0
 
 ### Minor Changes
