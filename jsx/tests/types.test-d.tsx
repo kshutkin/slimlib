@@ -1,8 +1,10 @@
 import { expectTypeOf, it } from 'vitest';
+
 import { createElement, Fragment, render } from '@slimlib/jsx';
+
 import type { Child, Component, Props, Reactive } from '@slimlib/jsx';
+import type { forEach } from '@slimlib/jsx/for-each';
 import type { JSX } from '@slimlib/jsx/jsx-runtime';
-import { forEach } from '@slimlib/jsx/for-each';
 
 // ── 1. createElement ──────────────────────────────────────────────────────────
 
@@ -67,7 +69,7 @@ it('JSX intrinsic elements accept class, style, ref and arbitrary attributes', (
 
 it('createElement enforces required props for typed components', () => {
     type ButtonProps = Props & { label: string };
-    const Button: Component<ButtonProps> = (_props) => null;
+    const Button: Component<ButtonProps> = _props => null;
 
     // Button's props type requires 'label'
     expectTypeOf(Button).parameter(0).toMatchTypeOf<{ label: string }>();
@@ -82,7 +84,7 @@ it('createElement enforces required props for typed components', () => {
 // ── 8. render function ────────────────────────────────────────────────────────
 
 it('render accepts () => Child and Element | DocumentFragment, returns () => void', () => {
-    expectTypeOf(render).toEqualTypeOf<(factory: () => Child, container: Element | DocumentFragment) => (() => void)>();
+    expectTypeOf(render).toEqualTypeOf<(factory: () => Child, container: Element | DocumentFragment) => () => void>();
 });
 
 // ── 9. Fragment ───────────────────────────────────────────────────────────────
