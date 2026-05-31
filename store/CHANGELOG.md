@@ -1,5 +1,12 @@
 Changelog
 
+## 2.1.0
+
+### Minor Changes
+
+- 342b5ee: - feat: added eager option for effect
+  - fix: scope preserved for sub scopes during reruns
+
 ## 2.0.3
 
 ### Patch Changes
