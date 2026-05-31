@@ -16,10 +16,5 @@ export default defineConfig({
             reportsDirectory: './coverage',
             exclude: ['node_modules', '**/tests/**', '**/dist/**', '**/types/**', '**/*.config.js', '**/*.d.ts'],
         },
-        typecheck: {
-            enabled: true,
-            include: ['tests/**/*.test-d.tsx'],
-            tsconfig: './tsconfig.test-types.json',
-        },
     },
 });

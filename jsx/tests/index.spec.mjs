@@ -246,6 +246,43 @@ describe('Reactive children', () => {
         expect(div.className).toBe('b');
         expect(div.textContent).toBe('world');
     });
+
+    it('reactive function at render root updates after initial paint (regression: stale DocumentFragment parent)', () => {
+        // A render factory that returns a function (reactive child) rather than a Node
+        // went through a throwaway DocumentFragment. Subsequent reactive updates must
+        // operate on the real container (document.body), not the now-empty fragment.
+        const visible = signal(true);
+        mount(() => () => (visible() ? 'shown' : 'hidden'));
+        expect(document.body.textContent).toBe('shown');
+        visible.set(false);
+        flushEffects();
+        expect(document.body.textContent).toBe('hidden');
+        visible.set(true);
+        flushEffects();
+        expect(document.body.textContent).toBe('shown');
+    });
+
+    it('function component returning reactive child updates correctly at render root', () => {
+        const count = signal(0);
+        const Comp = () => () => count();
+        mount(() => createElement(Comp, null));
+        expect(document.body.textContent).toBe('0');
+        count.set(1);
+        flushEffects();
+        expect(document.body.textContent).toBe('1');
+        count.set(42);
+        flushEffects();
+        expect(document.body.textContent).toBe('42');
+    });
+
+    it('Fragment with single reactive child updates correctly at render root', () => {
+        const visible = signal(true);
+        mount(() => createElement(Fragment, null, () => (visible() ? 'yes' : 'no')));
+        expect(document.body.textContent).toBe('yes');
+        visible.set(false);
+        flushEffects();
+        expect(document.body.textContent).toBe('no');
+    });
 });
 
 describe('jsx-runtime', () => {

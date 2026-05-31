@@ -5,6 +5,11 @@
         "jsx": "react-jsx",
         "jsxImportSource": "@slimlib/jsx",
         "noEmit": true,
-        "composite": false
+        "composite": false,
+        "paths": {
+            "@slimlib/jsx": ["./src/index.ts"],
+            "@slimlib/jsx/jsx-runtime": ["./src/jsx-runtime.ts"],
+            "@slimlib/jsx/for-each": ["./src/for-each.ts"]
+        }
     }
 }

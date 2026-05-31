@@ -164,21 +164,25 @@ const appendChild = (parent: Node, child: Child): void => {
             }
             // Slow path: clear sibling range. The previous scope (if any) was
             // already torn down by this effect's cleanup before re-run.
+            // Use start.parentNode (not the captured `parent`) so that if the
+            // initial subtree was built inside a DocumentFragment that was later
+            // inserted into the real DOM, updates operate on the live container.
+            const liveParent = start.parentNode as Node;
             let nextSibling = start.nextSibling;
             while (nextSibling !== end) {
                 const nextNextSibling = (nextSibling as ChildNode).nextSibling;
-                parent.removeChild(nextSibling as ChildNode);
+                liveParent.removeChild(nextSibling as ChildNode);
                 nextSibling = nextNextSibling;
             }
             if (isPrimitive) {
                 textNode = document.createTextNode('' + (value as Primitive));
-                parent.insertBefore(textNode, end);
+                liveParent.insertBefore(textNode, end);
                 newScope();
                 scopeInstance = undefined;
             } else {
                 textNode = null;
                 scopeInstance = newScope;
-                insertBefore(parent, value, end);
+                insertBefore(liveParent, value, end);
             }
             return () => {
                 if (scopeInstance !== undefined) {
