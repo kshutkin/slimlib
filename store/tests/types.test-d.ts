@@ -1,0 +1,306 @@
+// biome-ignore-all lint: test file
+
+import { it } from 'vitest';
+import {
+    activeScope,
+    type Computed,
+    computed,
+    debugConfig,
+    type EffectCleanup,
+    EffectOptions,
+    effect,
+    flushEffects,
+    type OnDisposeCallback,
+    type Scope,
+    type ScopeCallback,
+    type ScopeFunction,
+    type Signal,
+    scope,
+    setActiveScope,
+    setScheduler,
+    signal,
+    state,
+    untracked,
+    unwrapValue,
+    WARN_ON_WRITE_IN_COMPUTED,
+} from '@slimlib/store';
+
+it('signal type tests', () => {
+    // Signal type alias is available
+    const typedSignal: Signal<number> = signal(0);
+    typedSignal.set(10);
+    const typedValue: number = typedSignal();
+
+    // signal with initial value infers type
+    const numSignal = signal(42);
+    const numValue: number = numSignal();
+    numSignal.set(100);
+
+    // @ts-expect-error - cannot set string to number signal
+    numSignal.set('not a number');
+
+    // signal with explicit type
+    const strSignal = signal<string>('hello');
+    const strValue: string = strSignal();
+    strSignal.set('world');
+
+    // @ts-expect-error - cannot set number to string signal
+    strSignal.set(123);
+
+    // signal without initial value is T | undefined (overload test)
+    const maybeSignal = signal<number>();
+    const maybeValue: number | undefined = maybeSignal();
+    maybeSignal.set(42);
+    maybeSignal.set(undefined);
+
+    // @ts-expect-error - cannot set string to number | undefined signal
+    maybeSignal.set('wrong');
+
+    // signal with object type
+    const objSignal = signal({ name: 'test', count: 0 });
+    objSignal.set({ name: 'updated', count: 1 });
+
+    // @ts-expect-error - missing required property
+    objSignal.set({ name: 'missing count' });
+
+    // @ts-expect-error - wrong property type
+    objSignal.set({ name: 123, count: 0 });
+
+    // signal with union type
+    const unionSignal = signal<string | null>('initial');
+    unionSignal.set('value');
+    unionSignal.set(null);
+
+    // @ts-expect-error - number not in union
+    unionSignal.set(42);
+});
+
+it('computed tests', () => {
+    const numSignal = signal(42);
+
+    // computed infers return type from getter
+    const doubledComputed = computed(() => numSignal() * 2);
+    const doubledValue: number = doubledComputed();
+
+    // @ts-expect-error - computed returns number, not string
+    const wrongType: string = doubledComputed();
+
+    // computed with explicit type
+    const explicitComputed: Computed<string> = computed(() => 'hello');
+    const explicitValue: string = explicitComputed();
+
+    // computed with custom equals function
+    const customEqualsComputed = computed(
+        () => ({ value: 1 }),
+        (a, b) => a.value === b.value
+    );
+});
+
+it('effect tests', () => {
+    const numSignal = signal(42);
+
+    // EffectCleanup type alias is available
+    const cleanup: EffectCleanup = () => {};
+
+    // effect returns dispose function
+    const dispose: () => void = effect(() => {
+        console.log(numSignal());
+    });
+
+    // effect can return cleanup function (EffectCleanup)
+    effect(() => {
+        const handler = () => {};
+        return () => {
+            // cleanup
+        };
+    });
+
+    // effect can return EffectCleanup type explicitly
+    effect((): void | EffectCleanup => {
+        return () => console.log('cleanup');
+    });
+
+    // effect can return void
+    effect(() => {
+        console.log('no cleanup');
+    });
+
+    // @ts-expect-error - effect callback must be function
+    effect('not a function');
+});
+
+it('EffectOptions type tests', () => {
+    // EffectOptions value object and type alias are both available.
+    const eagerVal: EffectOptions = EffectOptions.EAGER;
+    const deferredVal: EffectOptions = EffectOptions.DEFERRED;
+
+    // EffectOptions members are typed as their literal numeric values.
+    const eagerLit: 1 = EffectOptions.EAGER;
+    const deferredLit: 0 = EffectOptions.DEFERRED;
+
+    // effect accepts EffectOptions as optional second argument.
+    effect(() => {}, EffectOptions.EAGER);
+    effect(() => {}, EffectOptions.DEFERRED);
+
+    // effect accepts the underlying literal numeric values too.
+    effect(() => {}, 0);
+    effect(() => {}, 1);
+
+    // effect returns dispose function with EAGER option set.
+    const eagerDispose: () => void = effect(() => {}, EffectOptions.EAGER);
+
+    // @ts-expect-error - EffectOptions only accepts 0 or 1, not arbitrary numbers
+    effect(() => {}, 2);
+
+    // @ts-expect-error - EffectOptions does not accept string
+    effect(() => {}, 'eager');
+
+    // @ts-expect-error - EffectOptions does not accept boolean
+    effect(() => {}, true);
+});
+
+it('state tests', () => {
+    // state wraps object
+    const myState = state({ count: 0, name: 'test' });
+    myState.count = 1;
+    myState.name = 'updated';
+
+    // @ts-expect-error - wrong property type
+    myState.count = 'not a number';
+
+    // state with nested objects
+    const nestedState = state({
+        user: { name: 'John', age: 30 },
+        items: [1, 2, 3],
+    });
+    nestedState.user.name = 'Jane';
+    nestedState.items.push(4);
+
+    // state without argument returns object (overload test)
+    const emptyState: object = state();
+});
+
+it('scope tests', () => {
+    // scope returns Scope type
+    const myScope: Scope = scope();
+
+    // ScopeCallback type alias is available
+    const scopeCallback: ScopeCallback = onDispose => {
+        onDispose(() => {});
+    };
+
+    // OnDisposeCallback type alias is available
+    const onDisposeCallback: OnDisposeCallback = cleanup => {
+        // register cleanup
+    };
+
+    // scope with callback
+    const scopeWithCallback = scope(onDispose => {
+        onDispose(() => {
+            // cleanup
+        });
+    });
+
+    // scope with parent
+    const childScope = scope(undefined, myScope);
+
+    // scope with null parent (detached)
+    const detachedScope = scope(undefined, null);
+
+    // calling scope disposes it
+    myScope();
+
+    // setActiveScope accepts Scope or undefined
+    setActiveScope(myScope);
+    setActiveScope(undefined);
+
+    // @ts-expect-error - setActiveScope does not accept null
+    setActiveScope(null);
+
+    // activeScope is Scope | undefined
+    const currentScope: Scope | undefined = activeScope;
+
+    // ScopeFunction type is available
+    const _scopeFunc: ScopeFunction = myScope;
+});
+
+it('debugConfig tests', () => {
+    // debugConfig accepts number flags
+    debugConfig(WARN_ON_WRITE_IN_COMPUTED);
+    debugConfig(0);
+
+    // WARN_ON_WRITE_IN_COMPUTED is a number
+    const flag: number = WARN_ON_WRITE_IN_COMPUTED;
+
+    // @ts-expect-error - debugConfig does not accept string
+    debugConfig('invalid');
+});
+
+it('setScheduler tests', () => {
+    // setScheduler accepts callback function
+    setScheduler(callback => {
+        setTimeout(callback, 0);
+    });
+
+    setScheduler(callback => {
+        requestAnimationFrame(callback);
+    });
+
+    // @ts-expect-error - scheduler must be function
+    setScheduler('not a function');
+
+    // Reset to Node.js-compatible scheduler to avoid polluting other tests
+    setScheduler(callback => setTimeout(callback, 0));
+});
+
+it('flushEffects tests', () => {
+    // flushEffects returns void
+    const flushResult: void = flushEffects();
+});
+
+it('unwrapValue tests', () => {
+    // unwrapValue preserves type
+    const unwrappedNum: number = unwrapValue(42);
+    const unwrappedStr: string = unwrapValue('hello');
+    const unwrappedObj: { a: number } = unwrapValue({ a: 1 });
+});
+
+it('untracked tests', () => {
+    const numSignal = signal(42);
+
+    // untracked infers return type
+    const untrackedNum: number = untracked(() => numSignal());
+    const untrackedStr: string = untracked(() => 'hello');
+
+    // @ts-expect-error - return type mismatch
+    const wrongUntracked: string = untracked(() => 42);
+});
+
+it('complex type scenarios', () => {
+    const numSignal = signal(42);
+
+    // generic function using signals
+    function createCounter(initial: number) {
+        const count = signal(initial);
+        const doubled = computed(() => count() * 2);
+        return { count, doubled };
+    }
+
+    const counter = createCounter(0);
+    counter.count.set(5);
+    const d: number = counter.doubled();
+
+    // array of signals
+    const signals: Array<ReturnType<typeof signal<number>>> = [signal(1), signal(2), signal(3)];
+
+    signals.forEach(s => s.set(s() + 1));
+
+    // conditional types with signals
+    type SignalValue<S> = S extends () => infer T ? T : never;
+    type NumSignalValue = SignalValue<typeof numSignal>;
+
+    const _typeCheck: NumSignalValue = 42;
+
+    // @ts-expect-error - NumSignalValue is number, not string
+    const _wrongTypeCheck: NumSignalValue = 'string';
+});
