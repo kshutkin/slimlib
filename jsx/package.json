@@ -1,6 +1,6 @@
 {
     "type": "module",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "name": "@slimlib/jsx",
     "description": "Mini JSX renderer focused on web components with reactive primitives",
     "license": "MIT",

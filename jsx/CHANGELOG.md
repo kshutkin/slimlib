@@ -1,5 +1,11 @@
 Changelog
 
+## 0.1.1
+
+### Patch Changes
+
+- 27b30e2: fix: mounting and updating functional components
+
 ## 0.1.0
 
 ### Minor Changes
