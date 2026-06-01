@@ -1,6 +1,6 @@
 {
     "type": "module",
-    "version": "0.1.1",
+    "version": "0.1.2",
     "name": "@slimlib/element",
     "description": "Functional Custom Elements wrapper backed by @slimlib/jsx and @slimlib/store",
     "license": "MIT",
