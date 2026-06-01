@@ -159,6 +159,8 @@ const appendChild = (parent: Node, child: Child): void => {
             // initial subtree was built inside a DocumentFragment that was later
             // inserted into the real DOM, updates operate on the live container.
             const liveParent = rangeParent(start, end);
+
+            // biome-ignore lint/suspicious/noConfusingLabels: expected
             renderChild: {
                 if (liveParent === null) break renderChild;
                 if (isPrimitive && textNode !== null) {
@@ -212,8 +214,7 @@ const rangeParent = (start: Node, end: Node): Node | null => {
     return parent !== null && end.parentNode === parent ? parent : null;
 };
 
-const isOwnedRange = (start: Node, end: Node, parent: Node): boolean =>
-    start.parentNode === parent && end.parentNode === parent;
+const isOwnedRange = (start: Node, end: Node, parent: Node): boolean => start.parentNode === parent && end.parentNode === parent;
 
 /**
  * Insert a Child immediately before `anchor`.
@@ -478,6 +479,7 @@ export const forEach = <T>(
             }
         });
 
+        // biome-ignore lint/suspicious/noConfusingLabels: expected
         reconcile: {
             // Remove entries that vanished from the new list. Pure DOM + scope
             // disposal, no signal reads — safe to run outside untracked().
