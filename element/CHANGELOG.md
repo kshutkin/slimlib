@@ -1,5 +1,11 @@
 # @slimlib/element
 
+## 0.1.2
+
+### Patch Changes
+
+- 50acc29: fix: clean DOM on rerender
+
 ## 0.1.1
 
 ### Patch Changes
