@@ -158,51 +158,46 @@ const appendChild = (parent: Node, child: Child): void => {
             // Use start.parentNode (not the captured `parent`) so that if the
             // initial subtree was built inside a DocumentFragment that was later
             // inserted into the real DOM, updates operate on the live container.
-            let liveParent = start.parentNode;
-            if (liveParent === null || end.parentNode !== liveParent) {
-                newScope();
-                textNode = null;
-                scopeInstance = undefined;
-                return;
-            }
-            if (isPrimitive && textNode !== null) {
-                // Text fast path: reuse existing node, no DOM thrash.
-                const str = '' + value;
-                if (textNode.data !== str) textNode.data = str;
-                newScope();
-                return;
-            }
-            // Slow path: clear sibling range. The previous scope (if any) was
-            // already torn down by this effect's cleanup before re-run.
-            let nextSibling = start.nextSibling;
-            while (nextSibling !== end) {
-                const nextNextSibling = (nextSibling as ChildNode).nextSibling;
-                liveParent.removeChild(nextSibling as ChildNode);
-                nextSibling = nextNextSibling;
-            }
-            if (start.parentNode !== liveParent || end.parentNode !== liveParent) {
-                newScope();
-                textNode = null;
-                scopeInstance = undefined;
-                return;
-            }
-            if (isPrimitive) {
-                textNode = document.createTextNode('' + (value as Primitive));
-                liveParent.insertBefore(textNode, end);
-                newScope();
-                scopeInstance = undefined;
-            } else {
-                textNode = null;
-                scopeInstance = newScope;
-                insertBefore(liveParent, value, end);
-            }
-            return () => {
-                if (scopeInstance !== undefined) {
-                    const s = scopeInstance;
-                    scopeInstance = undefined;
-                    s();
+            const liveParent = rangeParent(start, end);
+            renderChild: {
+                if (liveParent === null) break renderChild;
+                if (isPrimitive && textNode !== null) {
+                    // Text fast path: reuse existing node, no DOM thrash.
+                    const str = '' + value;
+                    if (textNode.data !== str) textNode.data = str;
+                    newScope();
+                    return;
                 }
-            };
+                // Slow path: clear sibling range. The previous scope (if any) was
+                // already torn down by this effect's cleanup before re-run.
+                let nextSibling = start.nextSibling;
+                while (nextSibling !== end) {
+                    const nextNextSibling = (nextSibling as ChildNode).nextSibling;
+                    liveParent.removeChild(nextSibling as ChildNode);
+                    nextSibling = nextNextSibling;
+                }
+                if (!isOwnedRange(start, end, liveParent)) break renderChild;
+                if (isPrimitive) {
+                    textNode = document.createTextNode('' + (value as Primitive));
+                    liveParent.insertBefore(textNode, end);
+                    newScope();
+                    scopeInstance = undefined;
+                } else {
+                    textNode = null;
+                    scopeInstance = newScope;
+                    insertBefore(liveParent, value, end);
+                }
+                return () => {
+                    if (scopeInstance !== undefined) {
+                        const s = scopeInstance;
+                        scopeInstance = undefined;
+                        s();
+                    }
+                };
+            }
+            newScope();
+            textNode = null;
+            scopeInstance = undefined;
         }, 1);
     } else if (Array.isArray(child)) {
         const length = child.length;
@@ -211,6 +206,14 @@ const appendChild = (parent: Node, child: Child): void => {
         parent.appendChild(document.createTextNode('' + (child as Primitive)));
     }
 };
+
+const rangeParent = (start: Node, end: Node): Node | null => {
+    const parent = start.parentNode;
+    return parent !== null && end.parentNode === parent ? parent : null;
+};
+
+const isOwnedRange = (start: Node, end: Node, parent: Node): boolean =>
+    start.parentNode === parent && end.parentNode === parent;
 
 /**
  * Insert a Child immediately before `anchor`.
@@ -354,6 +357,18 @@ type Entry<T> = {
     $_dispose: () => void;
 };
 
+type EntryMap<T> = Map<string | number, Entry<T>>;
+
+const disposeEntryMap = <T>(map: EntryMap<T>): void => {
+    for (const entry of map.values()) entry.$_dispose();
+};
+
+const resetEntryMaps = <T>(previousMap: EntryMap<T>, newMap?: EntryMap<T>): void => {
+    disposeEntryMap(previousMap);
+    if (newMap !== undefined) disposeEntryMap(newMap);
+    previousMap.clear();
+};
+
 /**
  * Keyed list renderer.
  *
@@ -388,12 +403,17 @@ export const forEach = <T>(
     fragment.appendChild(start);
     fragment.appendChild(end);
 
-    let previousMap = new Map<string | number, Entry<T>>();
+    let previousMap: EntryMap<T> = new Map();
 
     effect(() => {
         const array = each();
         const length = array.length;
-        const newMap = new Map<string | number, Entry<T>>();
+        const parent = rangeParent(start, end);
+        if (parent === null) {
+            resetEntryMaps(previousMap);
+            return;
+        }
+        const newMap: EntryMap<T> = new Map();
         const newEntries: Entry<T>[] = new Array(length);
 
         // Reconciliation runs untracked so that signal reads performed by `body`
@@ -463,46 +483,58 @@ export const forEach = <T>(
             }
         });
 
-        const parent = end.parentNode as Node;
-
-        // Remove entries that vanished from the new list. Pure DOM + scope
-        // disposal, no signal reads — safe to run outside untracked().
-        for (const entry of previousMap.values()) {
-            entry.$_dispose();
-            parent.removeChild(entry.$_node);
-        }
-
-        // Reorder + insert. Trim already-correct head/tail, then walk the
-        // remaining middle in reverse so each step's anchor (the node that
-        // should follow `i`) is already in its final position.
-        let firstUnplaced = 0;
-        let lastUnplaced = length - 1;
-        // Head trim: advance past entries already at the correct DOM slot.
-        let headReference = start.nextSibling;
-        while (firstUnplaced <= lastUnplaced && (newEntries[firstUnplaced] as Entry<T>).$_node === headReference) {
-            headReference = (headReference as Node).nextSibling;
-            ++firstUnplaced;
-        }
-        // Tail trim: retreat past entries already at the correct DOM slot.
-        let tailReference: Node = end;
-        while (lastUnplaced >= firstUnplaced) {
-            const expected = tailReference.previousSibling;
-            if ((newEntries[lastUnplaced] as Entry<T>).$_node !== expected) {
-                break;
+        reconcile: {
+            // Remove entries that vanished from the new list. Pure DOM + scope
+            // disposal, no signal reads — safe to run outside untracked().
+            for (const entry of previousMap.values()) {
+                entry.$_dispose();
+                if (entry.$_node.parentNode === parent) {
+                    parent.removeChild(entry.$_node);
+                }
+                if (!isOwnedRange(start, end, parent)) {
+                    break reconcile;
+                }
             }
-            tailReference = expected as Node;
-            --lastUnplaced;
-        }
-        let nextReference: Node = tailReference;
-        for (let i = lastUnplaced; i >= firstUnplaced; --i) {
-            const entry = newEntries[i] as Entry<T>;
-            if (entry.$_node.nextSibling !== nextReference) {
-                parent.insertBefore(entry.$_node, nextReference);
+
+            // Reorder + insert. Trim already-correct head/tail, then walk the
+            // remaining middle in reverse so each step's anchor (the node that
+            // should follow `i`) is already in its final position.
+            let firstUnplaced = 0;
+            let lastUnplaced = length - 1;
+            // Head trim: advance past entries already at the correct DOM slot.
+            let headReference = start.nextSibling;
+            while (firstUnplaced <= lastUnplaced && (newEntries[firstUnplaced] as Entry<T>).$_node === headReference) {
+                headReference = (headReference as Node).nextSibling;
+                ++firstUnplaced;
             }
-            nextReference = entry.$_node;
+            // Tail trim: retreat past entries already at the correct DOM slot.
+            let tailReference: Node = end;
+            while (lastUnplaced >= firstUnplaced) {
+                const expected = tailReference.previousSibling;
+                if ((newEntries[lastUnplaced] as Entry<T>).$_node !== expected) {
+                    break;
+                }
+                tailReference = expected as Node;
+                --lastUnplaced;
+            }
+            let nextReference: Node = tailReference;
+            for (let i = lastUnplaced; i >= firstUnplaced; --i) {
+                const entry = newEntries[i] as Entry<T>;
+                if (!isOwnedRange(start, end, parent) || (nextReference !== end && nextReference.parentNode !== parent)) {
+                    break reconcile;
+                }
+                if (entry.$_node.nextSibling !== nextReference) {
+                    parent.insertBefore(entry.$_node, nextReference);
+                }
+                nextReference = entry.$_node;
+            }
+            if (isOwnedRange(start, end, parent)) {
+                previousMap = newMap;
+                return;
+            }
         }
 
-        previousMap = newMap;
+        resetEntryMaps(previousMap, newMap);
     }, 1);
 
     return fragment;

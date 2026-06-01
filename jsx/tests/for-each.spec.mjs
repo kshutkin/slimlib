@@ -10,6 +10,9 @@ import { createElement, render } from '../src/index.ts';
 // synchronous observation by installing a sync scheduler.
 setScheduler(fn => fn());
 
+let customElementId = 0;
+const uniqueTag = baseName => `${baseName}-${++customElementId}`;
+
 let mounted = [];
 afterEach(() => {
     for (const d of mounted) d();
@@ -385,7 +388,186 @@ describe('forEach — keyed list renderer', () => {
         }
     });
 
-    it('15. prepend exercises tail-trim retreat (unchanged tail stays in place)', () => {
+    it('15. stale anchors dispose row scopes instead of reconciling detached DOM', () => {
+        const items = signal([{ id: 'a' }, { id: 'b' }]);
+        const shared = signal(0);
+        let itemFires = 0;
+        const dispose = render(
+            () =>
+                createElement(
+                    'ul',
+                    null,
+                    forEach(
+                        () => items(),
+                        item => item.id,
+                        item =>
+                            createElement('li', null, () => {
+                                shared();
+                                itemFires++;
+                                return item().id;
+                            })
+                    )
+                ),
+            document.body
+        );
+        mounted.push(dispose);
+        expect(liNodes().map(n => n.textContent)).toEqual(['a', 'b']);
+        expect(itemFires).toBe(2);
+
+        document.querySelector('ul').replaceChildren();
+
+        expect(() => {
+            items.set([{ id: 'a' }, { id: 'b' }, { id: 'c' }]);
+            flushEffects();
+        }).not.toThrow();
+        expect(liNodes()).toEqual([]);
+
+        const before = itemFires;
+        shared.set(1);
+        flushEffects();
+        expect(itemFires).toBe(before);
+    });
+
+    it('16. child disconnect can clear list anchors during removal', () => {
+        const items = signal([{ id: 'clear' }, { id: 'kept' }]);
+        const tag = uniqueTag('x-for-each-clear-on-disconnect');
+
+        customElements.define(
+            tag,
+            class extends HTMLElement {
+                _parent = null;
+
+                connectedCallback() {
+                    this._parent = this.parentNode;
+                }
+
+                disconnectedCallback() {
+                    this._parent?.replaceChildren();
+                }
+            }
+        );
+
+        const dispose = render(
+            () =>
+                createElement(
+                    'ul',
+                    null,
+                    forEach(
+                        () => items(),
+                        item => item.id,
+                        item => (item().id === 'clear' ? createElement(tag, null) : createElement('li', null, item().id))
+                    )
+                ),
+            document.body
+        );
+        mounted.push(dispose);
+        expect(document.querySelector(tag)).not.toBeNull();
+        expect(liNodes().map(n => n.textContent)).toEqual(['kept']);
+
+        expect(() => {
+            items.set([{ id: 'kept' }]);
+            flushEffects();
+        }).not.toThrow();
+        expect(document.querySelector('ul').textContent).toBe('');
+    });
+
+    it('17. removal tolerates an entry node that is already detached', () => {
+        const items = signal([{ id: 'a' }, { id: 'b' }]);
+        const dispose = render(
+            () =>
+                createElement(
+                    'ul',
+                    null,
+                    forEach(
+                        () => items(),
+                        item => item.id,
+                        item => createElement('li', null, item().id)
+                    )
+                ),
+            document.body
+        );
+        mounted.push(dispose);
+        const [first] = liNodes();
+        first.remove();
+
+        expect(() => {
+            items.set([{ id: 'b' }]);
+            flushEffects();
+        }).not.toThrow();
+        expect(liNodes().map(n => n.textContent)).toEqual(['b']);
+    });
+
+    it('18. child connect can clear list anchors during insertion', () => {
+        const items = signal([]);
+        const tag = uniqueTag('x-for-each-clear-on-connect');
+
+        customElements.define(
+            tag,
+            class extends HTMLElement {
+                connectedCallback() {
+                    this.parentNode?.replaceChildren();
+                }
+            }
+        );
+
+        const dispose = render(
+            () =>
+                createElement(
+                    'ul',
+                    null,
+                    forEach(
+                        () => items(),
+                        item => item.id,
+                        () => createElement(tag, null)
+                    )
+                ),
+            document.body
+        );
+        mounted.push(dispose);
+
+        expect(() => {
+            items.set([{ id: 'a' }, { id: 'b' }]);
+            flushEffects();
+        }).not.toThrow();
+        expect(document.querySelector('ul').textContent).toBe('');
+    });
+
+    it('19. final child connect can clear list anchors after insertion', () => {
+        const items = signal([]);
+        const tag = uniqueTag('x-for-each-clear-after-final-insert');
+
+        customElements.define(
+            tag,
+            class extends HTMLElement {
+                connectedCallback() {
+                    this.parentNode?.replaceChildren();
+                }
+            }
+        );
+
+        const dispose = render(
+            () =>
+                createElement(
+                    'ul',
+                    null,
+                    forEach(
+                        () => items(),
+                        item => item.id,
+                        () => createElement(tag, null)
+                    )
+                ),
+            document.body
+        );
+        mounted.push(dispose);
+
+        expect(() => {
+            items.set([{ id: 'a' }]);
+            flushEffects();
+        }).not.toThrow();
+        expect(document.querySelector('ul').textContent).toBe('');
+    });
+
+    it('20. prepend exercises tail-trim retreat (unchanged tail stays in place)', () => {
         // Reconciler tail trim: with [b, c] → [a, b, c], head trim cannot
         // advance (newEntries[0] is the freshly-created `a`) but the tail trim
         // retreats past `c` then `b` because both are already in their final
