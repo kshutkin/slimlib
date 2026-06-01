@@ -1,5 +1,12 @@
 Changelog
 
+## 0.1.2
+
+### Patch Changes
+
+- 354aaff: fix: guards against detached DOM
+- 0653884: fix: working with detached elements
+
 ## 0.1.1
 
 ### Patch Changes
