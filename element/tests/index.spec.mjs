@@ -959,6 +959,26 @@ describe('connected/disconnected lifecycle (DEV)', () => {
         expect(renderCount).toBe(2);
     });
 
+    it('clears stale rendered DOM before remount render', async () => {
+        const { defineElement } = await import('../src/index.js');
+        const { createElement } = await import('@slimlib/jsx');
+
+        let renderCount = 0;
+        const tag = uniqueTag('x-slim-remount-dom');
+        defineElement(tag, () => createElement('span', null, `render ${++renderCount}`));
+
+        const element = document.createElement(tag);
+        document.body.appendChild(element);
+        expect(element.innerHTML).toBe('<span>render 1</span>');
+
+        document.body.removeChild(element);
+        await nextMicrotask();
+        await nextMicrotask();
+
+        document.body.appendChild(element);
+        expect(element.innerHTML).toBe('<span>render 2</span>');
+    });
+
     it('keeps the mounted render when reconnected before cleanup runs', async () => {
         const { defineElement } = await import('../src/index.js');
 
