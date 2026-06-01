@@ -363,12 +363,6 @@ const disposeEntryMap = <T>(map: EntryMap<T>): void => {
     for (const entry of map.values()) entry.$_dispose();
 };
 
-const resetEntryMaps = <T>(previousMap: EntryMap<T>, newMap?: EntryMap<T>): void => {
-    disposeEntryMap(previousMap);
-    if (newMap !== undefined) disposeEntryMap(newMap);
-    previousMap.clear();
-};
-
 /**
  * Keyed list renderer.
  *
@@ -410,7 +404,8 @@ export const forEach = <T>(
         const length = array.length;
         const parent = rangeParent(start, end);
         if (parent === null) {
-            resetEntryMaps(previousMap);
+            disposeEntryMap(previousMap);
+            previousMap = new Map();
             return;
         }
         const newMap: EntryMap<T> = new Map();
@@ -534,7 +529,9 @@ export const forEach = <T>(
             }
         }
 
-        resetEntryMaps(previousMap, newMap);
+        disposeEntryMap(previousMap);
+        disposeEntryMap(newMap);
+        previousMap = new Map();
     }, 1);
 
     return fragment;
