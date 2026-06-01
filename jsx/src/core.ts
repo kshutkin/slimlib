@@ -155,6 +155,16 @@ const appendChild = (parent: Node, child: Child): void => {
             });
             const isPrimitive =
                 value != null && value !== false && value !== true && typeof value !== 'object' && typeof value !== 'function';
+            // Use start.parentNode (not the captured `parent`) so that if the
+            // initial subtree was built inside a DocumentFragment that was later
+            // inserted into the real DOM, updates operate on the live container.
+            let liveParent = start.parentNode;
+            if (liveParent === null || end.parentNode !== liveParent) {
+                newScope();
+                textNode = null;
+                scopeInstance = undefined;
+                return;
+            }
             if (isPrimitive && textNode !== null) {
                 // Text fast path: reuse existing node, no DOM thrash.
                 const str = '' + value;
@@ -164,15 +174,17 @@ const appendChild = (parent: Node, child: Child): void => {
             }
             // Slow path: clear sibling range. The previous scope (if any) was
             // already torn down by this effect's cleanup before re-run.
-            // Use start.parentNode (not the captured `parent`) so that if the
-            // initial subtree was built inside a DocumentFragment that was later
-            // inserted into the real DOM, updates operate on the live container.
-            const liveParent = start.parentNode as Node;
             let nextSibling = start.nextSibling;
             while (nextSibling !== end) {
                 const nextNextSibling = (nextSibling as ChildNode).nextSibling;
                 liveParent.removeChild(nextSibling as ChildNode);
                 nextSibling = nextNextSibling;
+            }
+            if (start.parentNode !== liveParent || end.parentNode !== liveParent) {
+                newScope();
+                textNode = null;
+                scopeInstance = undefined;
+                return;
             }
             if (isPrimitive) {
                 textNode = document.createTextNode('' + (value as Primitive));

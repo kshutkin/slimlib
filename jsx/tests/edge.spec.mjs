@@ -8,6 +8,10 @@ import { createElement, render } from '../src/index.ts';
 // longer calls flushEffects() (full async-commit contract); tests opt into
 // synchronous observation by installing a sync scheduler.
 setScheduler(fn => fn());
+
+let customElementId = 0;
+const uniqueTag = baseName => `${baseName}-${++customElementId}`;
+
 describe('function-child transitions', () => {
     it('handles primitives, bigint, and falsy values across updates', () => {
         const root = document.createElement('div');
@@ -182,6 +186,63 @@ describe('branch coverage', () => {
         // start, text("visible"), end
         expect(el.childNodes.length).toBe(3);
         expect(el.childNodes[1].textContent).toBe('visible');
+        dispose();
+    });
+
+    it('does not throw when child disconnect mutates function-child anchors', () => {
+        const root = document.createElement('div');
+        document.body.appendChild(root);
+        const showChild = signal(true);
+        const tag = uniqueTag('x-slim-anchor-clear');
+
+        customElements.define(
+            tag,
+            class extends HTMLElement {
+                _parent = null;
+
+                connectedCallback() {
+                    this._parent = this.parentNode;
+                }
+
+                disconnectedCallback() {
+                    this._parent?.replaceChildren();
+                }
+            }
+        );
+
+        const dispose = render(
+            () => createElement('div', null, () => (showChild() ? createElement(tag, null) : createElement('span', null, 'next'))),
+            root
+        );
+        expect(root.querySelector(tag)).not.toBeNull();
+
+        expect(() => {
+            showChild.set(false);
+            flushEffects();
+        }).not.toThrow();
+
+        expect(root.firstChild.textContent).toBe('');
+
+        dispose();
+        root.remove();
+    });
+
+    it('does not throw when function-child anchors were already detached', () => {
+        const root = document.createElement('div');
+        const value = signal('first');
+        const dispose = render(() => createElement('div', null, () => value()), root);
+        const outer = root.firstChild;
+
+        expect(outer.textContent).toBe('first');
+        outer.replaceChildren();
+
+        expect(() => {
+            value.set('second');
+            flushEffects();
+        }).not.toThrow();
+
+        expect(outer.textContent).toBe('');
+
         dispose();
     });
 });
