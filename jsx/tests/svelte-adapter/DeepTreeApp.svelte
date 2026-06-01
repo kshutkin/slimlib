@@ -1,7 +1,10 @@
 <script>
     import DeepNode from './DeepNode.svelte';
-    let props = $props();
-    let label = $state(props.initialLabel ?? 'A');
+    let { depth = 6, breadth = 4, initialLabel = 'A' } = $props();
+    let label = $state('A');
+    $effect.pre(() => {
+        label = initialLabel;
+    });
     export function setLabel(v) { label = v; }
 </script>
-<DeepNode depth={props.depth ?? 6} breadth={props.breadth ?? 4} {label} />
+<DeepNode {depth} {breadth} {label} />
