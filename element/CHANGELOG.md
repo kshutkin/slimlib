@@ -1,5 +1,11 @@
 # @slimlib/element
 
+## 0.2.0
+
+### Minor Changes
+
+- f538446: added withValidation middleware
+
 ## 0.1.2
 
 ### Patch Changes
