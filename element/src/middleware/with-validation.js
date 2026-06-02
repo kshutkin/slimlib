@@ -21,9 +21,12 @@ import { INTERNALS } from '../symbols.js';
 export const withValidation = () => ElementBase =>
     class extends ElementBase {
         get validity() {
-            if (DEV && !/** @type {Record<typeof INTERNALS, ElementInternals | undefined>} */ (/** @type {unknown} */ (this))[INTERNALS]) {
+            if (
+                DEV &&
+                !(/** @type {Record<typeof INTERNALS, ElementInternals | undefined>} */ (/** @type {unknown} */ (this))[INTERNALS])
+            ) {
                 console.error('withValidation() requires the withInternals() middleware');
-                return;
+                return undefined;
             }
             return /** @type {ElementInternals} */ (
                 /** @type {Record<typeof INTERNALS, ElementInternals | undefined>} */ (/** @type {unknown} */ (this))[INTERNALS]
@@ -31,9 +34,12 @@ export const withValidation = () => ElementBase =>
         }
 
         get validationMessage() {
-            if (DEV && !/** @type {Record<typeof INTERNALS, ElementInternals | undefined>} */ (/** @type {unknown} */ (this))[INTERNALS]) {
+            if (
+                DEV &&
+                !(/** @type {Record<typeof INTERNALS, ElementInternals | undefined>} */ (/** @type {unknown} */ (this))[INTERNALS])
+            ) {
                 console.error('withValidation() requires the withInternals() middleware');
-                return;
+                return undefined;
             }
             return /** @type {ElementInternals} */ (
                 /** @type {Record<typeof INTERNALS, ElementInternals | undefined>} */ (/** @type {unknown} */ (this))[INTERNALS]
@@ -41,9 +47,12 @@ export const withValidation = () => ElementBase =>
         }
 
         get willValidate() {
-            if (DEV && !/** @type {Record<typeof INTERNALS, ElementInternals | undefined>} */ (/** @type {unknown} */ (this))[INTERNALS]) {
+            if (
+                DEV &&
+                !(/** @type {Record<typeof INTERNALS, ElementInternals | undefined>} */ (/** @type {unknown} */ (this))[INTERNALS])
+            ) {
                 console.error('withValidation() requires the withInternals() middleware');
-                return;
+                return undefined;
             }
             return /** @type {ElementInternals} */ (
                 /** @type {Record<typeof INTERNALS, ElementInternals | undefined>} */ (/** @type {unknown} */ (this))[INTERNALS]
@@ -51,9 +60,12 @@ export const withValidation = () => ElementBase =>
         }
 
         get form() {
-            if (DEV && !/** @type {Record<typeof INTERNALS, ElementInternals | undefined>} */ (/** @type {unknown} */ (this))[INTERNALS]) {
+            if (
+                DEV &&
+                !(/** @type {Record<typeof INTERNALS, ElementInternals | undefined>} */ (/** @type {unknown} */ (this))[INTERNALS])
+            ) {
                 console.error('withValidation() requires the withInternals() middleware');
-                return;
+                return undefined;
             }
             return /** @type {ElementInternals} */ (
                 /** @type {Record<typeof INTERNALS, ElementInternals | undefined>} */ (/** @type {unknown} */ (this))[INTERNALS]
@@ -61,9 +73,12 @@ export const withValidation = () => ElementBase =>
         }
 
         get labels() {
-            if (DEV && !/** @type {Record<typeof INTERNALS, ElementInternals | undefined>} */ (/** @type {unknown} */ (this))[INTERNALS]) {
+            if (
+                DEV &&
+                !(/** @type {Record<typeof INTERNALS, ElementInternals | undefined>} */ (/** @type {unknown} */ (this))[INTERNALS])
+            ) {
                 console.error('withValidation() requires the withInternals() middleware');
-                return;
+                return undefined;
             }
             return /** @type {ElementInternals} */ (
                 /** @type {Record<typeof INTERNALS, ElementInternals | undefined>} */ (/** @type {unknown} */ (this))[INTERNALS]
@@ -71,7 +86,10 @@ export const withValidation = () => ElementBase =>
         }
 
         checkValidity() {
-            if (DEV && !/** @type {Record<typeof INTERNALS, ElementInternals | undefined>} */ (/** @type {unknown} */ (this))[INTERNALS]) {
+            if (
+                DEV &&
+                !(/** @type {Record<typeof INTERNALS, ElementInternals | undefined>} */ (/** @type {unknown} */ (this))[INTERNALS])
+            ) {
                 console.error('withValidation() requires the withInternals() middleware');
                 return;
             }
@@ -81,7 +99,10 @@ export const withValidation = () => ElementBase =>
         }
 
         reportValidity() {
-            if (DEV && !/** @type {Record<typeof INTERNALS, ElementInternals | undefined>} */ (/** @type {unknown} */ (this))[INTERNALS]) {
+            if (
+                DEV &&
+                !(/** @type {Record<typeof INTERNALS, ElementInternals | undefined>} */ (/** @type {unknown} */ (this))[INTERNALS])
+            ) {
                 console.error('withValidation() requires the withInternals() middleware');
                 return;
             }
