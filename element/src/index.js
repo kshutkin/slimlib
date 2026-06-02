@@ -25,6 +25,7 @@ export { formAssociated } from './middleware/form-associated.js';
 export { onAdopted } from './middleware/on-adopted.js';
 export { onMove } from './middleware/on-move.js';
 export { withInternals } from './middleware/with-internals.js';
+export { withValidation } from './middleware/with-validation.js';
 
 /** @typedef {import('./types.js').ElementHost} ElementHost */
 /** @typedef {import('./types.js').RenderFunction} RenderFunction */

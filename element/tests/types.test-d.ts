@@ -1,6 +1,6 @@
 import { expectTypeOf, it } from 'vitest';
 
-import { attributes, booleanAttribute, createCustomElement, numberAttribute, stringAttribute } from '@slimlib/element';
+import { attributes, booleanAttribute, createCustomElement, numberAttribute, stringAttribute, withValidation } from '@slimlib/element';
 
 import type { RenderFunction } from '@slimlib/element';
 
@@ -42,4 +42,15 @@ it('two separate attributes middleware merge on instance', () => {
     const El = createCustomElement([attributes({ count: numberAttribute }), attributes({ label: stringAttribute })], renderFn);
     expectTypeOf<InstanceType<typeof El>['count']>().toEqualTypeOf<number | null>();
     expectTypeOf<InstanceType<typeof El>['label']>().toEqualTypeOf<string | null>();
+});
+
+it('withValidation exposes constraint validation on the instance', () => {
+    const El = createCustomElement([withValidation()], renderFn);
+    expectTypeOf<InstanceType<typeof El>['validity']>().toEqualTypeOf<ValidityState>();
+    expectTypeOf<InstanceType<typeof El>['validationMessage']>().toEqualTypeOf<string>();
+    expectTypeOf<InstanceType<typeof El>['willValidate']>().toEqualTypeOf<boolean>();
+    expectTypeOf<InstanceType<typeof El>['form']>().toEqualTypeOf<HTMLFormElement | null>();
+    expectTypeOf<InstanceType<typeof El>['labels']>().toEqualTypeOf<NodeList>();
+    expectTypeOf<InstanceType<typeof El>['checkValidity']>().toEqualTypeOf<() => boolean>();
+    expectTypeOf<InstanceType<typeof El>['reportValidity']>().toEqualTypeOf<() => boolean>();
 });

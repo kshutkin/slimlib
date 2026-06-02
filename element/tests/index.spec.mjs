@@ -47,6 +47,7 @@ describe('@slimlib/element public API (DEV)', () => {
         expect(typeof elementModule.disabledFeatures).toBe('function');
         expect(typeof elementModule.formAssociated).toBe('function');
         expect(typeof elementModule.withInternals).toBe('function');
+        expect(typeof elementModule.withValidation).toBe('function');
         expect(typeof elementModule.onAdopted).toBe('function');
         expect(typeof elementModule.onMove).toBe('function');
     });
@@ -142,6 +143,44 @@ describe('middleware-composed defineElement (DEV)', () => {
 
         expect(captured).toBeInstanceOf(ElementInternals);
         expect(() => element.attachInternals()).toThrow();
+    });
+
+    it('exposes ElementInternals validation methods with withValidation()', async () => {
+        const { defineElement, formAssociated, internals, withInternals, withValidation } = await import('../src/index.js');
+        const tag = uniqueTag('x-slim-validation');
+        let captured;
+        defineElement(tag, [withInternals(), withValidation(), formAssociated()], () => {
+            captured = internals();
+            return null;
+        });
+
+        const form = document.createElement('form');
+        const element = document.createElement(tag);
+        form.appendChild(element);
+        document.body.appendChild(form);
+        captured.setValidity({ valueMissing: true }, 'Required');
+
+        expect(element.validity).toBe(captured.validity);
+        expect(element.validationMessage).toBe('Required');
+        expect(element.willValidate).toBe(captured.willValidate);
+        expect(element.form).toBe(captured.form);
+        expect(element.form).toBe(form);
+        expect(element.labels).toBe(captured.labels);
+        expect(element.checkValidity()).toBe(false);
+        expect(element.reportValidity()).toBe(false);
+    });
+
+    it('logs an error when withValidation() is missing withInternals()', async () => {
+        const { defineElement, withValidation } = await import('../src/index.js');
+        const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+        const tag = uniqueTag('x-slim-validation-no-internals');
+        defineElement(tag, [withValidation()], () => null);
+
+        const element = document.createElement(tag);
+
+        expect(element.checkValidity()).toBeUndefined();
+        expect(errorSpy).toHaveBeenCalledWith('withValidation() requires the withInternals() middleware');
+        errorSpy.mockRestore();
     });
 
     it('sets the formAssociated static flag', async () => {

@@ -142,6 +142,7 @@ middleware; in DEV a missing one logs a warning and the subscription is ignored.
 | `attributes(config)` | Observed attributes, parsing into props, and reflection. |
 | `formAssociated()` | `static formAssociated = true` and the form lifecycle callbacks. |
 | `withInternals()` | `attachInternals()`, accessed via `internals()`. |
+| `withValidation()` | `validity`, `validationMessage`, `willValidate`, `form`, `labels`, `checkValidity()`, and `reportValidity()` forwarded from `ElementInternals`; requires `withInternals()`. |
 | `onAdopted()` | `adoptedCallback`, surfaced via `onAdoptedCallback`. |
 | `onMove()` | `connectedMoveCallback`, surfaced via `onConnectedMove`. |
 | `disabledFeatures(features)` | `static disabledFeatures` (e.g. `['shadow']`). |
