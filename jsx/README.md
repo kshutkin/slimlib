@@ -76,13 +76,12 @@ Same model as SolidJS, but without the JSX-compiler magic. The wrapper form `{()
 Mounts a JSX tree into a DOM container.
 
 - `factory` **must be a function** that returns JSX. This is required so reactive bindings are created inside the render scope and torn down on dispose.
-- Returns a function that disposes all effects, event listeners, and refs in the tree. **It does not remove the inserted DOM nodes** — remove them yourself if you need to unmount (e.g. `container.replaceChildren()` or remove the specific nodes after calling dispose).
+- Returns a function that disposes all effects, event listeners, and refs in the tree, then removes the DOM range inserted by this render call.
 
 ```jsx
 const dispose = render(() => <App />, document.body);
 // ...later
 dispose();
-document.body.replaceChildren(); // remove DOM if needed
 ```
 
 #### Commit timing

@@ -227,6 +227,67 @@ describe('branch coverage', () => {
         root.remove();
     });
 
+    it('does not throw when child disconnect removes later function-child siblings', () => {
+        const root = document.createElement('div');
+        document.body.appendChild(root);
+        const showChild = signal(true);
+        const tag = uniqueTag('x-slim-anchor-clear-siblings');
+
+        customElements.define(
+            tag,
+            class extends HTMLElement {
+                _parent = null;
+
+                connectedCallback() {
+                    this._parent = this.parentNode;
+                }
+
+                disconnectedCallback() {
+                    this._parent?.replaceChildren();
+                }
+            }
+        );
+
+        const dispose = render(
+            () =>
+                createElement('div', null, () =>
+                    showChild() ? [createElement(tag, null), createElement('span', null, 'later')] : createElement('span', null, 'next')
+                ),
+            root
+        );
+
+        expect(() => {
+            showChild.set(false);
+            flushEffects();
+        }).not.toThrow();
+
+        expect(root.firstChild.textContent).toBe('');
+
+        dispose();
+        root.remove();
+    });
+
+    it('does not throw when function-child anchors are reordered', () => {
+        const root = document.createElement('div');
+        const showChild = signal(true);
+        const dispose = render(
+            () => createElement('div', null, () => (showChild() ? createElement('span', null, 'one') : createElement('em', null, 'two'))),
+            root
+        );
+        const outer = root.firstChild;
+        const start = outer.childNodes[0];
+
+        outer.appendChild(start);
+
+        expect(() => {
+            showChild.set(false);
+            flushEffects();
+        }).not.toThrow();
+        expect(outer.textContent).toBe('onetwo');
+
+        dispose();
+    });
+
     it('does not throw when function-child anchors were already detached', () => {
         const root = document.createElement('div');
         const value = signal('first');

@@ -172,12 +172,7 @@ const appendChild = (parent: Node, child: Child): void => {
                 }
                 // Slow path: clear sibling range. The previous scope (if any) was
                 // already torn down by this effect's cleanup before re-run.
-                let nextSibling = start.nextSibling;
-                while (nextSibling !== end) {
-                    const nextNextSibling = (nextSibling as ChildNode).nextSibling;
-                    liveParent.removeChild(nextSibling as ChildNode);
-                    nextSibling = nextNextSibling;
-                }
+                removeNodesUntil(liveParent, start.nextSibling, end);
                 if (!isOwnedRange(start, end, liveParent)) break renderChild;
                 if (isPrimitive) {
                     textNode = document.createTextNode('' + (value as Primitive));
@@ -215,6 +210,14 @@ const rangeParent = (start: Node, end: Node): Node | null => {
 };
 
 const isOwnedRange = (start: Node, end: Node, parent: Node): boolean => start.parentNode === parent && end.parentNode === parent;
+
+const removeNodesUntil = (parent: Node, node: Node | null, stop: Node | null): void => {
+    while (node !== null && node !== stop) {
+        const next = node.nextSibling;
+        parent.removeChild(node);
+        node = next;
+    }
+};
 
 /**
  * Insert a Child immediately before `anchor`.
@@ -330,10 +333,8 @@ export const html = <T>(fn: () => T): T => {
  * synchronously, either drain manually with `flushEffects()` or install a
  * synchronous scheduler via `setScheduler(fn => fn())`.
  *
- * The returned dispose function tears down reactive bindings only — it does
- * **not** remove the inserted DOM nodes from `container`. If you need to
- * unmount the DOM, remove the nodes yourself (e.g. `container.replaceChildren()`
- * or remove the specific nodes) after calling dispose.
+ * The returned dispose function tears down reactive bindings and removes the
+ * DOM range inserted by this render call.
  *
  * Usage: `render(() => <App />, document.body)`
  */
@@ -342,7 +343,21 @@ export const render = (factory: () => Child, container: Element | DocumentFragme
         const prevOnDispose = currentOnDispose;
         currentOnDispose = onDispose;
         try {
-            container.appendChild(createElement(factory, null));
+            const root = createElementArray(factory, null, []);
+            if (root instanceof DocumentFragment) {
+                const start = root.firstChild;
+                const end = root.lastChild;
+                container.appendChild(root);
+                if (start !== null && end !== null) {
+                    onDispose(() => {
+                        const parent = rangeParent(start, end);
+                        if (parent !== null) removeNodesUntil(parent, start, end.nextSibling);
+                    });
+                }
+            } else {
+                container.appendChild(root);
+                onDispose(() => root.parentNode?.removeChild(root));
+            }
         } finally {
             currentOnDispose = prevOnDispose;
         }

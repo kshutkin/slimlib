@@ -38,6 +38,57 @@ describe('@slimlib/jsx public surface', () => {
     });
 });
 
+describe('render lifecycle', () => {
+    it('dispose removes only the DOM inserted by that render', () => {
+        const root = document.createElement('div');
+        root.append('before');
+
+        const dispose = render(() => createElement('span', null, 'app'), root);
+        root.append('after');
+
+        expect(root.innerHTML).toBe('before<span>app</span>after');
+        dispose();
+        expect(root.innerHTML).toBe('beforeafter');
+    });
+
+    it('dispose removes fragment and top-level dynamic output', () => {
+        const root = document.createElement('div');
+        const value = signal('a');
+        const dispose = render(() => createElement(Fragment, null, createElement('span', null, 'static'), () => value()), root);
+
+        expect(root.textContent).toBe('statica');
+        value.set('b');
+        flushEffects();
+        expect(root.textContent).toBe('staticb');
+
+        dispose();
+        expect(root.innerHTML).toBe('');
+    });
+
+    it('dispose leaves unrelated DOM when the inserted range was externally changed', () => {
+        const root = document.createElement('div');
+        const dispose = render(() => createElement(Fragment, null, createElement('span', null, 'app'), createElement('b', null, 'end')), root);
+
+        root.querySelector('b').remove();
+        root.append('after');
+
+        dispose();
+        expect(root.innerHTML).toBe('<span>app</span>after');
+    });
+
+    it('dispose handles an empty render root', () => {
+        const root = document.createElement('div');
+        root.append('before');
+
+        const dispose = render(() => null, root);
+        root.append('after');
+
+        expect(root.innerHTML).toBe('beforeafter');
+        expect(() => dispose()).not.toThrow();
+        expect(root.innerHTML).toBe('beforeafter');
+    });
+});
+
 describe('createElement — static rendering', () => {
     it('creates an element with text child', () => {
         mount(() => createElement('div', null, 'hello'));

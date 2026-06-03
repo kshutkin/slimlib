@@ -193,7 +193,6 @@ const createCoreElementClass = (ElementBase, userRender) =>
                 this.#mounted = true;
                 const previousHost = currentHost;
                 currentHost = /** @type {ElementHost} */ (/** @type {unknown} */ (this));
-                this.replaceChildren();
                 this.#disposeRender = render(
                     () => /** @type {JsxChild} */ (userRender(/** @type {ElementHost} */ (/** @type {unknown} */ (this)))),
                     this
