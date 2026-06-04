@@ -1,5 +1,11 @@
 Changelog
 
+## 0.2.0
+
+### Minor Changes
+
+- 36b514a: added render DOM cleanup
+
 ## 0.1.2
 
 ### Patch Changes
