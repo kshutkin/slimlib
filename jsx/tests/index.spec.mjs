@@ -67,7 +67,10 @@ describe('render lifecycle', () => {
 
     it('dispose leaves unrelated DOM when the inserted range was externally changed', () => {
         const root = document.createElement('div');
-        const dispose = render(() => createElement(Fragment, null, createElement('span', null, 'app'), createElement('b', null, 'end')), root);
+        const dispose = render(
+            () => createElement(Fragment, null, createElement('span', null, 'app'), createElement('b', null, 'end')),
+            root
+        );
 
         root.querySelector('b').remove();
         root.append('after');

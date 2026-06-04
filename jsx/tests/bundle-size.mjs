@@ -5,7 +5,10 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { brotliCompressSync, constants, gzipSync } from 'node:zlib';
 
-import { build } from 'esbuild';
+import commonjs from '@rollup/plugin-commonjs';
+import { nodeResolve } from '@rollup/plugin-node-resolve';
+import terser from '@rollup/plugin-terser';
+import { rollup } from 'rollup';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const tmpDir = join(__dirname, '..', '.bundle-size', 'entries');
@@ -46,18 +49,14 @@ const entries = [
 ];
 
 async function bundleOnce(entryPath, minify) {
-    const result = await build({
-        entryPoints: [entryPath],
-        bundle: true,
-        format: 'esm',
-        platform: 'browser',
-        target: 'es2022',
-        minify,
-        write: false,
-        treeShaking: true,
-        logLevel: 'silent',
-    });
-    return Buffer.from(result.outputFiles[0].contents);
+    const plugins = [nodeResolve({ exportConditions: ['production'], browser: true }), commonjs()];
+    if (minify) {
+        plugins.push(terser({ compress: { passes: 2 }, format: { comments: false } }));
+    }
+    const bundle = await rollup({ input: entryPath, plugins, onwarn() {} });
+    const { output } = await bundle.generate({ format: 'es' });
+    await bundle.close();
+    return Buffer.from(output[0].code);
 }
 
 function fmt(n) {
