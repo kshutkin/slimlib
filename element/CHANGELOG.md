@@ -1,5 +1,13 @@
 # @slimlib/element
 
+## 0.2.1
+
+### Patch Changes
+
+- 36b514a: fixed DOM cleanup
+- Updated dependencies [36b514a]
+  - @slimlib/jsx@0.2.0
+
 ## 0.2.0
 
 ### Minor Changes
