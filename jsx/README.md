@@ -1,6 +1,6 @@
 # @slimlib/jsx
 
-Tiny JSX renderer (~6KiB minified, ~2.4 KiB gzip together with reactive primitives) with reactive primitives. Real DOM nodes, no virtual DOM.
+Tiny JSX renderer (~5.8KiB minified, ~2.4 KiB gzip together with reactive primitives) with reactive primitives. Real DOM nodes, no virtual DOM.
 
 ```jsx
 import { signal } from "@slimlib/store";
