@@ -1,4 +1,5 @@
 import { render } from '@slimlib/jsx';
+import { createContext, getContext, provideContext } from '@slimlib/jsx/context';
 import { forEach } from '@slimlib/jsx/for-each';
 import { computed, effect, setScheduler, signal } from '@slimlib/store';
 
@@ -56,6 +57,31 @@ const Greeter = () => {
             </span>
         </div>
     );
+};
+
+const AccentContext = createContext(signal('tomato'));
+
+const ContextBadge = () => {
+    const accent = getContext(AccentContext);
+    return (
+        <span class='context-badge' attr:style={() => `--accent: ${accent()}`}>
+            context color: {accent}
+        </span>
+    );
+};
+
+const ContextDemo = () => {
+    const accent = signal('tomato');
+    return provideContext(AccentContext, accent, () => (
+        <div class='row'>
+            <ContextBadge />
+            {['tomato', 'dodgerblue', 'seagreen'].map(color => (
+                <button type='button' on:click={() => accent.set(color)}>
+                    {color}
+                </button>
+            ))}
+        </div>
+    ));
 };
 
 // Keyed list via forEach — add / remove / toggle / shuffle
@@ -532,6 +558,10 @@ const App = () => (
         <section class='demo'>
             <h2>Reactive text + computed</h2>
             <Greeter />
+        </section>
+        <section class='demo'>
+            <h2>Context (lazy provider)</h2>
+            <ContextDemo />
         </section>
         <section class='demo'>
             <h2>Keyed list (forEach)</h2>

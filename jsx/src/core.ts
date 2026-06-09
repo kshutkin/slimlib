@@ -23,6 +23,23 @@ export const Fragment: Component<{ children?: Child }> = props => props.children
  */
 let currentOnDispose: ((cb: () => void) => void) | null = null;
 
+type ContextHooks = {
+    $_capture: () => unknown;
+    $_run: <T>(snapshot: unknown, fn: () => T) => T;
+};
+
+let contextHooks: ContextHooks | undefined;
+
+export const setContextHooks = (hooks: ContextHooks): void => {
+    contextHooks = hooks;
+};
+
+const withContext = <T>(fn: () => T): (() => T) => {
+    if (contextHooks === undefined) return fn;
+    const snapshot = contextHooks.$_capture();
+    return () => (contextHooks as ContextHooks).$_run(snapshot, fn);
+};
+
 /**
  * Module-level current XML namespace. When set, `createElementArray` uses
  * `createElementNS` instead of `createElement`. Toggled by the opt-in `svg()` /
@@ -107,12 +124,13 @@ const setProperty = (element: Element, key: string, value: unknown): void => {
         }
     } else if (typeof value === 'function') {
         const reactive = value as () => unknown;
+        const update = withContext(() => {
+            applyProperty(element, key, reactive());
+        });
         // effect() auto-registers with the active store scope.
         // EAGER (1): first run must apply the property synchronously during
         // render() so the DOM is fully populated before render() returns.
-        effect(() => {
-            applyProperty(element, key, reactive());
-        }, 1);
+        effect(update, 1);
     } else {
         applyProperty(element, key, value);
     }
@@ -142,7 +160,7 @@ const appendChild = (parent: Node, child: Child): void => {
         // single Text node across re-runs and mutate `.data` in place instead
         // of paying for removeChild + createTextNode + insertBefore.
         let textNode: Text | null = null;
-        effect(() => {
+        effect(withContext(() => {
             let value!: Child;
             const newScope: Scope = scope(onDispose => {
                 const prev = currentOnDispose;
@@ -195,7 +213,7 @@ const appendChild = (parent: Node, child: Child): void => {
             newScope();
             textNode = null;
             scopeInstance = undefined;
-        }, 1);
+        }), 1);
     } else if (Array.isArray(child)) {
         const length = child.length;
         appendChildren(parent, child, length);
@@ -415,7 +433,7 @@ export const forEach = <T>(
 
     let previousMap: EntryMap<T> = new Map();
 
-    effect(() => {
+    effect(withContext(() => {
         const array = each();
         const length = array.length;
         const parent = rangeParent(start, end);
@@ -549,7 +567,7 @@ export const forEach = <T>(
         disposeEntryMap(previousMap);
         disposeEntryMap(newMap);
         previousMap = new Map();
-    }, 1);
+    }), 1);
 
     return fragment;
 };

@@ -46,6 +46,10 @@ const entries = [
         name: '@slimlib/jsx+store',
         code: `import { createElement, Fragment, render } from '@slimlib/jsx'; import { signal, effect, computed } from '@slimlib/store'; export { createElement, Fragment, render, signal, effect, computed };`,
     },
+    {
+        name: '@slimlib/jsx+context',
+        code: `import { createElement, Fragment, render } from '@slimlib/jsx'; import { createContext, getContext, provideContext } from '@slimlib/jsx/context'; export { createElement, Fragment, render, createContext, getContext, provideContext };`,
+    },
 ];
 
 async function bundleOnce(entryPath, minify) {

@@ -17,7 +17,8 @@
         "paths": {
             "@slimlib/jsx": ["./types/index.d.ts"],
             "@slimlib/jsx/jsx-runtime": ["./types/index.d.ts"],
-            "@slimlib/jsx/for-each": ["./types/index.d.ts"]
+            "@slimlib/jsx/for-each": ["./types/index.d.ts"],
+            "@slimlib/jsx/context": ["./types/index.d.ts"]
         }
     }
 }

@@ -18,6 +18,7 @@ const aliasPlugin = {
             { filter: /^@slimlib\/jsx\/jsx-runtime$/, target: resolve(repoRoot, 'src/jsx-runtime.ts') },
             { filter: /^@slimlib\/jsx\/jsx-dev-runtime$/, target: resolve(repoRoot, 'src/jsx-runtime.ts') },
             { filter: /^@slimlib\/jsx\/for-each$/, target: resolve(repoRoot, 'src/for-each.ts') },
+            { filter: /^@slimlib\/jsx\/context$/, target: resolve(repoRoot, 'src/context.ts') },
             { filter: /^@slimlib\/jsx$/, target: resolve(repoRoot, 'src/index.ts') },
             { filter: /^@slimlib\/store$/, target: resolve(storeRoot, 'src/index.ts') },
         ];

@@ -9,7 +9,8 @@
         "paths": {
             "@slimlib/jsx": ["./src/index.ts"],
             "@slimlib/jsx/jsx-runtime": ["./src/jsx-runtime.ts"],
-            "@slimlib/jsx/for-each": ["./src/for-each.ts"]
+            "@slimlib/jsx/for-each": ["./src/for-each.ts"],
+            "@slimlib/jsx/context": ["./src/context.ts"]
         }
     }
 }

@@ -1,8 +1,10 @@
 import { expectTypeOf, it } from 'vitest';
 
 import { createElement, Fragment, render } from '@slimlib/jsx';
+import { createContext, getContext, provideContext } from '@slimlib/jsx/context';
 
 import type { Child, Component, Props, Reactive } from '@slimlib/jsx';
+import type { Context } from '@slimlib/jsx/context';
 import type { forEach } from '@slimlib/jsx/for-each';
 import type { JSX } from '@slimlib/jsx/jsx-runtime';
 
@@ -107,4 +109,20 @@ it('forEach correctly infers T from the array type', () => {
     type BodyFn = Parameters<typeof forEach<Item>>[2];
     expectTypeOf<Parameters<BodyFn>[0]>().toEqualTypeOf<() => Item>();
     expectTypeOf<Parameters<BodyFn>[1]>().toEqualTypeOf<() => number>();
+});
+
+// ── 11. context ──────────────────────────────────────────────────────────────
+
+it('context API preserves value types', () => {
+    const StringContext = createContext('default');
+    expectTypeOf(StringContext).toEqualTypeOf<Context<string>>();
+    expectTypeOf(getContext(StringContext)).toEqualTypeOf<string>();
+    expectTypeOf(provideContext(StringContext, 'value', () => 1)).toEqualTypeOf<number>();
+
+    const OptionalContext = createContext<number>();
+    expectTypeOf(OptionalContext).toEqualTypeOf<Context<number | undefined>>();
+    expectTypeOf(getContext(OptionalContext)).toEqualTypeOf<number | undefined>();
+
+    // @ts-expect-error - provider value must match the context type
+    provideContext(StringContext, 123, () => null);
 });

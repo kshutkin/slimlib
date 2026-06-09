@@ -67,6 +67,16 @@
                 align-items: center;
                 flex-wrap: wrap;
             }
+            .context-badge {
+                display: inline-flex;
+                align-items: center;
+                min-height: 2rem;
+                padding-inline: 0.75rem;
+                border: 1px solid color-mix(in srgb, var(--accent) 60%, currentColor 20%);
+                background: color-mix(in srgb, var(--accent) 16%, transparent);
+                border-radius: 0.25rem;
+                color: color-mix(in srgb, var(--accent) 70%, currentColor);
+            }
             .cells {
                 display: grid;
                 grid-template-columns: repeat(100, 10px);

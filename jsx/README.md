@@ -246,6 +246,42 @@ Signature: `forEach<T>(each: () => readonly T[], key: (item, index) => string | 
 
 Bundle cost: **610 B gzip** (sub-entry, separate from core).
 
+## Context
+
+Context is opt-in via a sub-entry, so apps that do not import it do not pay for the feature:
+
+```jsx
+import { createContext, getContext, provideContext } from "@slimlib/jsx/context";
+import { signal } from "@slimlib/store";
+
+const ThemeContext = createContext(signal("light"));
+
+const Label = () => {
+  const theme = getContext(ThemeContext);
+  return <span class={() => `theme-${theme()}`}>Themed label</span>;
+};
+
+const App = () => {
+  const theme = signal("dark");
+  return provideContext(ThemeContext, theme, () => <Label />);
+};
+```
+
+API:
+
+- `createContext(defaultValue?)` creates a typed context token.
+- `getContext(context)` returns the nearest provided value, or the default value.
+- `provideContext(context, value, factory)` runs `factory` with `value` available to everything built inside it.
+
+`provideContext` takes a factory instead of JSX children because JSX children are created before their parent component runs. Keep context reads in setup code, then close over the returned value inside reactive bindings:
+
+```jsx
+const Child = () => {
+  const theme = getContext(ThemeContext);
+  return <div class={() => theme()} />;
+};
+```
+
 ## SVG (and other namespaces)
 
 JSX is evaluated bottom-up: children are constructed before their parent, so the renderer can't infer a namespace from the surrounding `<svg>` tag. Use the `svg()` factory to enter the SVG namespace for a sub-tree:

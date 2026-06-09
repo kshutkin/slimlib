@@ -59,7 +59,7 @@ function getInputPlugins() {
 
 export default [
     {
-        input: ['./src/index.ts', './src/jsx-runtime.ts', './src/for-each.ts'],
+        input: ['./src/index.ts', './src/jsx-runtime.ts', './src/for-each.ts', './src/context.ts'],
         output: [
             {
                 format: 'es',
