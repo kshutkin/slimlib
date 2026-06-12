@@ -14,7 +14,7 @@
         "postinstall": "playwright install chromium"
     },
     "devDependencies": {
-        "@biomejs/biome": "2.4.4",
+        "@biomejs/biome": "2.5.0",
         "@changesets/cli": "^2.29.8",
         "@types/node": "24.x",
         "@vitest/browser": "^4.1.7",
