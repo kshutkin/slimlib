@@ -14,7 +14,7 @@ export type Context<T> = symbol & {
     };
 };
 
-type ContextValues = Map<Context<unknown>, unknown>;
+type ContextValues = Record<symbol, unknown>;
 type NoInferValue<T> = [T][T extends unknown ? 0 : never];
 
 export type ProviderProps<T> = Props & {
@@ -24,6 +24,15 @@ export type ProviderProps<T> = Props & {
 };
 
 const contextValuesSymbol = Symbol();
+
+const findContextValues = (cursor: ScopeParent | undefined): ContextValues | undefined => {
+    let values: ContextValues | undefined;
+    // biome-ignore lint/suspicious/noAssignInExpressions: compact hot-path scan
+    while (cursor !== undefined && (values = cursor[contextValuesSymbol] as ContextValues | undefined) === undefined) {
+        cursor = getParentScope(cursor);
+    }
+    return values;
+};
 
 export const createContext = <T>(): Context<T> => Symbol() as Context<T>;
 
@@ -35,23 +44,17 @@ export const Provider = <T>(props: ProviderProps<T>): Child => {
         if (DEV && activeScope === undefined) {
             throw new Error('Provider must be rendered inside a scope');
         }
-        const scope = activeScope as Scope;
-        let values = scope[contextValuesSymbol] as ContextValues | undefined;
+        let values = (activeScope as Scope)[contextValuesSymbol] as ContextValues | undefined;
         if (values === undefined) {
-            values = new Map();
-            scope[contextValuesSymbol] = values;
+            values = Object.create(findContextValues(activeScope as Scope) ?? null) as ContextValues;
+            (activeScope as Scope)[contextValuesSymbol] = values;
         }
-        values.set(props.context as Context<unknown>, props.value);
+        values[props.context] = props.value;
         return props.children();
     };
 };
 
 export const inject = <T>(context: Context<T>): T | undefined => {
-    for (let cursor: ScopeParent | undefined = activeScope; cursor !== undefined; cursor = getParentScope(cursor)) {
-        const values = cursor[contextValuesSymbol] as ContextValues | undefined;
-        if (values?.has(context as Context<unknown>)) {
-            return values.get(context as Context<unknown>) as T;
-        }
-    }
-    return undefined;
+    const values = findContextValues(activeScope);
+    return values === undefined ? undefined : (values[context] as T | undefined);
 };

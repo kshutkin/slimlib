@@ -26,6 +26,18 @@ describe('context', () => {
         expect(inject(Label)).toBeUndefined();
     });
 
+    it('returns undefined when the provider chain does not contain the requested context', () => {
+        const Label = createContext();
+        const Missing = createContext();
+        const Child = () => createElement('span', null, inject(Missing) ?? 'empty');
+
+        mount(() =>
+            createElement(Provider, { context: Label, value: 'provided' }, () => createElement('div', null, createElement(Child, null)))
+        );
+
+        expect(document.body.textContent).toBe('empty');
+    });
+
     it('provides values to descendant components', () => {
         const Label = createContext();
         const Child = () => createElement('span', null, inject(Label));
@@ -68,6 +80,19 @@ describe('context', () => {
         mount(() => createElement(Outer, null));
 
         expect(Array.from(document.querySelectorAll('span')).map(node => node.textContent)).toEqual(['outer', 'inner', 'outer']);
+    });
+
+    it('allows undefined to shadow an outer provider value', () => {
+        const Label = createContext();
+        const Child = () => createElement('span', null, inject(Label) === undefined ? 'empty' : 'provided');
+
+        mount(() =>
+            createElement(Provider, { context: Label, value: 'outer' }, () =>
+                createElement(Provider, { context: Label, value: undefined }, () => createElement(Child, null))
+            )
+        );
+
+        expect(document.body.textContent).toBe('empty');
     });
 
     it('restores context for function-child reruns', () => {
