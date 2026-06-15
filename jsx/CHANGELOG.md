@@ -1,5 +1,16 @@
 Changelog
 
+## 0.3.0
+
+### Minor Changes
+
+- ddddcdb: added context API
+
+### Patch Changes
+
+- Updated dependencies [ddddcdb]
+  - @slimlib/store@2.2.0
+
 ## 0.2.0
 
 ### Minor Changes
