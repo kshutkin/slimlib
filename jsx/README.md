@@ -246,6 +246,82 @@ Signature: `forEach<T>(each: () => readonly T[], key: (item, index) => string | 
 
 Bundle cost: **610 B gzip** (sub-entry, separate from core).
 
+## Context
+
+Share values down the tree without prop-drilling. Context rides the **scope** tree (the same scopes described in [Design Notes](#design-notes)) — not the DOM — so resolution works for plain components, function-children, and `forEach` rows alike. It lives in the main entry and tree-shakes away when unused.
+
+```jsx
+import { signal } from "@slimlib/store";
+import { createContext, Provider, inject, render } from "@slimlib/jsx";
+
+const ThemeCtx = createContext(); // createContext<T>() to type the provided value
+
+const Toggle = () => {
+  const theme = inject(ThemeCtx); // read the provided signal once
+  return (
+    <button on:click={() => theme.set(theme() === "dark" ? "light" : "dark")}>
+      {theme} {/* reactive */}
+    </button>
+  );
+};
+
+const App = () => {
+  const theme = signal("dark");
+  return (
+    <Provider context={ThemeCtx} value={theme}>
+      {() => <Toggle />}
+    </Provider>
+  );
+};
+
+render(() => <App />, document.body);
+```
+
+Because components run once, the idiomatic value is a **stable reference** — a `signal`, store, or controller. Consumers `inject` it once, then bind to it reactively.
+
+### `createContext<T>() => Context<T>`
+
+Creates a unique, typed context key (a branded `symbol`). Pass the value type as the type argument; matching between providers and consumers is by key identity.
+
+### `Provider`
+
+```jsx
+<Provider context={ctx} value={value}>
+  {() => children}
+</Provider>
+```
+
+Provides `value` for `ctx` to every descendant. `children` **must be a function** — the provider sets its value on the active scope and then renders children inside it, so the child has to be deferred (a DEV build throws if it isn't). The nearest provider wins, and siblings are isolated. A `value={undefined}` deliberately **shadows** an outer provider, so `inject` returns `undefined` for that subtree.
+
+### `RootProvider`
+
+```jsx
+<RootProvider context={ctx} factory={() => value}>
+  {() => children}
+</RootProvider>
+```
+
+Like `Provider`, but provides **only when no ancestor already provides `ctx`**. On render it probes the scope chain: if an enclosing provider already supplies the context it stays transparent and descendants keep resolving to that one; otherwise it becomes the root. The `factory` is lazy and runs **at most once** — only when this element actually becomes the provider — so an expensive or side-effectful default is never built when an ancestor already exists. Presence is detected by key, so an ancestor that intentionally provides `undefined` is respected (this provider stays transparent).
+
+```jsx
+// A widget that brings its own store, unless the host app already provides one.
+const Widget = (props) => (
+  <RootProvider context={StoreCtx} factory={() => signal(0)}>
+    {() => props.children}
+  </RootProvider>
+);
+```
+
+The shape differs from `Provider` on purpose: `Provider` always provides, so an eager `value` is fine; `RootProvider` may skip providing, so it takes a lazy `factory`.
+
+### `inject(context) => T | undefined`
+
+Reads the nearest provided value by walking up the scope chain. Returns `undefined` when no provider is found (or when a provider deliberately supplied `undefined`).
+
+```jsx
+const theme = inject(ThemeCtx); // T | undefined
+```
+
 ## SVG (and other namespaces)
 
 JSX is evaluated bottom-up: children are constructed before their parent, so the renderer can't infer a namespace from the surrounding `<svg>` tag. Use the `svg()` factory to enter the SVG namespace for a sub-tree:
@@ -321,6 +397,7 @@ The factory only affects elements created during the callback; once it returns, 
 - **DocumentFragment only when needed.** When a component returns a single Node, the renderer inserts it directly. Fragment wrapping is reserved for primitives, arrays, and function-children — keeping deep-tree mounts cheap.
 - **Keyed reconciliation lives in a sub-entry.** `forEach` is opt-in via `@slimlib/jsx/for-each` so apps that don't need keyed lists don't pay for the diff algorithm. A reverse-walk reorder using `nextSibling` checks avoids the LIS step; reconcile is wrapped in `untracked()` to prevent the outer effect from re-subscribing on item writes.
 - **Prototype-setter cache.** First touch of each `(tagName, propName)` pair walks the prototype chain; result cached for the lifetime of the program. Same heuristic as vanjs.
+- **Context rides the scope tree.** `Provider` stores values on the active scope keyed by the context symbol, chaining each scope's value table to its parent's via `Object.create` so descendants transparently see ancestor entries; `inject` (and `RootProvider`'s probe) walk the same parent chain. No DOM traversal and no `context-request` events — resolution reuses the scope graph already maintained for effect disposal.
 
 ## License
 

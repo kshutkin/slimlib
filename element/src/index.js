@@ -17,6 +17,7 @@ import {
     RENDER_GENERATION,
     UNMOUNT,
 } from './symbols.js';
+import { ContextRequestEvent } from './utils/context-request-event.js';
 import { emit } from './utils/pubsub.js';
 
 export { attributes, booleanAttribute, numberAttribute, stringAttribute } from './middleware/attributes.js';
@@ -25,6 +26,7 @@ export { disabledFeatures } from './middleware/disabled-features.js';
 export { formAssociated } from './middleware/form-associated.js';
 export { onAdopted } from './middleware/on-adopted.js';
 export { onMove } from './middleware/on-move.js';
+export { rootContextProvider } from './middleware/root-context-provider.js';
 export { withInternals } from './middleware/with-internals.js';
 export { withValidation } from './middleware/with-validation.js';
 
@@ -75,25 +77,10 @@ const OWNER = Symbol();
  */
 export const createContext = key => /** @type {Context<KeyType, ValueType>} */ (key);
 
-/**
- * Web Components Context Protocol `context-request` event.
- *
- * @template {UnknownContext} T
- * @extends {Event}
- */
-export class ContextRequestEvent extends Event {
-    /**
-     * @param {T} context
-     * @param {ContextCallback<ContextType<T>>} callback
-     * @param {boolean} [subscribe]
-     */
-    constructor(context, callback, subscribe) {
-        super('context-request', { bubbles: true, composed: true });
-        this.context = context;
-        this.callback = callback;
-        this.subscribe = subscribe;
-    }
-}
+// Web Components Context Protocol `context-request` event, re-exported as part
+// of the public API (defined in ./utils/context-request-event.js so middleware
+// can dispatch it without importing this entry module).
+export { ContextRequestEvent };
 
 /**
  * Create an unregistered light-DOM custom element constructor backed by `@slimlib/jsx`.

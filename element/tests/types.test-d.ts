@@ -9,11 +9,12 @@ import {
     createCustomElement,
     numberAttribute,
     requestContext,
+    rootContextProvider,
     stringAttribute,
     withValidation,
 } from '@slimlib/element';
 
-import type { Context, ContextCallback, ContextType, ElementHost, RenderFunction, UnknownContext } from '@slimlib/element';
+import type { Context, ContextCallback, ContextType, ElementHost, Middleware, RenderFunction, UnknownContext } from '@slimlib/element';
 
 // createCustomElement uses HTMLElement as the default ElementBase — stub it for Node.js
 if (typeof HTMLElement === 'undefined') {
@@ -83,6 +84,13 @@ it('context protocol API preserves value types', () => {
     });
     void themeProvider;
 
+    const themeRootProvider = rootContextProvider(Theme, host => {
+        expectTypeOf(host).toEqualTypeOf<ElementHost>();
+        return 'dark';
+    });
+    void themeRootProvider;
+    expectTypeOf(themeRootProvider).toMatchTypeOf<Middleware>();
+
     new ContextRequestEvent(Count, value => {
         expectTypeOf(value).toEqualTypeOf<number>();
     });
@@ -92,6 +100,9 @@ it('context protocol API preserves value types', () => {
 
     // @ts-expect-error - provider factory value must match the context type
     contextProvider(Theme, () => 'blue');
+
+    // @ts-expect-error - root provider factory value must match the context type
+    rootContextProvider(Theme, () => 'blue');
 
     // @ts-expect-error - request callback value must match the context type
     new ContextRequestEvent(Count, (value: string) => value);

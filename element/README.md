@@ -161,6 +161,7 @@ middleware; in DEV a missing one logs a warning and the subscription is ignored.
 | --- | --- |
 | `attributes(config)` | Observed attributes, parsing into props, and reflection. |
 | `contextProvider(context, factory)` | Handles Web Components Context Protocol requests with one stable factory-created value per element instance. |
+| `rootContextProvider(context, factory)` | Like `contextProvider`, but only provides when no ancestor already provides the same context; otherwise it stays transparent and defers to that provider. |
 | `formAssociated()` | `static formAssociated = true` and the form lifecycle callbacks. |
 | `withInternals()` | `attachInternals()`, accessed via `internals()`. |
 | `withValidation()` | `validity`, `validationMessage`, `willValidate`, `form`, `labels`, `checkValidity()`, and `reportValidity()` forwarded from `ElementInternals`; requires `withInternals()`. |
@@ -184,6 +185,15 @@ element instance. The factory runs once in the element constructor and should
 return a stable value. When a matching request bubbles through the provider,
 the middleware calls `stopImmediatePropagation()` and invokes the request
 callback with that value.
+
+`rootContextProvider(context, factory)` provides the context only when no
+ancestor already provides it. On the element's first connection it probes its
+ancestors with a one-shot `context-request`; if an existing provider answers,
+this element stays transparent and descendants keep resolving to that provider.
+Otherwise it becomes the root provider. The decision is made once per instance,
+and `factory` runs at most once — lazily, and only when this element actually
+becomes the provider. Use it for components that should establish a default
+("root") context unless an enclosing provider already supplies one.
 
 `requestContext(context)` dispatches one non-subscribing request from the
 current element and returns the provided value, or `undefined` when no

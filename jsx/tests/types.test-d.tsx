@@ -1,8 +1,8 @@
 import { expectTypeOf, it } from 'vitest';
 
-import { createContext, createElement, Fragment, inject, Provider, render } from '@slimlib/jsx';
+import { createContext, createElement, Fragment, inject, Provider, RootProvider, render } from '@slimlib/jsx';
 
-import type { Child, Component, Context, Props, ProviderProps, Reactive } from '@slimlib/jsx';
+import type { Child, Component, Context, Props, ProviderProps, Reactive, RootProviderProps } from '@slimlib/jsx';
 import type { forEach } from '@slimlib/jsx/for-each';
 import type { JSX } from '@slimlib/jsx/jsx-runtime';
 
@@ -138,4 +138,25 @@ it('context API preserves value types', () => {
     void invalidChildrenProps;
 
     void Provider;
+});
+
+// ── 12. RootProvider ─────────────────────────────────────────────────────────
+
+it('RootProvider factory API preserves value types', () => {
+    const Theme = createContext<'dark' | 'light'>();
+
+    expectTypeOf<RootProviderProps<'dark' | 'light'>['context']>().toEqualTypeOf<Context<'dark' | 'light'>>();
+
+    const themeProps: RootProviderProps<'dark' | 'light'> = { context: Theme, factory: () => 'dark', children: () => null };
+    void themeProps;
+
+    // @ts-expect-error - factory value must match the context type
+    const invalidThemeProps: RootProviderProps<'dark' | 'light'> = { context: Theme, factory: () => 'blue', children: () => null };
+    void invalidThemeProps;
+
+    // @ts-expect-error - root provider children must be lazy
+    const invalidChildrenProps: RootProviderProps<'dark' | 'light'> = { context: Theme, factory: () => 'dark', children: null };
+    void invalidChildrenProps;
+
+    void RootProvider;
 });

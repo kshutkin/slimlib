@@ -45,6 +45,7 @@ describe('@slimlib/element public API (DEV)', () => {
         expect(typeof props).toBe('function');
         expect(typeof elementModule.attributes).toBe('function');
         expect(typeof elementModule.contextProvider).toBe('function');
+        expect(typeof elementModule.rootContextProvider).toBe('function');
         expect(typeof elementModule.createContext).toBe('function');
         expect(typeof elementModule.ContextRequestEvent).toBe('function');
         expect(typeof elementModule.requestContext).toBe('function');
@@ -214,6 +215,133 @@ describe('context protocol (DEV)', () => {
         const Label = createContext('outside-render');
 
         expect(() => requestContext(Label)).toThrow(/must be called synchronously inside a defineElement render callback/);
+    });
+
+    it('rootContextProvider creates and provides a root value when no ancestor provides the context', async () => {
+        const { createElement } = await import('@slimlib/jsx');
+        const { createContext, defineElement, requestContext, rootContextProvider } = await import('../src/index.js');
+        const Theme = createContext('root-theme');
+        const childTag = uniqueTag('x-root-context-child');
+        const providerTag = uniqueTag('x-root-context-provider');
+        let factoryCalls = 0;
+        let captured;
+
+        defineElement(childTag, () => {
+            captured = requestContext(Theme);
+            return null;
+        });
+        defineElement(
+            providerTag,
+            [
+                rootContextProvider(Theme, () => {
+                    ++factoryCalls;
+                    return signal('light');
+                }),
+            ],
+            () => createElement(childTag, null)
+        );
+
+        document.body.appendChild(document.createElement(providerTag));
+
+        expect(factoryCalls).toBe(1);
+        expect(captured()).toBe('light');
+    });
+
+    it('rootContextProvider defers to an existing ancestor provider and skips its own factory', async () => {
+        const { createElement } = await import('@slimlib/jsx');
+        const { contextProvider, createContext, defineElement, requestContext, rootContextProvider } = await import('../src/index.js');
+        const Label = createContext('root-skip-label');
+        const childTag = uniqueTag('x-root-skip-child');
+        const innerTag = uniqueTag('x-root-skip-inner');
+        const outerTag = uniqueTag('x-root-skip-outer');
+        let innerFactoryCalls = 0;
+        let captured;
+
+        defineElement(childTag, () => {
+            captured = requestContext(Label);
+            return null;
+        });
+        defineElement(
+            innerTag,
+            [
+                rootContextProvider(Label, () => {
+                    ++innerFactoryCalls;
+                    return 'inner';
+                }),
+            ],
+            () => createElement(childTag, null)
+        );
+        defineElement(outerTag, [contextProvider(Label, () => 'outer')], () => createElement(innerTag, null));
+
+        document.body.appendChild(document.createElement(outerTag));
+
+        expect(captured).toBe('outer');
+        expect(innerFactoryCalls).toBe(0);
+    });
+
+    it('nested rootContextProviders create a value only at the top-most instance', async () => {
+        const { createElement } = await import('@slimlib/jsx');
+        const { createContext, defineElement, requestContext, rootContextProvider } = await import('../src/index.js');
+        const Service = createContext('root-nested-service');
+        const childTag = uniqueTag('x-root-nested-child');
+        const innerTag = uniqueTag('x-root-nested-inner');
+        const outerTag = uniqueTag('x-root-nested-outer');
+        let outerFactoryCalls = 0;
+        let innerFactoryCalls = 0;
+        let captured;
+
+        defineElement(childTag, () => {
+            captured = requestContext(Service);
+            return null;
+        });
+        defineElement(
+            innerTag,
+            [
+                rootContextProvider(Service, () => {
+                    ++innerFactoryCalls;
+                    return { from: 'inner' };
+                }),
+            ],
+            () => createElement(childTag, null)
+        );
+        defineElement(
+            outerTag,
+            [
+                rootContextProvider(Service, () => {
+                    ++outerFactoryCalls;
+                    return { from: 'outer' };
+                }),
+            ],
+            () => createElement(innerTag, null)
+        );
+
+        document.body.appendChild(document.createElement(outerTag));
+
+        expect(outerFactoryCalls).toBe(1);
+        expect(innerFactoryCalls).toBe(0);
+        expect(captured).toEqual({ from: 'outer' });
+    });
+
+    it('sibling rootContextProviders each create an independent root value', async () => {
+        const { createElement } = await import('@slimlib/jsx');
+        const { createContext, defineElement, requestContext, rootContextProvider } = await import('../src/index.js');
+        const Instance = createContext('root-sibling-instance');
+        const childTag = uniqueTag('x-root-sibling-child');
+        const providerTag = uniqueTag('x-root-sibling-provider');
+        const captured = [];
+        let factoryCalls = 0;
+
+        defineElement(childTag, () => {
+            captured.push(requestContext(Instance));
+            return null;
+        });
+        defineElement(providerTag, [rootContextProvider(Instance, () => ({ id: ++factoryCalls }))], () => createElement(childTag, null));
+
+        document.body.append(document.createElement(providerTag), document.createElement(providerTag));
+
+        expect(factoryCalls).toBe(2);
+        expect(captured).toEqual([{ id: 1 }, { id: 2 }]);
+        expect(captured[0]).not.toBe(captured[1]);
     });
 });
 

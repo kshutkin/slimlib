@@ -23,6 +23,12 @@ export type ProviderProps<T> = Props & {
     children: () => Child;
 };
 
+export type RootProviderProps<T> = Props & {
+    context: Context<T>;
+    factory: () => NoInferValue<T>;
+    children: () => Child;
+};
+
 const contextValuesSymbol = Symbol();
 
 const findContextValues = (cursor: ScopeParent | undefined): ContextValues | undefined => {
@@ -51,6 +57,29 @@ export const Provider = <T>(props: ProviderProps<T>): Child => {
         }
         values[props.context] = props.value;
         return props.children();
+    };
+};
+
+export const RootProvider = <T>(props: RootProviderProps<T>): Child => {
+    if (DEV && typeof props.children !== 'function') {
+        throw new Error('RootProvider: children must be a function');
+    }
+    // Memoizes the delegated Provider thunk so the factory runs at most once per
+    // instance and only after this element has actually won the ancestor probe.
+    let provide: (() => Child) | undefined;
+    return () => {
+        if (DEV && activeScope === undefined) {
+            throw new Error('RootProvider must be rendered inside a scope');
+        }
+        const values = findContextValues(activeScope);
+        // Stay transparent when any ancestor scope already provides this context.
+        // Presence is detected by key, so an ancestor that deliberately provides
+        // `undefined` is respected rather than overridden.
+        if (values !== undefined && props.context in values) {
+            return props.children();
+        }
+        provide ??= Provider({ ...props, value: props.factory() }) as () => Child;
+        return provide();
     };
 };
 
