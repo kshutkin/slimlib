@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { flushEffects, scope, setScheduler, signal } from '@slimlib/store';
 
 import { forEach } from '../src/for-each.ts';
-import { createContext, createElement, inject, Provider, render } from '../src/index.ts';
+import { createContext, createElement, inject, Provider, RootProvider, render } from '../src/index.ts';
 
 setScheduler(fn => fn());
 
@@ -184,5 +184,180 @@ describe('context', () => {
         });
 
         owner();
+    });
+});
+
+describe('RootProvider', () => {
+    it('provides a default when no ancestor provides the context', () => {
+        const Theme = createContext();
+        let calls = 0;
+        const Child = () => createElement('span', null, inject(Theme) ?? 'empty');
+
+        mount(() =>
+            createElement(
+                RootProvider,
+                {
+                    context: Theme,
+                    factory: () => {
+                        ++calls;
+                        return 'root';
+                    },
+                },
+                () => createElement(Child, null)
+            )
+        );
+
+        expect(document.body.textContent).toBe('root');
+        expect(calls).toBe(1);
+    });
+
+    it('defers to an ancestor provider and skips its factory', () => {
+        const Theme = createContext();
+        let calls = 0;
+        const Child = () => createElement('span', null, inject(Theme));
+
+        mount(() =>
+            createElement(Provider, { context: Theme, value: 'ancestor' }, () =>
+                createElement(
+                    RootProvider,
+                    {
+                        context: Theme,
+                        factory: () => {
+                            ++calls;
+                            return 'root';
+                        },
+                    },
+                    () => createElement(Child, null)
+                )
+            )
+        );
+
+        expect(document.body.textContent).toBe('ancestor');
+        expect(calls).toBe(0);
+    });
+
+    it('provides only at the top-most of nested RootProviders', () => {
+        const Service = createContext();
+        let outerCalls = 0;
+        let innerCalls = 0;
+        const Child = () => createElement('span', null, inject(Service));
+
+        mount(() =>
+            createElement(
+                RootProvider,
+                {
+                    context: Service,
+                    factory: () => {
+                        ++outerCalls;
+                        return 'outer';
+                    },
+                },
+                () =>
+                    createElement(
+                        RootProvider,
+                        {
+                            context: Service,
+                            factory: () => {
+                                ++innerCalls;
+                                return 'inner';
+                            },
+                        },
+                        () => createElement(Child, null)
+                    )
+            )
+        );
+
+        expect(document.body.textContent).toBe('outer');
+        expect(outerCalls).toBe(1);
+        expect(innerCalls).toBe(0);
+    });
+
+    it('creates an independent root value for each sibling RootProvider', () => {
+        const Instance = createContext();
+        let calls = 0;
+        const Child = () => createElement('span', null, inject(Instance));
+
+        mount(() =>
+            createElement(
+                'div',
+                null,
+                createElement(RootProvider, { context: Instance, factory: () => `id-${++calls}` }, () => createElement(Child, null)),
+                createElement(RootProvider, { context: Instance, factory: () => `id-${++calls}` }, () => createElement(Child, null))
+            )
+        );
+
+        expect(Array.from(document.querySelectorAll('span')).map(node => node.textContent)).toEqual(['id-1', 'id-2']);
+        expect(calls).toBe(2);
+    });
+
+    it('respects an ancestor that provides undefined and stays transparent', () => {
+        const Label = createContext();
+        let calls = 0;
+        const Child = () => createElement('span', null, inject(Label) === undefined ? 'empty' : inject(Label));
+
+        mount(() =>
+            createElement(Provider, { context: Label, value: undefined }, () =>
+                createElement(
+                    RootProvider,
+                    {
+                        context: Label,
+                        factory: () => {
+                            ++calls;
+                            return 'root';
+                        },
+                    },
+                    () => createElement(Child, null)
+                )
+            )
+        );
+
+        expect(document.body.textContent).toBe('empty');
+        expect(calls).toBe(0);
+    });
+
+    it('keeps the factory memoized when its subtree re-renders', () => {
+        const Theme = createContext();
+        const count = signal(0);
+        let calls = 0;
+        // `count()` is read synchronously inside the provider's child subtree, so
+        // the RootProvider thunk itself re-runs on change (not just a nested thunk).
+        const Child = () => createElement('span', null, `${inject(Theme)}:${count()}`);
+
+        mount(() =>
+            createElement(
+                RootProvider,
+                {
+                    context: Theme,
+                    factory: () => {
+                        ++calls;
+                        return 'root';
+                    },
+                },
+                () => createElement(Child, null)
+            )
+        );
+
+        expect(document.body.textContent).toBe('root:0');
+        expect(calls).toBe(1);
+
+        count.set(1);
+        flushEffects();
+        expect(document.body.textContent).toBe('root:1');
+        expect(calls).toBe(1);
+    });
+
+    it('throws in DEV when RootProvider children is not a function', () => {
+        const Label = createContext();
+
+        expect(() =>
+            mount(() => createElement(RootProvider, { context: Label, factory: () => 'root' }, createElement('span', null)))
+        ).toThrow(/children must be a function/);
+    });
+
+    it('throws in DEV when RootProvider thunk runs outside a scope', () => {
+        const Label = createContext();
+        const child = RootProvider({ context: Label, factory: () => 'root', children: () => null });
+
+        expect(() => child()).toThrow(/inside a scope/);
     });
 });
