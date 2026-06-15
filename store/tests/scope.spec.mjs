@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { activeScope, effect, flushEffects, scope, setActiveScope, state } from '../src/index.js';
+import { activeScope, effect, flushEffects, getParentScope, scope, setActiveScope, state } from '../src/index.js';
 
 function flushPromises() {
     return new Promise(resolve => setTimeout(resolve));
@@ -49,6 +49,31 @@ describe('scope', () => {
             expect(innerCapturedScope).toBe(inner);
             expect(activeScope).toBe(outer);
             setActiveScope(undefined);
+        });
+
+        it('exposes the parent scope from default active scope parenting', () => {
+            const outer = scope();
+            let inner;
+
+            outer(() => {
+                inner = scope();
+            });
+
+            expect(getParentScope(inner)).toBe(outer);
+            expect(getParentScope(outer)).toBeUndefined();
+            outer();
+        });
+
+        it('exposes explicit parent and detached scope relationships', () => {
+            const parent = scope();
+            const child = scope(undefined, parent);
+            const detached = scope(undefined, undefined);
+
+            expect(getParentScope(child)).toBe(parent);
+            expect(getParentScope(detached)).toBeUndefined();
+
+            parent();
+            detached();
         });
     });
 

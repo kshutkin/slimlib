@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import { flushEffects, setScheduler, signal } from '@slimlib/store';
 
-import { createElement, Fragment, render } from '../src/index.ts';
+import { createContext, createElement, Fragment, inject, Provider, render } from '../src/index.ts';
 import { jsx, jsxDEV, jsxs, Fragment as RuntimeFragment } from '../src/jsx-runtime.ts';
 
 // JSX itself does not schedule — it relies entirely on @slimlib/store's scheduler.
@@ -28,6 +28,9 @@ describe('@slimlib/jsx public surface', () => {
         expect(createElement).toBeTypeOf('function');
         expect(render).toBeTypeOf('function');
         expect(Fragment).toBeTypeOf('function');
+        expect(createContext).toBeTypeOf('function');
+        expect(Provider).toBeTypeOf('function');
+        expect(inject).toBeTypeOf('function');
     });
 
     it('exposes the jsx-runtime', () => {

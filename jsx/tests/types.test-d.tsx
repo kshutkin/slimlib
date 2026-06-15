@@ -1,8 +1,8 @@
 import { expectTypeOf, it } from 'vitest';
 
-import { createElement, Fragment, render } from '@slimlib/jsx';
+import { createContext, createElement, Fragment, inject, Provider, render } from '@slimlib/jsx';
 
-import type { Child, Component, Props, Reactive } from '@slimlib/jsx';
+import type { Child, Component, Context, Props, ProviderProps, Reactive } from '@slimlib/jsx';
 import type { forEach } from '@slimlib/jsx/for-each';
 import type { JSX } from '@slimlib/jsx/jsx-runtime';
 
@@ -107,4 +107,35 @@ it('forEach correctly infers T from the array type', () => {
     type BodyFn = Parameters<typeof forEach<Item>>[2];
     expectTypeOf<Parameters<BodyFn>[0]>().toEqualTypeOf<() => Item>();
     expectTypeOf<Parameters<BodyFn>[1]>().toEqualTypeOf<() => number>();
+});
+
+// ── 11. context ──────────────────────────────────────────────────────────────
+
+it('context API preserves value types', () => {
+    const Theme = createContext<'dark' | 'light'>();
+    const Count = createContext<number>();
+
+    expectTypeOf(Theme).toMatchTypeOf<Context<'dark' | 'light'>>();
+    expectTypeOf<ProviderProps<'dark' | 'light'>['context']>().toEqualTypeOf<Context<'dark' | 'light'>>();
+    expectTypeOf(inject(Theme)).toEqualTypeOf<'dark' | 'light' | undefined>();
+    expectTypeOf(inject(Count)).toEqualTypeOf<number | undefined>();
+
+    const themeProps: ProviderProps<'dark' | 'light'> = { context: Theme, value: 'dark', children: () => null };
+    const countProps: ProviderProps<number> = { context: Count, value: 1, children: () => null };
+    void themeProps;
+    void countProps;
+
+    // @ts-expect-error - provider value must match the context type
+    const invalidThemeProps: ProviderProps<'dark' | 'light'> = { context: Theme, value: 'blue', children: () => null };
+    void invalidThemeProps;
+
+    // @ts-expect-error - provider value must match the context type
+    const invalidCountProps: ProviderProps<number> = { context: Count, value: '1', children: () => null };
+    void invalidCountProps;
+
+    // @ts-expect-error - provider children must be lazy
+    const invalidChildrenProps: ProviderProps<'dark' | 'light'> = { context: Theme, value: 'dark', children: null };
+    void invalidChildrenProps;
+
+    void Provider;
 });

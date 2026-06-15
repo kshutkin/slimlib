@@ -90,6 +90,26 @@ defineElement('my-field', [withInternals(), formAssociated()], () => {
 });
 ```
 
+### DOM context protocol
+
+`@slimlib/element` implements the Web Components Context Protocol separately
+from `@slimlib/jsx` context. Use it to expose a stable per-element value, such
+as a reactive primitive from `@slimlib/store`, to descendant elements.
+
+```jsx
+import { contextProvider, createContext, defineElement, requestContext } from '@slimlib/element';
+import { signal } from '@slimlib/store';
+
+const Theme = createContext('theme');
+
+defineElement('theme-shell', [contextProvider(Theme, () => signal('light'))], () => <slot />);
+
+defineElement('theme-label', () => {
+    const theme = requestContext(Theme);
+    return <span>{() => theme?.()}</span>;
+});
+```
+
 ## API
 
 ### Defining elements
@@ -140,12 +160,39 @@ middleware; in DEV a missing one logs a warning and the subscription is ignored.
 | Middleware | Adds |
 | --- | --- |
 | `attributes(config)` | Observed attributes, parsing into props, and reflection. |
+| `contextProvider(context, factory)` | Handles Web Components Context Protocol requests with one stable factory-created value per element instance. |
 | `formAssociated()` | `static formAssociated = true` and the form lifecycle callbacks. |
 | `withInternals()` | `attachInternals()`, accessed via `internals()`. |
 | `withValidation()` | `validity`, `validationMessage`, `willValidate`, `form`, `labels`, `checkValidity()`, and `reportValidity()` forwarded from `ElementInternals`; requires `withInternals()`. |
 | `onAdopted()` | `adoptedCallback`, surfaced via `onAdoptedCallback`. |
 | `onMove()` | `connectedMoveCallback`, surfaced via `onConnectedMove`. |
 | `disabledFeatures(features)` | `static disabledFeatures` (e.g. `['shadow']`). |
+
+### Context protocol
+
+```js
+const ContextKey = createContext('context-key');
+```
+
+`createContext(key)` returns the same key value branded with its provided
+value type. Matching is by strict equality, per the Web Components Context
+Protocol. Use unique symbols or objects for private contexts, and strings or
+`Symbol.for()` for intentionally shared contexts.
+
+`contextProvider(context, factory)` adds a `context-request` listener to each
+element instance. The factory runs once in the element constructor and should
+return a stable value. When a matching request bubbles through the provider,
+the middleware calls `stopImmediatePropagation()` and invokes the request
+callback with that value.
+
+`requestContext(context)` dispatches one non-subscribing request from the
+current element and returns the provided value, or `undefined` when no
+provider handles it. It must be called synchronously inside a `defineElement`
+render callback.
+
+For external consumers, dispatch `new ContextRequestEvent(context, callback)`.
+This package does not retain callbacks for subscribing requests; provide a
+reactive object when consumers need updates.
 
 ### Attributes
 

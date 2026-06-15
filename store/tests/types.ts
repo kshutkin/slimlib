@@ -15,10 +15,12 @@ import {
     EffectOptions,
     effect,
     flushEffects,
+    getParentScope,
     type OnDisposeCallback,
     type Scope,
     type ScopeCallback,
     type ScopeFunction,
+    type ScopeParent,
     type Signal,
     scope,
     setActiveScope,
@@ -205,9 +207,21 @@ const scopeWithCallback = scope(onDispose => {
 
 // scope with parent
 const childScope = scope(undefined, myScope);
+const _parentScope: ScopeParent | undefined = getParentScope(childScope);
+const _grandParentScope: ScopeParent | undefined = _parentScope === undefined ? undefined : getParentScope(_parentScope);
+if (false && _parentScope !== undefined) {
+    // @ts-expect-error - parent scope references are not disposable
+    _parentScope();
 
-// scope with null parent (detached)
-const detachedScope = scope(undefined, null);
+    // @ts-expect-error - parent scope references cannot be used as scope parents
+    scope(undefined, _parentScope);
+}
+
+// scope with undefined parent (detached)
+const detachedScope = scope(undefined, undefined);
+
+// @ts-expect-error - scope parent does not accept null
+scope(undefined, null);
 
 // calling scope disposes it
 myScope();

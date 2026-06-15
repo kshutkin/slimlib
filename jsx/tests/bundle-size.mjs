@@ -43,6 +43,10 @@ const entries = [
         code: `import { createElement, Fragment, render } from '@slimlib/jsx'; export { createElement, Fragment, render };`,
     },
     {
+        name: '@slimlib/jsx+context',
+        code: `import { createContext, createElement, Fragment, inject, Provider, render } from '@slimlib/jsx'; export { createContext, createElement, Fragment, inject, Provider, render };`,
+    },
+    {
         name: '@slimlib/jsx+store',
         code: `import { createElement, Fragment, render } from '@slimlib/jsx'; import { signal, effect, computed } from '@slimlib/store'; export { createElement, Fragment, render, signal, effect, computed };`,
     },

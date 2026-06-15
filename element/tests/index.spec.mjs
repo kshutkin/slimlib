@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { setScheduler } from '@slimlib/store';
+import { setScheduler, signal } from '@slimlib/store';
 
 vi.mock('esm-env', () => ({ DEV: true }));
 
@@ -44,6 +44,10 @@ describe('@slimlib/element public API (DEV)', () => {
         expect(typeof elementModule.defineBuiltinElement).toBe('function');
         expect(typeof props).toBe('function');
         expect(typeof elementModule.attributes).toBe('function');
+        expect(typeof elementModule.contextProvider).toBe('function');
+        expect(typeof elementModule.createContext).toBe('function');
+        expect(typeof elementModule.ContextRequestEvent).toBe('function');
+        expect(typeof elementModule.requestContext).toBe('function');
         expect(typeof elementModule.disabledFeatures).toBe('function');
         expect(typeof elementModule.formAssociated).toBe('function');
         expect(typeof elementModule.withInternals).toBe('function');
@@ -61,6 +65,155 @@ describe('@slimlib/element public API (DEV)', () => {
         element.setAttribute('value', 'hello');
 
         expect(element.value).toBe('hello');
+    });
+});
+
+describe('context protocol (DEV)', () => {
+    it('provides a per-host reactive value to descendant elements', async () => {
+        const { createElement } = await import('@slimlib/jsx');
+        const { contextProvider, createContext, defineElement, requestContext } = await import('../src/index.js');
+        const Theme = createContext('theme');
+        const childTag = uniqueTag('x-context-child');
+        const providerTag = uniqueTag('x-context-provider');
+        let captured;
+
+        defineElement(childTag, () => {
+            captured = requestContext(Theme);
+            return null;
+        });
+        defineElement(providerTag, [contextProvider(Theme, () => signal('light'))], () => createElement(childTag, null));
+
+        document.body.appendChild(document.createElement(providerTag));
+
+        expect(captured()).toBe('light');
+        captured.set('dark');
+        expect(captured()).toBe('dark');
+    });
+
+    it('returns undefined when no provider handles the requested context', async () => {
+        const { createContext, defineElement, requestContext } = await import('../src/index.js');
+        const Missing = createContext('missing-context');
+        const tag = uniqueTag('x-context-missing');
+        let captured = 'not-called';
+
+        defineElement(tag, () => {
+            captured = requestContext(Missing);
+            return null;
+        });
+
+        document.body.appendChild(document.createElement(tag));
+
+        expect(captured).toBeUndefined();
+    });
+
+    it('uses the nearest provider for matching contexts', async () => {
+        const { createElement } = await import('@slimlib/jsx');
+        const { contextProvider, createContext, defineElement, requestContext } = await import('../src/index.js');
+        const Label = createContext('label');
+        const childTag = uniqueTag('x-context-nearest-child');
+        const innerTag = uniqueTag('x-context-nearest-inner');
+        const outerTag = uniqueTag('x-context-nearest-outer');
+        let captured;
+
+        defineElement(childTag, () => {
+            captured = requestContext(Label);
+            return null;
+        });
+        defineElement(innerTag, [contextProvider(Label, () => 'inner')], () => createElement(childTag, null));
+        defineElement(outerTag, [contextProvider(Label, () => 'outer')], () => createElement(innerTag, null));
+
+        document.body.appendChild(document.createElement(outerTag));
+
+        expect(captured).toBe('inner');
+    });
+
+    it('runs the provider factory once per element instance', async () => {
+        const { createElement } = await import('@slimlib/jsx');
+        const { contextProvider, createContext, defineElement, requestContext } = await import('../src/index.js');
+        const Instance = createContext('instance');
+        const childTag = uniqueTag('x-context-instance-child');
+        const providerTag = uniqueTag('x-context-instance-provider');
+        const captured = [];
+        let factoryCalls = 0;
+
+        defineElement(childTag, () => {
+            captured.push(requestContext(Instance));
+            return null;
+        });
+        defineElement(providerTag, [contextProvider(Instance, () => ({ id: ++factoryCalls }))], () => createElement(childTag, null));
+
+        document.body.append(document.createElement(providerTag), document.createElement(providerTag));
+
+        expect(factoryCalls).toBe(2);
+        expect(captured).toEqual([{ id: 1 }, { id: 2 }]);
+        expect(captured[0]).not.toBe(captured[1]);
+    });
+
+    it('supports manual ContextRequestEvent dispatch from external consumers', async () => {
+        const { ContextRequestEvent, contextProvider, createContext, defineElement } = await import('../src/index.js');
+        const Service = createContext('service');
+        const providerValue = { ready: true };
+        const providerTag = uniqueTag('x-context-manual-provider');
+        let captured;
+
+        defineElement(providerTag, [contextProvider(Service, () => providerValue)], () => null);
+        const provider = document.createElement(providerTag);
+        const consumer = document.createElement('span');
+        provider.appendChild(consumer);
+        document.body.appendChild(provider);
+
+        consumer.dispatchEvent(new ContextRequestEvent(Service, value => (captured = value)));
+
+        expect(captured).toBe(providerValue);
+    });
+
+    it('stops propagation after a provider satisfies a request', async () => {
+        const { createElement } = await import('@slimlib/jsx');
+        const { ContextRequestEvent, contextProvider, createContext, defineElement } = await import('../src/index.js');
+        const Label = createContext('stopped-label');
+        const innerTag = uniqueTag('x-context-stop-inner');
+        const outerTag = uniqueTag('x-context-stop-outer');
+        const outerListener = vi.fn();
+        let captured;
+
+        defineElement(innerTag, [contextProvider(Label, () => 'inner')], () => null);
+        defineElement(outerTag, [contextProvider(Label, () => 'outer')], () => createElement(innerTag, null));
+
+        const outer = document.createElement(outerTag);
+        outer.addEventListener('context-request', outerListener);
+        document.body.appendChild(outer);
+        const inner = outer.querySelector(innerTag);
+
+        inner.dispatchEvent(new ContextRequestEvent(Label, value => (captured = value)));
+
+        expect(captured).toBe('inner');
+        expect(outerListener).not.toHaveBeenCalled();
+    });
+
+    it('answers subscribing requests once without retaining callbacks', async () => {
+        const { ContextRequestEvent, contextProvider, createContext, defineElement } = await import('../src/index.js');
+        const Service = createContext('subscribed-service');
+        const providerTag = uniqueTag('x-context-subscribe-provider');
+        const callback = vi.fn();
+
+        defineElement(providerTag, [contextProvider(Service, () => 'service')], () => null);
+        const provider = document.createElement(providerTag);
+        const consumer = document.createElement('span');
+        provider.appendChild(consumer);
+        document.body.appendChild(provider);
+
+        consumer.dispatchEvent(new ContextRequestEvent(Service, callback, true));
+
+        expect(callback).toHaveBeenCalledTimes(1);
+        expect(callback).toHaveBeenCalledWith('service');
+        expect(callback.mock.calls[0]).toHaveLength(1);
+    });
+
+    it('throws when requestContext() is called outside a defineElement render callback', async () => {
+        const { createContext, requestContext } = await import('../src/index.js');
+        const Label = createContext('outside-render');
+
+        expect(() => requestContext(Label)).toThrow(/must be called synchronously inside a defineElement render callback/);
     });
 });
 
@@ -429,7 +582,7 @@ describe('middleware-composed defineElement (DEV)', () => {
         expect(element['data-label']).toBe('x');
     });
 
-    it('keeps slim core innermost so middleware can override connectedCallback', async () => {
+    it('keeps core innermost so middleware can override connectedCallback', async () => {
         const { defineElement } = await import('../src/index.js');
         const tag = uniqueTag('x-slim-connected-override');
         let renderCount = 0;

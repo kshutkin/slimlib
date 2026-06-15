@@ -1,13 +1,13 @@
 import { safeForEach } from './debug';
 import { activeScope, setActiveScope } from './globals';
-import { childrenSymbol, trackSymbol } from './symbols';
-import type { OnDisposeCallback, Scope, ScopeCallback } from './types';
+import { childrenSymbol, parentSymbol, trackSymbol } from './symbols';
+import type { OnDisposeCallback, Scope, ScopeCallback, ScopeParent } from './types';
 
 /**
  * Creates a reactive scope for tracking effects
  * Effects created within a scope callback are automatically tracked and disposed together
  */
-export const scope = (callback?: ScopeCallback, parent: Scope | undefined | null = activeScope): Scope => {
+export const scope = (callback?: ScopeCallback, parent: Scope | undefined = activeScope): Scope => {
     const effects: (() => void)[] = [];
     const children: Scope[] = [];
     const cleanups: Array<() => void> = [];
@@ -70,6 +70,7 @@ export const scope = (callback?: ScopeCallback, parent: Scope | undefined | null
     // Internal symbols for effect tracking and child management
     ctx[trackSymbol] = (dispose: () => void) => effects.push(dispose);
     ctx[childrenSymbol] = children;
+    ctx[parentSymbol] = parent;
 
     // Register with parent
     if (parent) {
@@ -83,3 +84,5 @@ export const scope = (callback?: ScopeCallback, parent: Scope | undefined | null
 
     return ctx;
 };
+
+export const getParentScope = (scope: ScopeParent): ScopeParent | undefined => scope[parentSymbol] as ScopeParent | undefined;

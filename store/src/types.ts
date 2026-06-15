@@ -30,6 +30,11 @@ export type ScopeFunction = ((callback: ScopeCallback) => Scope) & (() => void);
 export type Scope = ScopeFunction & { [key: symbol]: unknown };
 
 /**
+ * A non-disposable reference to a parent scope
+ */
+export type ScopeParent = { [key: symbol]: unknown };
+
+/**
  * Signal type - a callable that returns the current value with a set method
  */
 export type Signal<T> = (() => T) & { set: (value: T) => void };
