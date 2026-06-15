@@ -1,8 +1,19 @@
 import { expectTypeOf, it } from 'vitest';
 
-import { attributes, booleanAttribute, createCustomElement, numberAttribute, stringAttribute, withValidation } from '@slimlib/element';
+import {
+    attributes,
+    booleanAttribute,
+    ContextRequestEvent,
+    contextProvider,
+    createContext,
+    createCustomElement,
+    numberAttribute,
+    requestContext,
+    stringAttribute,
+    withValidation,
+} from '@slimlib/element';
 
-import type { RenderFunction } from '@slimlib/element';
+import type { Context, ContextCallback, ContextType, ElementHost, RenderFunction, UnknownContext } from '@slimlib/element';
 
 // createCustomElement uses HTMLElement as the default ElementBase — stub it for Node.js
 if (typeof HTMLElement === 'undefined') {
@@ -53,4 +64,35 @@ it('withValidation exposes constraint validation on the instance', () => {
     expectTypeOf<InstanceType<typeof El>['labels']>().toEqualTypeOf<NodeList>();
     expectTypeOf<InstanceType<typeof El>['checkValidity']>().toEqualTypeOf<() => boolean>();
     expectTypeOf<InstanceType<typeof El>['reportValidity']>().toEqualTypeOf<() => boolean>();
+});
+
+it('context protocol API preserves value types', () => {
+    const Theme = createContext<'dark' | 'light'>('theme');
+    const Count = createContext<number>(Symbol('count'));
+
+    expectTypeOf(Theme).toMatchTypeOf<Context<unknown, 'dark' | 'light'>>();
+    expectTypeOf(Theme).toMatchTypeOf<UnknownContext>();
+    expectTypeOf<ContextType<typeof Theme>>().toEqualTypeOf<'dark' | 'light'>();
+    expectTypeOf<ContextType<typeof Count>>().toEqualTypeOf<number>();
+    expectTypeOf(requestContext(Theme)).toEqualTypeOf<'dark' | 'light' | undefined>();
+    expectTypeOf(requestContext(Count)).toEqualTypeOf<number | undefined>();
+
+    const themeProvider = contextProvider(Theme, host => {
+        expectTypeOf(host).toEqualTypeOf<ElementHost>();
+        return 'dark';
+    });
+    void themeProvider;
+
+    new ContextRequestEvent(Count, value => {
+        expectTypeOf(value).toEqualTypeOf<number>();
+    });
+
+    const countCallback: ContextCallback<number> = value => value.toFixed();
+    new ContextRequestEvent(Count, countCallback, true);
+
+    // @ts-expect-error - provider factory value must match the context type
+    contextProvider(Theme, () => 'blue');
+
+    // @ts-expect-error - request callback value must match the context type
+    new ContextRequestEvent(Count, (value: string) => value);
 });

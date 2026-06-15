@@ -20,6 +20,7 @@ import {
 import { emit } from './utils/pubsub.js';
 
 export { attributes, booleanAttribute, numberAttribute, stringAttribute } from './middleware/attributes.js';
+export { contextProvider } from './middleware/context-provider.js';
 export { disabledFeatures } from './middleware/disabled-features.js';
 export { formAssociated } from './middleware/form-associated.js';
 export { onAdopted } from './middleware/on-adopted.js';
@@ -27,6 +28,19 @@ export { onMove } from './middleware/on-move.js';
 export { withInternals } from './middleware/with-internals.js';
 export { withValidation } from './middleware/with-validation.js';
 
+/**
+ * @template KeyType, ValueType
+ * @typedef {import('./utils/context-types.js').Context<KeyType, ValueType>} Context
+ */
+/** @typedef {import('./utils/context-types.js').UnknownContext} UnknownContext */
+/**
+ * @template {UnknownContext} T
+ * @typedef {import('./utils/context-types.js').ContextType<T>} ContextType
+ */
+/**
+ * @template ValueType
+ * @typedef {import('./utils/context-types.js').ContextCallback<ValueType>} ContextCallback
+ */
 /** @typedef {import('./types.js').ElementHost} ElementHost */
 /** @typedef {import('./types.js').RenderFunction} RenderFunction */
 /** @typedef {import('./types.js').Middleware} Middleware */
@@ -47,6 +61,39 @@ let currentHost;
 const OWNER = Symbol();
 
 /** @typedef {ElementHost & Record<symbol, LifecycleListener[]> & Record<typeof RENDER_GENERATION, number>} LifecycleHost */
+
+/**
+ * Create a typed Web Components Context Protocol key.
+ *
+ * The returned value is the original `key` branded with the context value type;
+ * matching between providers and consumers still uses strict equality.
+ *
+ * @template ValueType
+ * @template [KeyType=unknown]
+ * @param {KeyType} key
+ * @returns {Context<KeyType, ValueType>}
+ */
+export const createContext = key => /** @type {Context<KeyType, ValueType>} */ (key);
+
+/**
+ * Web Components Context Protocol `context-request` event.
+ *
+ * @template {UnknownContext} T
+ * @extends {Event}
+ */
+export class ContextRequestEvent extends Event {
+    /**
+     * @param {T} context
+     * @param {ContextCallback<ContextType<T>>} callback
+     * @param {boolean} [subscribe]
+     */
+    constructor(context, callback, subscribe) {
+        super('context-request', { bubbles: true, composed: true });
+        this.context = context;
+        this.callback = callback;
+        this.subscribe = subscribe;
+    }
+}
 
 /**
  * Create an unregistered light-DOM custom element constructor backed by `@slimlib/jsx`.
@@ -217,7 +264,7 @@ const createCoreElementClass = (ElementBase, userRender) =>
     };
 
 /**
- * Declare JS-only reactive properties on the current slim element instance.
+ * Declare JS-only reactive properties on the current element instance.
  *
  * Must be called synchronously inside a `defineElement` render callback.
  * Returns the underlying `state()` proxy so render code can use it directly
@@ -277,7 +324,32 @@ export const internals = () => {
 };
 
 /**
- * Subscribe to a lifecycle message on the current slim element.
+ * Request a Web Components Context Protocol value from the current @slimlib/element element.
+ *
+ * Must be called synchronously inside a `defineElement` render callback. The
+ * request is one-shot: subscribing requests and retained callbacks are outside
+ * this helper's scope.
+ *
+ * @template {UnknownContext} T
+ * @param {T} context
+ * @returns {ContextType<T> | undefined}
+ */
+export const requestContext = context => {
+    if (DEV && currentHost === undefined) {
+        throw new Error('requestContext() must be called synchronously inside a defineElement render callback');
+    }
+    /** @type {ContextType<T> | undefined} */
+    let value;
+    /** @type {ElementHost} */ (currentHost).dispatchEvent(
+        new ContextRequestEvent(context, providedValue => {
+            value = providedValue;
+        })
+    );
+    return value;
+};
+
+/**
+ * Subscribe to a lifecycle message on the current element.
  *
  * Must be called synchronously inside a render callback (like `props`).
  * Render-time listeners are tagged with the current render generation and become
