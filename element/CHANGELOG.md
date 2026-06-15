@@ -1,5 +1,16 @@
 # @slimlib/element
 
+## 0.4.0
+
+### Minor Changes
+
+- 749efeb: added rootContextProvider middleware that provides a context only when no ancestor already provides it
+
+### Patch Changes
+
+- Updated dependencies [749efeb]
+  - @slimlib/jsx@0.4.0
+
 ## 0.3.0
 
 ### Minor Changes
