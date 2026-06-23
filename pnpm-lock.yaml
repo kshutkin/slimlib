@@ -5,9 +5,7 @@ settings:
   excludeLinksFromLockfile: false
 
 patchedDependencies:
-  '@changesets/assemble-release-plan@6.0.9':
-    hash: 387befeacdb37d9de44437433a18fa0e323e868c706552503814d2d5cd53fd0e
-    path: patches/@changesets__assemble-release-plan@6.0.9.patch
+  '@changesets/assemble-release-plan@6.0.9': 387befeacdb37d9de44437433a18fa0e323e868c706552503814d2d5cd53fd0e
 
 importers:
 
@@ -32,8 +30,8 @@ importers:
         specifier: ^4.1.7
         version: 4.1.7(@vitest/browser@4.1.7)(vitest@4.1.7)
       dts-buddy:
-        specifier: ^0.7.0
-        version: 0.7.0(typescript@5.9.3)
+        specifier: ^0.8.0
+        version: 0.8.1(typescript@5.9.3)
       pkgprn-internal:
         specifier: ^0.5.4
         version: 0.5.4
@@ -1446,11 +1444,11 @@ packages:
   domtagger@0.7.2:
     resolution: {integrity: sha512-h7g5eduvnLwowJJPkcB5lNzo8vd/Hx4e3I4IOtLpX0qB2wBiuryGLNa61MeFre4b6gMaQIhegMIZ2I8rQCAJwQ==}
 
-  dts-buddy@0.7.0:
-    resolution: {integrity: sha512-smcL+Hg0HTt83U2rhBiqUaPRdPBTONItZU1rF42zBffHobyQird6/R/QcGFguem4aCrRwBozoz4l4KtMYcXEKA==}
+  dts-buddy@0.8.1:
+    resolution: {integrity: sha512-bJ+/wrJxcZwhuaB3IopMcCp0heZ55gRiyd3tKG5GhKm1EKLhaPzk3NyLcuOACyYoTMF1sVKbKU72gh1U276DUQ==}
     hasBin: true
     peerDependencies:
-      typescript: '>=5.0.4 <6'
+      typescript: ^5.0.4 || ^6.0.0
 
   electron-to-chromium@1.5.364:
     resolution: {integrity: sha512-G/dYE3+AYhyHwzTwg8UbnXf7zqMERYh7l2jJ3QujhFsH8agSYwtnGAR2aZ7f0AakIKJXd5En/Hre4igIUrdlYw==}
@@ -2498,13 +2496,11 @@ snapshots:
 
   '@babel/helper-string-parser@7.27.1': {}
 
-  '@babel/helper-string-parser@7.29.7':
-    optional: true
+  '@babel/helper-string-parser@7.29.7': {}
 
   '@babel/helper-validator-identifier@7.28.5': {}
 
-  '@babel/helper-validator-identifier@7.29.7':
-    optional: true
+  '@babel/helper-validator-identifier@7.29.7': {}
 
   '@babel/helper-validator-option@7.29.7':
     optional: true
@@ -2522,7 +2518,6 @@ snapshots:
   '@babel/parser@7.29.7':
     dependencies:
       '@babel/types': 7.29.7
-    optional: true
 
   '@babel/runtime@7.24.7':
     dependencies:
@@ -2557,7 +2552,6 @@ snapshots:
     dependencies:
       '@babel/helper-string-parser': 7.29.7
       '@babel/helper-validator-identifier': 7.29.7
-    optional: true
 
   '@bcoe/v8-coverage@1.0.2': {}
 
@@ -3561,7 +3555,7 @@ snapshots:
       domsanitizer: 0.2.3
       umap: 1.0.2
 
-  dts-buddy@0.7.0(typescript@5.9.3):
+  dts-buddy@0.8.1(typescript@5.9.3):
     dependencies:
       '@jridgewell/source-map': 0.3.5
       '@jridgewell/sourcemap-codec': 1.5.5
@@ -3968,8 +3962,8 @@ snapshots:
 
   magicast@0.5.3:
     dependencies:
-      '@babel/parser': 7.29.3
-      '@babel/types': 7.29.0
+      '@babel/parser': 7.29.7
+      '@babel/types': 7.29.7
       source-map-js: 1.2.1
 
   make-dir@3.1.0:
