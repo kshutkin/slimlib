@@ -34,8 +34,9 @@ export function state<T extends object>(object: T = {} as T): T {
     };
 
     const createProxy = <U extends object>(object: U): U => {
-        if (proxiesCache.has(object)) {
-            return proxiesCache.get(object) as U;
+        const cachedProxy = proxiesCache.get(object);
+        if (cachedProxy !== undefined) {
+            return cachedProxy as U;
         }
 
         let methodCache: Map<string | symbol, (...args: unknown[]) => unknown> | undefined;
