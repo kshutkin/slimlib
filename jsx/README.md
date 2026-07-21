@@ -246,6 +246,58 @@ Signature: `forEach<T>(each: () => readonly T[], key: (item, index) => string | 
 
 Bundle cost: **610 B gzip** (sub-entry, separate from core).
 
+## Querying children: `queryChildren`
+
+Use the query helpers when a component needs a reactive view of descendants that match a CSS selector. They live in a
+sub-entry, so the main JSX runtime does not include `MutationObserver` code unless imported.
+
+```jsx
+import { queryChildrenRef } from "@slimlib/jsx/query-children";
+
+const Tabs = () => {
+  const tabs = queryChildrenRef('[role="tab"]');
+
+  return (
+    <section>
+      <div ref={tabs.ref}>
+        <button role="tab">One</button>
+        <button role="tab">Two</button>
+      </div>
+
+      <p>{() => `${tabs().length} tabs`}</p>
+    </section>
+  );
+};
+```
+
+Signature:
+
+```ts
+queryChildren<T extends Element = Element>(
+  root: Element | DocumentFragment,
+  selector: string,
+  options?: MutationObserverInit
+): Signal<readonly T[]>;
+
+queryChildrenRef<T extends Element = Element>(
+  selector: string,
+  options?: MutationObserverInit
+): Signal<readonly T[]> & {
+  ref: (root: Element | DocumentFragment | null) => void;
+};
+```
+
+Defaults are `{ childList: true, subtree: true, attributes: true }`, which covers structural changes and selectors that
+depend on attributes or classes. The returned signal updates only when the matched element list changes by identity.
+
+`queryChildren()` reads the initial matches synchronously. `queryChildrenRef()` runs an initial query when the ref receives
+an element, then relies on `MutationObserver` for children appended by JSX after the ref is called and for later DOM
+changes. Passing `null` to the ref disconnects the observer and clears the signal; observers are also disconnected when
+the owning render scope is disposed.
+
+Property-only state changes are outside `MutationObserver`'s reach. For example, setting `input.checked = true` may affect
+`:checked` without producing an attribute mutation.
+
 ## Context
 
 Share values down the tree without prop-drilling. Context rides the **scope** tree (the same scopes described in [Design Notes](#design-notes)) — not the DOM — so resolution works for plain components, function-children, and `forEach` rows alike. It lives in the main entry and tree-shakes away when unused.
