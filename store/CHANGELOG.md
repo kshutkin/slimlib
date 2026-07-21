@@ -1,5 +1,11 @@
 Changelog
 
+## 2.2.1
+
+### Patch Changes
+
+- 671ac02: Improve store performance by reducing proxy cache lookups, dependency tracking work, non-live source cleanup, and effect flush overhead.
+
 ## 2.2.0
 
 ### Minor Changes
