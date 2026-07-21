@@ -5,6 +5,14 @@ import { createContext, createElement, Fragment, inject, Provider, RootProvider,
 import type { Child, Component, Context, Props, ProviderProps, Reactive, RootProviderProps } from '@slimlib/jsx';
 import type { forEach } from '@slimlib/jsx/for-each';
 import type { JSX } from '@slimlib/jsx/jsx-runtime';
+import type {
+    QueryChildrenOptions,
+    QueryChildrenRoot,
+    QueryChildrenSignal,
+    queryChildren,
+    queryChildrenRef,
+} from '@slimlib/jsx/query-children';
+import type { Signal } from '@slimlib/store';
 
 // ── 1. createElement ──────────────────────────────────────────────────────────
 
@@ -159,4 +167,21 @@ it('RootProvider factory API preserves value types', () => {
     void invalidChildrenProps;
 
     void RootProvider;
+});
+
+// ── 13. queryChildren ───────────────────────────────────────────────────────
+
+it('queryChildren APIs preserve element types', () => {
+    const options: QueryChildrenOptions = { childList: true };
+    const queryRoot = null as unknown as QueryChildrenRoot;
+    void options;
+    void queryRoot;
+
+    type ButtonQuery = ReturnType<typeof queryChildren<HTMLButtonElement>>;
+    type AnchorQuery = ReturnType<typeof queryChildrenRef<HTMLAnchorElement>>;
+
+    expectTypeOf<ButtonQuery>().toEqualTypeOf<Signal<readonly HTMLButtonElement[]>>();
+    expectTypeOf<AnchorQuery>().toMatchTypeOf<QueryChildrenSignal<HTMLAnchorElement>>();
+    expectTypeOf<AnchorQuery>().returns.toEqualTypeOf<readonly HTMLAnchorElement[]>();
+    expectTypeOf<AnchorQuery['ref']>().toEqualTypeOf<(root: QueryChildrenRoot | null) => void>();
 });

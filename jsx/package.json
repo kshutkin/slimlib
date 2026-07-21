@@ -24,6 +24,10 @@
             "types": "./types/index.d.ts",
             "default": "./dist/for-each.mjs"
         },
+        "./query-children": {
+            "types": "./types/index.d.ts",
+            "default": "./dist/query-children.mjs"
+        },
         "./package.json": "./package.json"
     },
     "types": "./types/index.d.ts",
@@ -47,8 +51,8 @@
         "renderer"
     ],
     "scripts": {
-        "build": "rollup -c && dts-buddy -m @slimlib/jsx:./src/index.ts -m @slimlib/jsx/jsx-runtime:./src/jsx-runtime.ts -m @slimlib/jsx/for-each:./src/for-each.ts",
-        "build-compress": "BUILD_COMPRESS=true rollup -c && dts-buddy -m @slimlib/jsx:./src/index.ts -m @slimlib/jsx/jsx-runtime:./src/jsx-runtime.ts -m @slimlib/jsx/for-each:./src/for-each.ts",
+        "build": "rollup -c && dts-buddy -m @slimlib/jsx:./src/index.ts -m @slimlib/jsx/jsx-runtime:./src/jsx-runtime.ts -m @slimlib/jsx/for-each:./src/for-each.ts -m @slimlib/jsx/query-children:./src/query-children.ts",
+        "build-compress": "BUILD_COMPRESS=true rollup -c && dts-buddy -m @slimlib/jsx:./src/index.ts -m @slimlib/jsx/jsx-runtime:./src/jsx-runtime.ts -m @slimlib/jsx/for-each:./src/for-each.ts -m @slimlib/jsx/query-children:./src/query-children.ts",
         "test": "vitest run --coverage --config ./vitest.config.mjs",
         "bench": "node tests/bench-browser.mjs",
         "bench:fakedom": "pnpm build && node tests/bench-fakedom.mjs",
