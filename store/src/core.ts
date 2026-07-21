@@ -236,7 +236,7 @@ export const flushEffects = (): void => {
     for (let i = 0, len = nodes.length; i < len; ++i) {
         const node = nodes[i] as ReactiveNode;
         try {
-            node.$_fn?.();
+            node.$_fn();
         } catch (e) {
             console.error(e);
         }
