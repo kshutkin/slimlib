@@ -255,7 +255,7 @@ export const scheduleFlush = (): void => {
  * Uses liveness tracking - only live consumers register with sources
  * PULL PHASE: Records dependencies during computation for future invalidation
  */
-export const trackStateDependency = <T>(deps: DepsSet<ReactiveNode>, valueGetter: () => T, cachedValue: T): void => {
+export const trackStateDependency = <T>(deps: DepsSet<ReactiveNode>, cachedValue: T): void => {
     // Callers guarantee tracked && currentComputing are true
 
     const sourcesArray = (currentComputing as ReactiveNode).$_sources;
@@ -269,11 +269,11 @@ export const trackStateDependency = <T>(deps: DepsSet<ReactiveNode>, valueGetter
             clearSources(currentComputing as ReactiveNode, skipIndex);
         }
 
-        // Track deps version, value getter, and last seen value for polling
+        // Track deps version, value getter, and last seen value for polling.
+        // The getter is stable for the lifetime of the DepsSet, so source
+        // entries can reuse it directly instead of receiving it per read.
         // Uses shared createSourceEntry factory for V8 hidden class monomorphism
-        sourcesArray.push(
-            createSourceEntry(deps, undefined, (deps as DepsSet<ReactiveNode>).$_version as number, valueGetter, cachedValue)
-        );
+        sourcesArray.push(createSourceEntry(deps, undefined, deps.$_version, deps.$_getter, cachedValue));
 
         // Mark that this node has state/signal sources (for polling optimization)
         (currentComputing as ReactiveNode).$_flags |= Flag.HAS_STATE_SOURCE;
@@ -283,10 +283,9 @@ export const trackStateDependency = <T>(deps: DepsSet<ReactiveNode>, valueGetter
             deps.add(currentComputing as ReactiveNode);
         }
     } else {
-        // Same state source - update depsVersion, getter, and storedValue for accurate polling
+        // Same state source - update depsVersion and storedValue for accurate polling
         const entry = sourcesArray[skipIndex] as SourceEntry;
-        entry.$_version = (deps as DepsSet<ReactiveNode>).$_version as number;
-        entry.$_getter = valueGetter;
+        entry.$_version = deps.$_version;
         entry.$_storedValue = cachedValue;
         // Re-set Flag.HAS_STATE_SOURCE (may have been cleared by runWithTracking)
         (currentComputing as ReactiveNode).$_flags |= Flag.HAS_STATE_SOURCE;

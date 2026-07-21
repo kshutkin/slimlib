@@ -26,9 +26,8 @@ export function signal<T>(initialValue?: T): Signal<T> {
         // When a computed/effect reads this signal, we register the dependency
         // Fast path: if not tracked or no current computing, skip tracking
         if (tracked && currentComputing !== undefined) {
-            // Pass value getter for polling optimization (value revert detection)
             // biome-ignore lint/suspicious/noAssignInExpressions: optimization
-            trackStateDependency((deps ??= new DepsSet<ReactiveNode>(read)), read, value);
+            trackStateDependency((deps ??= new DepsSet<ReactiveNode>(read)), value);
         }
         return value;
         // === END PULL PHASE ===
