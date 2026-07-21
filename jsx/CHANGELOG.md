@@ -1,5 +1,16 @@
 Changelog
 
+## 0.5.0
+
+### Minor Changes
+
+- 64691a9: Add queryChildren and queryChildrenRef helpers for reactive selector-based child queries.
+
+### Patch Changes
+
+- Updated dependencies [671ac02]
+  - @slimlib/store@2.2.1
+
 ## 0.4.0
 
 ### Minor Changes

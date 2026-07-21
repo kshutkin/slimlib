@@ -1,5 +1,14 @@
 # @slimlib/element
 
+## 0.4.1
+
+### Patch Changes
+
+- Updated dependencies [671ac02]
+- Updated dependencies [64691a9]
+  - @slimlib/store@2.2.1
+  - @slimlib/jsx@0.5.0
+
 ## 0.4.0
 
 ### Minor Changes
