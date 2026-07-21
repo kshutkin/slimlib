@@ -40,6 +40,6 @@ export type ReactiveNode = {
     $_version: number;
     $_value: unknown;
     $_stamp: number;
-    $_fn: (() => unknown) | undefined;
+    $_fn: () => unknown;
     $_equals: ((a: unknown, b: unknown) => boolean) | undefined;
 };

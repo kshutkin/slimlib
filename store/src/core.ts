@@ -178,8 +178,13 @@ export const makeNonLive = (node: ReactiveNode): void => {
  * PULL PHASE: Cleanup during dependency tracking when sources change
  */
 export const clearSources = (node: ReactiveNode, fromIndex = 0): void => {
-    const isLive = (node.$_flags & (Flag.EFFECT | Flag.LIVE)) !== 0;
     const nodeSources = node.$_sources;
+
+    // Non-live computeds have no source registrations to remove.
+    if ((node.$_flags & (Flag.EFFECT | Flag.LIVE)) === 0) {
+        nodeSources.length = fromIndex;
+        return;
+    }
 
     for (let i = fromIndex, len = nodeSources.length; i < len; ++i) {
         const { $_dependents, $_node: sourceNode } = nodeSources[i] as SourceEntry;
@@ -195,7 +200,6 @@ export const clearSources = (node: ReactiveNode, fromIndex = 0): void => {
             $_dependents.delete(node);
             // If source is a computed and we're live, check if it became non-live
             if (
-                isLive &&
                 sourceNode !== undefined &&
                 (sourceNode.$_flags & (Flag.EFFECT | Flag.LIVE)) === Flag.LIVE &&
                 (sourceNode.$_deps as Set<ReactiveNode>).size === 0
@@ -232,7 +236,7 @@ export const flushEffects = (): void => {
     for (let i = 0, len = nodes.length; i < len; ++i) {
         const node = nodes[i] as ReactiveNode;
         try {
-            node.$_fn?.();
+            node.$_fn();
         } catch (e) {
             console.error(e);
         }
@@ -255,7 +259,7 @@ export const scheduleFlush = (): void => {
  * Uses liveness tracking - only live consumers register with sources
  * PULL PHASE: Records dependencies during computation for future invalidation
  */
-export const trackStateDependency = <T>(deps: DepsSet<ReactiveNode>, valueGetter: () => T, cachedValue: T): void => {
+export const trackStateDependency = <T>(deps: DepsSet<ReactiveNode>, cachedValue: T): void => {
     // Callers guarantee tracked && currentComputing are true
 
     const sourcesArray = (currentComputing as ReactiveNode).$_sources;
@@ -269,11 +273,11 @@ export const trackStateDependency = <T>(deps: DepsSet<ReactiveNode>, valueGetter
             clearSources(currentComputing as ReactiveNode, skipIndex);
         }
 
-        // Track deps version, value getter, and last seen value for polling
+        // Track deps version, value getter, and last seen value for polling.
+        // The getter is stable for the lifetime of the DepsSet, so source
+        // entries can reuse it directly instead of receiving it per read.
         // Uses shared createSourceEntry factory for V8 hidden class monomorphism
-        sourcesArray.push(
-            createSourceEntry(deps, undefined, (deps as DepsSet<ReactiveNode>).$_version as number, valueGetter, cachedValue)
-        );
+        sourcesArray.push(createSourceEntry(deps, undefined, deps.$_version, deps.$_getter, cachedValue));
 
         // Mark that this node has state/signal sources (for polling optimization)
         (currentComputing as ReactiveNode).$_flags |= Flag.HAS_STATE_SOURCE;
@@ -283,10 +287,9 @@ export const trackStateDependency = <T>(deps: DepsSet<ReactiveNode>, valueGetter
             deps.add(currentComputing as ReactiveNode);
         }
     } else {
-        // Same state source - update depsVersion, getter, and storedValue for accurate polling
+        // Same state source - update depsVersion and storedValue for accurate polling
         const entry = sourcesArray[skipIndex] as SourceEntry;
-        entry.$_version = (deps as DepsSet<ReactiveNode>).$_version as number;
-        entry.$_getter = valueGetter;
+        entry.$_version = deps.$_version;
         entry.$_storedValue = cachedValue;
         // Re-set Flag.HAS_STATE_SOURCE (may have been cleared by runWithTracking)
         (currentComputing as ReactiveNode).$_flags |= Flag.HAS_STATE_SOURCE;

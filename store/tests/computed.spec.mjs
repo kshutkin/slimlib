@@ -937,6 +937,37 @@ describe('computed', () => {
         dispose();
     });
 
+    it('formerly live computed updates conditional dependencies after disposal', async () => {
+        const store = state({ flag: true, a: 1, b: 2 });
+        let computeCount = 0;
+        const conditional = computed(() => {
+            computeCount++;
+            return store.flag ? store.a : store.b;
+        });
+
+        let effectValue = 0;
+        const dispose = effect(() => {
+            effectValue = conditional();
+        });
+
+        await flushAll();
+        expect(effectValue).toBe(1);
+        expect(computeCount).toBe(1);
+
+        dispose();
+        store.flag = false;
+        expect(conditional()).toBe(2);
+        expect(computeCount).toBe(2);
+
+        store.a = 10;
+        expect(conditional()).toBe(2);
+        expect(computeCount).toBe(2);
+
+        store.b = 20;
+        expect(conditional()).toBe(20);
+        expect(computeCount).toBe(3);
+    });
+
     it('computed reading state that changes during computation is not re-marked (markNeedsCheck computing branch)', async () => {
         // This test covers the branch in markNeedsCheck where a non-effect
         // computed is currently computing and we try to mark it

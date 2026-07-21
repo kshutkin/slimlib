@@ -34,8 +34,9 @@ export function state<T extends object>(object: T = {} as T): T {
     };
 
     const createProxy = <U extends object>(object: U): U => {
-        if (proxiesCache.has(object)) {
-            return proxiesCache.get(object) as U;
+        const cachedProxy = proxiesCache.get(object);
+        if (cachedProxy !== undefined) {
+            return cachedProxy as U;
         }
 
         let methodCache: Map<string | symbol, (...args: unknown[]) => unknown> | undefined;
@@ -83,13 +84,7 @@ export function state<T extends object>(object: T = {} as T): T {
                     }
 
                     // PULL: Bidirectional linking with optimization
-                    // Pass value getter for polling optimization (value revert detection)
-                    // Capture target and property for later value retrieval
-                    trackStateDependency(
-                        deps as DepsSet<ReactiveNode>,
-                        (deps as DepsSet<ReactiveNode>).$_getter as () => unknown,
-                        propValue
-                    );
+                    trackStateDependency(deps as DepsSet<ReactiveNode>, propValue);
                 }
 
                 // Fast path for primitives (most common case)
