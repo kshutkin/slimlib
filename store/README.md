@@ -101,6 +101,8 @@ store.items.push(4);
 console.log(doubled()); // 20
 ```
 
+Computed equality also prevents downstream effects and live computeds from re-running when they read both computed values and direct signals/state, provided the direct sources have not notified a change. Direct-source notifications still cause a re-run, including proxy method notifications where the property value remains unchanged.
+
 ##### Reactive vs Imperative Usage
 
 Computeds support two usage patterns:

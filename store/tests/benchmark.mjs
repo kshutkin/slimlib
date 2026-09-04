@@ -643,6 +643,41 @@ async function avoidablePropagation(framework) {
     );
 }
 
+// Mixed direct/computed consumers should honor equality cutoff without losing
+// direct-source notifications. Advance tick across calls to avoid no-op writes.
+async function mixedSources(framework) {
+    let source;
+    let direct;
+    let tick;
+    let result;
+
+    await runBenchmark(
+        framework,
+        'mixedSources',
+        fw => {
+            tick = 0;
+            source = fw.signal(0);
+            direct = fw.signal(0);
+            const bucket = fw.computed(() => Math.floor(source.read() / 100) % 2);
+            const mixed = fw.computed(() => hard(direct.read() + bucket.read()));
+            return fw.effect(() => {
+                result = direct.read() + mixed.read();
+            });
+        },
+        () => {
+            for (let i = 0; i < 1000; i++) {
+                framework.withBatch(() => {
+                    source.write(++tick);
+                    if (tick % 1000 === 0) direct.write(tick / 1000);
+                });
+            }
+            if (result !== hard(2 * Math.floor(tick / 1000) + Math.floor(tick / 100) % 2)) {
+                throw new Error('mixedSources produced a stale value');
+            }
+        }
+    );
+}
+
 async function diamond(framework) {
     const width = 5;
     let head;
@@ -1067,13 +1102,12 @@ function runGraph(framework, graph, iterations) {
 
 // ============================================================================
 // Pure Computed Chain Benchmark
-// Tests FLAG_HAS_STATE_SOURCE optimization for non-live computed chains
+// Tests source polling and cache reuse in non-live computed chains
 // ============================================================================
 
 async function pureComputedChain(framework) {
-    // This benchmark tests the optimization where non-live computeds
-    // that only depend on other computeds (no state/signals) can skip
-    // the polling loop and directly verify computed sources.
+    // This benchmark tests source validation in non-live computed chains
+    // when unrelated writes invalidate the global-version cache.
     //
     // Setup:
     // - One signal at the root
@@ -1161,6 +1195,7 @@ const benchmarks = [
     deepPropagation,
     broadPropagation,
     avoidablePropagation,
+    mixedSources,
     diamond,
     triangle,
     mux,

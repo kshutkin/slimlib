@@ -1,4 +1,4 @@
-import { batchedAddNew, checkComputedSources, clearSources, DepsSet, noopGetter, runWithTracking, scheduleFlush } from './core';
+import { batchedAddNew, checkSources, clearSources, DepsSet, noopGetter, runWithTracking, scheduleFlush } from './core';
 import { cycleMessage, registerEffect, unregisterEffect, warnIfNoActiveScope } from './debug';
 import { Flag } from './flags';
 import { activeScope, setActiveScope } from './globals';
@@ -112,12 +112,13 @@ export const effect = (callback: () => void | EffectCleanup, eager: EffectOption
         // PULL PHASE: Verify if sources actually changed before running
         // ----------------------------------------------------------------
         // Bail-out optimization: if only CHECK flag is set (not DIRTY),
-        // verify that computed sources actually changed before running
-        if ((flags & (Flag.DIRTY | Flag.CHECK | Flag.HAS_STATE_SOURCE)) === Flag.CHECK) {
-            // PULL: Read computed sources to check if they changed
+        // verify sources when any computed dependencies could cut off the update.
+        // Direct-only consumers already received a source notification.
+        if ((flags & (Flag.DIRTY | Flag.CHECK | Flag.HAS_COMPUTED_SOURCE)) === (Flag.CHECK | Flag.HAS_COMPUTED_SOURCE)) {
+            // PULL: Check direct-source versions and read computed sources
             // If false, sources didn't change - clear CHECK flag and skip
             // If true, sources changed or errored - proceed to run
-            if (!checkComputedSources(node.$_sources)) {
+            if (!checkSources(node.$_sources)) {
                 node.$_flags = flags & ~Flag.CHECK;
                 return;
             }

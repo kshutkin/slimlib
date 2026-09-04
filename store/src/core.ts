@@ -279,9 +279,6 @@ export const trackStateDependency = <T>(deps: DepsSet<ReactiveNode>, cachedValue
         // Uses shared createSourceEntry factory for V8 hidden class monomorphism
         sourcesArray.push(createSourceEntry(deps, undefined, deps.$_version, deps.$_getter, cachedValue));
 
-        // Mark that this node has state/signal sources (for polling optimization)
-        (currentComputing as ReactiveNode).$_flags |= Flag.HAS_STATE_SOURCE;
-
         // Only register with source if we're live
         if (((currentComputing as ReactiveNode).$_flags & (Flag.EFFECT | Flag.LIVE)) !== 0) {
             deps.add(currentComputing as ReactiveNode);
@@ -291,8 +288,6 @@ export const trackStateDependency = <T>(deps: DepsSet<ReactiveNode>, cachedValue
         const entry = sourcesArray[skipIndex] as SourceEntry;
         entry.$_version = deps.$_version;
         entry.$_storedValue = cachedValue;
-        // Re-set Flag.HAS_STATE_SOURCE (may have been cleared by runWithTracking)
-        (currentComputing as ReactiveNode).$_flags |= Flag.HAS_STATE_SOURCE;
     }
     ++(currentComputing as ReactiveNode).$_skipped;
 };
@@ -345,10 +340,10 @@ export const markDependents = (deps: DepsSet<ReactiveNode>): void => {
  * PULL PHASE: Core of pull - executes computation while tracking dependencies
  */
 export const runWithTracking = <T>(node: ReactiveNode, getter: () => T): T => {
-    // Clear (DIRTY | CHECK) and source flags (will be recalculated during tracking)
-    // Note: Even when called from checkComputedSources (which sets tracked=false), this works
-    // because runWithTracking sets tracked=true, so trackDependency will re-set the flag
-    node.$_flags = (node.$_flags & ~(Flag.DIRTY | Flag.CHECK | Flag.HAS_STATE_SOURCE | Flag.HAS_COMPUTED_SOURCE)) | Flag.COMPUTING;
+    // Clear (DIRTY | CHECK) and the computed-source flag (recalculated during tracking)
+    // Note: Even when called from checkSources (which sets tracked=false), this works
+    // because runWithTracking sets tracked=true, so computedRead will re-set the flag
+    node.$_flags = (node.$_flags & ~(Flag.DIRTY | Flag.CHECK | Flag.HAS_COMPUTED_SOURCE)) | Flag.COMPUTING;
     node.$_skipped = 0;
 
     const prev = currentComputing;
@@ -400,23 +395,30 @@ export const untracked = <T>(callback: () => T): T => {
 };
 
 /**
- * Check if any computed sources have changed or errored.
+ * Check if any state/signal or computed sources have changed or errored.
  * Used by CHECK path optimization in computed and effect.
  * PULL PHASE: Verifies if sources actually changed before recomputing (equality cutoff)
  *
- * Note: Callers must check HAS_STATE_SOURCE flag before calling this function.
- * This function assumes all sources are computed (have $_node).
+ * State/signal sources use notification versions, preserving explicit invalidation
+ * even when the current value equals the previously observed value.
  *
- * @param sourcesArray - The sources to check (must all be computed sources)
+ * @param sourcesArray - The sources to check
  * @returns true if sources changed, false if unchanged
  */
-export const checkComputedSources = (sourcesArray: SourceEntry[]): boolean => {
+export const checkSources = (sourcesArray: SourceEntry[]): boolean => {
     const prevTracked = tracked;
     tracked = false;
     const len = sourcesArray.length;
     for (let i = 0; i < len; ++i) {
         const sourceEntry = sourcesArray[i] as SourceEntry;
-        const sourceNode = sourceEntry.$_node as ReactiveNode;
+        const sourceNode = sourceEntry.$_node;
+        if (sourceNode === undefined) {
+            if (sourceEntry.$_version !== (sourceEntry.$_dependents as DepsSet<ReactiveNode>).$_version) {
+                tracked = prevTracked;
+                return true;
+            }
+            continue;
+        }
         // Access source to trigger its recomputation if needed
         try {
             computedRead(sourceNode);

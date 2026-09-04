@@ -1,5 +1,5 @@
 import {
-    checkComputedSources,
+    checkSources,
     clearSources,
     createSourceEntry,
     currentComputing,
@@ -144,8 +144,8 @@ export function computedRead<T>(self: ReactiveNode): T {
     // Live computeds receive CHECK via push - verify sources before recomputing
     // Non-live computeds already verified above during polling
     // Note: Check for Flag.HAS_VALUE OR Flag.HAS_ERROR since cached errors should also use this path
-    if ((flags & (Flag.DIRTY | Flag.CHECK | Flag.HAS_STATE_SOURCE)) === Flag.CHECK && hasCached) {
-        if (checkComputedSources(sourcesArray)) {
+    if ((flags & (Flag.DIRTY | Flag.CHECK | Flag.HAS_COMPUTED_SOURCE)) === (Flag.CHECK | Flag.HAS_COMPUTED_SOURCE) && hasCached) {
+        if (checkSources(sourcesArray)) {
             // Sources changed or errored - mark DIRTY and let getter run
             flags = (flags & ~Flag.CHECK) | Flag.DIRTY;
         } else {
