@@ -45,8 +45,12 @@ export class DepsSet<T> extends Set<T> {
     }
 }
 
+// Entries discarded by the current computation, released when it finishes.
+// runWithTracking saves/restores the pool so nested computations cannot share it.
+let recycledSources: SourceEntry[] | undefined;
+
 /**
- * Factory for creating source entries (unified allocation site).
+ * Factory for creating or recycling source entries (unified allocation site).
  *
  * Both state and computed source entries MUST be created through this single
  * factory to ensure they share the same V8 hidden class. Using separate
@@ -58,7 +62,7 @@ export class DepsSet<T> extends Set<T> {
  * @param node - The source ReactiveNode (undefined for state/signal sources)
  * @param version - Initial version number
  * @param getter - Value getter (undefined for computed sources)
- * @param storedValue - Cached value (undefined for computed sources)
+ * @param storedValue - Observed direct-source value or computed-source write stamp
  */
 export const createSourceEntry = (
     dependents: DepsSet<ReactiveNode>,
@@ -66,13 +70,24 @@ export const createSourceEntry = (
     version: number,
     getter: undefined | (() => unknown),
     storedValue: unknown
-): SourceEntry => ({
-    $_dependents: dependents,
-    $_node: node,
-    $_version: version,
-    $_getter: getter,
-    $_storedValue: storedValue,
-});
+): SourceEntry => {
+    const entry = recycledSources?.pop();
+    if (entry !== undefined) {
+        entry.$_dependents = dependents;
+        entry.$_node = node;
+        entry.$_version = version;
+        entry.$_getter = getter;
+        entry.$_storedValue = storedValue;
+        return entry;
+    }
+    return {
+        $_dependents: dependents,
+        $_node: node,
+        $_version: version,
+        $_getter: getter,
+        $_storedValue: storedValue,
+    };
+};
 
 let flushScheduled = false;
 
@@ -212,6 +227,19 @@ export const clearSources = (node: ReactiveNode, fromIndex = 0): void => {
 };
 
 /**
+ * Detach a changed suffix while keeping its entries for this computation to reuse.
+ * Subscriptions are removed immediately, just as in clearSources.
+ */
+export const recycleSources = (node: ReactiveNode, fromIndex: number): void => {
+    // Lazy nodes already have cheap truncation; copying their suffix costs more
+    // than allocating fresh entries in the non-live polling benchmarks.
+    if ((node.$_flags & (Flag.EFFECT | Flag.LIVE)) !== 0) {
+        recycledSources = node.$_sources.slice(fromIndex);
+    }
+    clearSources(node, fromIndex);
+};
+
+/**
  * Execute all pending effects immediately
  * This function can be called to manually trigger all scheduled effects
  * before the next microtask
@@ -268,9 +296,19 @@ export const trackStateDependency = <T>(deps: DepsSet<ReactiveNode>, cachedValue
     const noSource = existing === undefined;
 
     if (noSource || existing.$_dependents !== deps) {
+        const previous = skipIndex === 0 ? undefined : sourcesArray[skipIndex - 1];
+        // Only coalesce identical observations; writes between reads must remain visible.
+        if (
+            previous !== undefined &&
+            previous.$_dependents === deps &&
+            previous.$_version === deps.$_version &&
+            Object.is(previous.$_storedValue, cachedValue)
+        ) {
+            return;
+        }
         // Different dependency - clear old ones from this point and rebuild
         if (!noSource) {
-            clearSources(currentComputing as ReactiveNode, skipIndex);
+            recycleSources(currentComputing as ReactiveNode, skipIndex);
         }
 
         // Track deps version, value getter, and last seen value for polling.
@@ -348,6 +386,8 @@ export const runWithTracking = <T>(node: ReactiveNode, getter: () => T): T => {
 
     const prev = currentComputing;
     const prevTracked = tracked;
+    const prevRecycledSources = recycledSources;
+    recycledSources = undefined;
     currentComputing = node;
     tracked = true;
 
@@ -356,6 +396,7 @@ export const runWithTracking = <T>(node: ReactiveNode, getter: () => T): T => {
     } finally {
         currentComputing = prev;
         tracked = prevTracked;
+        recycledSources = prevRecycledSources;
         // biome-ignore lint/suspicious/noAssignInExpressions: optimization
         const flags = (node.$_flags &= ~Flag.COMPUTING);
         const nodeSources = node.$_sources;

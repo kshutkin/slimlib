@@ -11,6 +11,7 @@ export type SourceEntry = {
     $_node: ReactiveNode | undefined;
     $_version: number;
     $_getter: undefined | (() => unknown);
+    // Direct source: observed value. Computed source: global write stamp at read.
     $_storedValue: unknown;
 };
 

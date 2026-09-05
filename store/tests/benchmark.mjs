@@ -902,6 +902,59 @@ async function molBench(framework) {
 // S.js Benchmarks
 // ============================================================================
 
+async function createRepeatedReads(framework) {
+    for (const useComputed of [false, true]) {
+        let source;
+        await runBenchmark(
+            framework,
+            useComputed ? 'createRepeatedComputedReads' : 'createRepeatedSignalReads',
+            fw => {
+                const input = fw.signal(1);
+                source = useComputed ? fw.computed(() => input.read()) : input;
+            },
+            () => {
+                for (let i = 0; i < 100; i++) {
+                    const value = framework.computed(() => {
+                        let sum = 0;
+                        for (let j = 0; j < 1000; j++) sum += source.read();
+                        return sum;
+                    });
+                    if (value.read() !== 1000) throw new Error('repeated reads produced a stale value');
+                }
+            }
+        );
+    }
+}
+
+async function sourceInsertion(framework) {
+    let toggle;
+    let result;
+    await runBenchmark(
+        framework,
+        'sourceInsertion',
+        fw => {
+            toggle = fw.signal(false);
+            const sources = Array.from({ length: 128 }, () => fw.signal(1));
+            const extra = fw.signal(10);
+            const sum = fw.computed(() => {
+                const includeExtra = toggle.read();
+                let value = 0;
+                for (let i = 0; i < 64; i++) value += sources[i].read();
+                if (includeExtra) value += extra.read();
+                for (let i = 64; i < 128; i++) value += sources[i].read();
+                return value;
+            });
+            return fw.effect(() => { result = sum.read(); });
+        },
+        () => {
+            for (let i = 0; i < 200; i++) {
+                framework.withBatch(() => toggle.write(i % 2 === 0));
+                if (result !== (i % 2 === 0 ? 138 : 128)) throw new Error('source insertion produced a stale value');
+            }
+        }
+    );
+}
+
 async function createSignals(framework) {
     const COUNT = 100000;
 
@@ -1203,6 +1256,8 @@ const benchmarks = [
     unstable,
     molBench,
     // S.js
+    createRepeatedReads,
+    sourceInsertion,
     createSignals,
     createComputations,
     updateSignals,
