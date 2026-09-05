@@ -101,9 +101,9 @@ store.items.push(4);
 console.log(doubled()); // 20
 ```
 
-Consecutive reads of the same signal, state property, or computed share a dependency entry when they observe the same source state. Reads separated by writes keep separate observations. When dependency order changes, the changed suffix is rebuilt with fresh entries; subscriptions and branch cleanup keep their existing behavior.
+Consecutive reads of the same signal, state property, or computed value have less dependency-tracking overhead. This benefits code that repeatedly reads a value, such as inside a loop, while still observing changes made between reads and tracking conditional dependencies automatically.
 
-Computed equality also prevents downstream effects and live computeds from re-running when they read both computed values and direct signals/state, provided the direct sources have not notified a change. Direct-source notifications still cause a re-run, including proxy method notifications where the property value remains unchanged.
+Effects and computed values used by effects skip unnecessary re-runs when their computed dependencies remain equal, even if they also read signals or state properties directly. For example, an effect reading a user name and a computed item count will not re-run when the items change but the count stays the same, unless the user name also notifies a change. Skipped effects do not run their cleanup callbacks. Direct signal and state notifications still trigger updates, including changes reverted within a batch and state method calls that leave a property's value unchanged.
 
 ##### Reactive vs Imperative Usage
 
