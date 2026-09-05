@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { currentComputing } from '../src/core.js';
 import { computed, effect, flushEffects, scope, setActiveScope, signal, state, unwrapValue } from '../src/index.js';
 
-describe('source entry reuse', () => {
+describe('source read coalescing', () => {
     let testScope;
 
     beforeEach(() => {
@@ -83,9 +83,7 @@ describe('source entry reuse', () => {
             const toggle = signal(false);
             const sources = Array.from({ length: 32 }, () => signal(1));
             const extra = signal(10);
-            let node;
             const sum = computed(() => {
-                node = currentComputing;
                 const includeExtra = toggle();
                 let value = 0;
                 for (let i = 0; i < 16; i++) value += sources[i]();
@@ -98,11 +96,9 @@ describe('source entry reuse', () => {
                     sum();
                 }, 1);
             expect(sum()).toBe(32);
-            const original = new Set(node.$_sources);
             toggle.set(true);
             flushEffects();
             expect(sum()).toBe(42);
-            if (live) expect(node.$_sources.filter(entry => original.has(entry))).toHaveLength(33);
             toggle.set(false);
             flushEffects();
             expect(sum()).toBe(32);
@@ -135,7 +131,7 @@ describe('source entry reuse', () => {
         expect(values).toEqual([4, 4, 5]);
     });
 
-    it('isolates recycled entries across nested computations and thrown errors', () => {
+    it('preserves dependencies across nested computations and thrown errors', () => {
         const mode = signal(0);
         const oldSources = Array.from({ length: 12 }, () => signal(1));
         const newSources = Array.from({ length: 12 }, () => signal(2));

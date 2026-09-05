@@ -1,12 +1,12 @@
 import {
     checkSources,
+    clearSources,
     createSourceEntry,
     currentComputing,
     DepsSet,
     globalVersion,
     makeLive,
     noopGetter,
-    recycleSources,
     runWithTracking,
     setTracked,
     tracked,
@@ -39,7 +39,7 @@ export function computedRead<T>(self: ReactiveNode): T {
             } else {
                 // Different dependency - clear old ones from this point and rebuild
                 if (!noSource) {
-                    recycleSources(currentComputing, skipIndex);
+                    clearSources(currentComputing, skipIndex);
                 }
 
                 // Push source entry - version will be updated after source computes
