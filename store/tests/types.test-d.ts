@@ -29,6 +29,15 @@ import {
 } from '@slimlib/store';
 
 it('signal type tests', () => {
+    const custom = signal({ id: 1 }, (a, b) => a.id === b.id);
+    custom.set({ id: 2 });
+    const customId: number = custom().id;
+    const optional = signal<number | undefined>(undefined, (a, b) => a === b);
+    optional.set(1);
+    // @ts-expect-error - equality must accept the signal value type
+    signal(1, (a: string, b: string) => a === b);
+    // @ts-expect-error - equality must return a boolean
+    signal(1, (a, b) => a + b);
     // Signal type alias is available
     const typedSignal: Signal<number> = signal(0);
     typedSignal.set(10);

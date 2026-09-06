@@ -65,9 +65,18 @@ store.user.name = "Jane"; // Triggers effects that depend on user.name
 store.items.push("item"); // Triggers effects that depend on items
 ```
 
-#### `signal<T>(initialValue?: T): (() => T) & { set: (value: T) => void }`
+#### `signal<T>(initialValue?: T, equals?: (a: T, b: T) => boolean): (() => T) & { set: (value: T) => void }`
 
 Creates a simple reactive signal. Returns a function to read the value with a `set` method to update it.
+
+The optional `equals` function defaults to `Object.is`. When it returns `true`, `.set()` keeps the previous value and does not notify dependents. Use a custom comparison to ignore equivalent values, or `() => false` to notify on every write. This also works for computeds read imperatively; each computed's own equality still controls whether its result triggers downstream updates.
+
+Equality is checked at write time and when a computed without live subscribers polls a changed primitive dependency. If several writes leave a primitive value equivalent to the one previously observed, the computed can skip recomputation using the signal's comparator. Object and function notifications remain conservative because values may have mutated in place. Comparators must be pure and must not throw; `() => false` disables this polling shortcut too.
+
+```js
+const user = signal({ id: 1, name: "Ada" }, (a, b) => a.id === b.id && a.name === b.name);
+user.set({ id: 1, name: "Ada" }); // Keeps the previous object; no notification
+```
 
 ```js
 import { signal, effect } from "@slimlib/store";

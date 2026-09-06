@@ -8,13 +8,13 @@ import type { Signal } from './types';
  */
 export function signal<T>(): Signal<T | undefined>;
 /**
- * Create a simple signal with an initial value
+ * Create a signal with optional equality; equal writes retain the previous value.
  */
-export function signal<T>(initialValue: T): Signal<T>;
+export function signal<T>(initialValue: T, equals?: (a: T, b: T) => boolean): Signal<T>;
 /**
  * Create a simple signal
  */
-export function signal<T>(initialValue?: T): Signal<T> {
+export function signal<T>(initialValue?: T, equals: (a: T, b: T) => boolean = Object.is): Signal<T> {
     let value = initialValue as T;
     let deps: DepsSet<ReactiveNode> | undefined;
 
@@ -27,7 +27,7 @@ export function signal<T>(initialValue?: T): Signal<T> {
         // Fast path: if not tracked or no current computing, skip tracking
         if (tracked && currentComputing !== undefined) {
             // biome-ignore lint/suspicious/noAssignInExpressions: optimization
-            trackStateDependency((deps ??= new DepsSet<ReactiveNode>(read)), value);
+            trackStateDependency((deps ??= new DepsSet<ReactiveNode>(read, equals as (a: unknown, b: unknown) => boolean)), value);
         }
         return value;
         // === END PULL PHASE ===
@@ -41,7 +41,7 @@ export function signal<T>(initialValue?: T): Signal<T> {
         // When the signal value changes, we eagerly propagate dirty/check flags
         // to all dependents via markDependents
         warnIfWriteInComputed('signal');
-        if (!Object.is(value, newValue)) {
+        if (!equals(value, newValue)) {
             value = newValue;
             if (deps !== undefined) {
                 markDependents(deps); // Push: notify all dependents

@@ -39,9 +39,11 @@ export const noopGetter = (): unknown => undefined;
 export class DepsSet<T> extends Set<T> {
     $_version = 0;
     $_getter: () => unknown;
-    constructor(getter: () => unknown) {
+    $_equals: (a: unknown, b: unknown) => boolean;
+    constructor(getter: () => unknown, equals: (a: unknown, b: unknown) => boolean = Object.is) {
         super();
         this.$_getter = getter;
+        this.$_equals = equals;
     }
 }
 

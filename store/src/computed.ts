@@ -102,12 +102,13 @@ export function computedRead<T>(self: ReactiveNode): T {
                     // State source - check if deps version changed
                     const currentDepsVersion = (source.$_dependents as DepsSet<ReactiveNode>).$_version as number;
                     if (source.$_version !== currentDepsVersion) {
-                        // Deps version changed, check if actual value reverted (primitives only)
+                        // Compare primitive observations using the source's equality.
+                        // Objects may have mutated in place, so keep their notifications.
                         const storedValue = source.$_storedValue;
                         const storedType = typeof storedValue;
                         if (storedValue === null || (storedType !== 'object' && storedType !== 'function')) {
                             const currentValue = (source.$_getter as () => unknown)();
-                            if (Object.is(currentValue, storedValue)) {
+                            if ((source.$_dependents as DepsSet<ReactiveNode>).$_equals(storedValue, currentValue)) {
                                 // Value reverted - update depsVersion and continue checking
                                 source.$_version = currentDepsVersion;
                                 continue;
