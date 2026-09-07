@@ -20,7 +20,7 @@
         "@vitest/browser": "^4.1.7",
         "@vitest/browser-playwright": "^4.1.7",
         "@vitest/coverage-v8": "^4.1.7",
-        "dts-buddy": "^0.7.0",
+        "dts-buddy": "^0.8.0",
         "pkgprn-internal": "^0.5.4",
         "playwright": "^1.49.0",
         "typescript": "~5.9.3",
