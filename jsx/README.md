@@ -240,11 +240,12 @@ Signature: `forEach<T>(each: () => readonly T[], key: (item, index) => string | 
 
 - `each` is a thunk read in the renderer's reactive scope; updates to the underlying signal trigger reconciliation.
 - `key` must be unique per row. Identical keys reuse the same DOM node and per-item reactive scope on reorder.
+- Reordering preserves rows that are already in relative order. A distant swap moves the two affected rows without moving intervening rows, preserving focus inside those untouched rows.
 - `body` receives reactive accessors for `item` and `index` — both update in place when the same key moves position or its value changes, without rebuilding DOM.
 - Each row gets its own sub-scope, so `on:` listeners, `ref` callbacks, and `effect()` calls inside a row are disposed when the row is removed (or when the parent tree is disposed).
 - Returns a `DocumentFragment` — drop it anywhere JSX accepts a child (including inside a function-child return).
 
-Bundle cost: **610 B gzip** (sub-entry, separate from core).
+The helper is opt-in and can be tree-shaken when unused. See the [keyed-list benchmark](./benchmarks/keyed-reconciliation.md) for measured size and runtime tradeoffs.
 
 ## Querying children: `queryChildren`
 
@@ -447,7 +448,7 @@ The factory only affects elements created during the callback; once it returns, 
 - **One scope per `render()` call, with sub-scopes per dynamic boundary.** Components do NOT create their own scopes. Every function-child boundary (`{() => ...}`) and every `forEach` row gets a sub-scope that is disposed and replaced on re-run, so `on:` listeners, `ref` callbacks, and inner `effect()` calls don't leak when conditionals flip or list rows are removed.
 - **Scheduler-agnostic commit.** `@slimlib/jsx` never calls `flushEffects()` internally — that would silently force _every_ pending `@slimlib/store` effect (including ones from other packages) to run on the renderer's terms. Instead, the renderer enqueues effects via the store's scheduler and trusts the host to decide commit timing. See [Commit timing](#commit-timing) for the two supported modes.
 - **DocumentFragment only when needed.** When a component returns a single Node, the renderer inserts it directly. Fragment wrapping is reserved for primitives, arrays, and function-children — keeping deep-tree mounts cheap.
-- **Keyed reconciliation lives in a sub-entry.** `forEach` is opt-in via `@slimlib/jsx/for-each` so apps that don't need keyed lists don't pay for the diff algorithm. A reverse-walk reorder using `nextSibling` checks avoids the LIS step; reconcile is wrapped in `untracked()` to prevent the outer effect from re-subscribing on item writes.
+- **Keyed reconciliation lives in a sub-entry.** `forEach` is opt-in via `@slimlib/jsx/for-each`. Matching ends and end-to-end moves are handled directly; mixed reorderings preserve a longest increasing subsequence to minimize DOM moves. Cached row order is checked against the live DOM before reuse, with a DOM scan if consumers have moved rows. Per-row updates run in `untracked()` to avoid subscribing the list effect to item signals.
 - **Prototype-setter cache.** First touch of each `(tagName, propName)` pair walks the prototype chain; result cached for the lifetime of the program. Same heuristic as vanjs.
 - **Context rides the scope tree.** `Provider` stores values on the active scope keyed by the context symbol, chaining each scope's value table to its parent's via `Object.create` so descendants transparently see ancestor entries; `inject` (and `RootProvider`'s probe) walk the same parent chain. No DOM traversal and no `context-request` events — resolution reuses the scope graph already maintained for effect disposal.
 

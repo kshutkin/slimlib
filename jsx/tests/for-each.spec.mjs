@@ -29,6 +29,237 @@ const mount = factory => {
 const liNodes = () => Array.from(document.querySelectorAll('li'));
 
 describe('forEach — keyed list renderer', () => {
+    it.each([
+        ['rotate right', ids => [ids.at(-1), ...ids.slice(0, -1)], 1],
+        ['rotate left', ids => [...ids.slice(1), ids[0]], 1],
+        [
+            'swap distant rows',
+            ids => {
+                const next = ids.slice();
+                [next[1], next[998]] = [next[998], next[1]];
+                return next;
+            },
+            2,
+        ],
+        ['reverse', ids => ids.toReversed(), 999],
+    ])('%s uses the minimum DOM moves', (_name, reorder, expectedMoves) => {
+        const initial = Array.from({ length: 1000 }, (_, id) => id);
+        const items = signal(initial);
+        let builds = 0;
+        mount(() =>
+            createElement(
+                'ul',
+                null,
+                forEach(
+                    items,
+                    id => id,
+                    item => {
+                        ++builds;
+                        return createElement('li', null, item());
+                    }
+                )
+            )
+        );
+        const nodes = liNodes();
+        const parent = nodes[0].parentNode;
+        const insert = vi.spyOn(parent, 'insertBefore');
+        const next = reorder(initial);
+
+        items.set(next);
+        flushEffects();
+
+        expect(insert).toHaveBeenCalledTimes(expectedMoves);
+        expect(liNodes()).toEqual(next.map(id => nodes[id]));
+        expect(builds).toBe(1000);
+        insert.mockRestore();
+    });
+
+    it('minimizes moves for all permutations of five rows', () => {
+        const initial = [0, 1, 2, 3, 4];
+        const items = signal(initial);
+        mount(() =>
+            createElement(
+                'ul',
+                null,
+                forEach(
+                    items,
+                    id => id,
+                    item => createElement('li', null, item())
+                )
+            )
+        );
+        const nodes = liNodes();
+        const insert = vi.spyOn(nodes[0].parentNode, 'insertBefore');
+        const permutations = values =>
+            values.length === 0
+                ? [[]]
+                : values.flatMap((value, i) => permutations(values.filter((_, j) => i !== j)).map(rest => [value, ...rest]));
+
+        for (const next of permutations(initial)) {
+            items.set(initial);
+            flushEffects();
+            insert.mockClear();
+            // Independent quadratic oracle for the longest increasing length.
+            const lengths = next.map(() => 1);
+            for (let i = 0; i < next.length; ++i) {
+                for (let j = 0; j < i; ++j) {
+                    if (next[j] < next[i]) lengths[i] = Math.max(lengths[i], lengths[j] + 1);
+                }
+            }
+            items.set(next);
+            flushEffects();
+            expect(liNodes()).toEqual(next.map(id => nodes[id]));
+            expect(insert.mock.calls.length).toBe(next.length - Math.max(...lengths));
+        }
+        insert.mockRestore();
+    });
+
+    it('reconciles from actual DOM order after consumer moves and detachment', () => {
+        const initial = [0, 1, 2, 3, 4];
+        const items = signal(initial);
+        mount(() =>
+            createElement(
+                'ul',
+                null,
+                forEach(
+                    items,
+                    id => id,
+                    item => createElement('li', null, item())
+                )
+            )
+        );
+        const nodes = liNodes();
+        const parent = nodes[0].parentNode;
+        parent.insertBefore(nodes[4], nodes[0]);
+        nodes[2].remove();
+
+        items.set([3, 4, 2, 0, 1]);
+        flushEffects();
+
+        expect(liNodes()).toEqual([nodes[3], nodes[4], nodes[2], nodes[0], nodes[1]]);
+    });
+
+    it('mixes insertion, removal, and minimal moves while retaining row bindings', () => {
+        const items = signal([0, 1, 2, 3, 4]);
+        const cleaned = [];
+        mount(() =>
+            createElement(
+                'ul',
+                null,
+                forEach(
+                    items,
+                    id => id,
+                    (item, index) => {
+                        const id = item();
+                        return createElement(
+                            'li',
+                            {
+                                ref: node => {
+                                    if (node === null) cleaned.push(id);
+                                },
+                            },
+                            () => `${item()}:${index()}`
+                        );
+                    }
+                )
+            )
+        );
+        const nodes = liNodes();
+        const insert = vi.spyOn(nodes[0].parentNode, 'insertBefore');
+
+        items.set([4, 5, 1, 3]);
+        flushEffects();
+
+        expect(insert).toHaveBeenCalledTimes(2); // One new row, one moved row.
+        expect(liNodes().map(node => node.textContent)).toEqual(['4:0', '5:1', '1:2', '3:3']);
+        expect(liNodes()[0]).toBe(nodes[4]);
+        expect(liNodes()[2]).toBe(nodes[1]);
+        expect(liNodes()[3]).toBe(nodes[3]);
+        expect(cleaned).toEqual([0, 2]);
+        insert.mockRestore();
+    });
+
+    it('keeps focus inside an unaffected row during a distant swap', () => {
+        const items = signal(Array.from({ length: 10 }, (_, id) => id));
+        mount(() =>
+            createElement(
+                'ul',
+                null,
+                forEach(
+                    items,
+                    id => id,
+                    () => createElement('li', null, createElement('input', null))
+                )
+            )
+        );
+        const input = liNodes()[5].firstChild;
+        input.focus();
+        expect(document.activeElement).toBe(input);
+
+        items.set([0, 8, 2, 3, 4, 5, 6, 7, 1, 9]);
+        flushEffects();
+
+        expect(document.activeElement).toBe(input);
+    });
+
+    it('tears down row scopes if a move disconnect callback clears the anchors', () => {
+        const items = signal([0, 1, 2, 3]);
+        const shared = signal(0);
+        let armed = false;
+        let fires = 0;
+        const cleaned = [];
+        const tag = uniqueTag('x-list-clear-on-move');
+        customElements.define(
+            tag,
+            class extends HTMLElement {
+                connectedCallback() {
+                    this.container = this.parentNode;
+                }
+                disconnectedCallback() {
+                    if (armed) this.container?.replaceChildren();
+                }
+            }
+        );
+        mount(() =>
+            createElement(
+                'ul',
+                null,
+                forEach(
+                    items,
+                    id => id,
+                    item => {
+                        const id = item();
+                        return createElement(
+                            tag,
+                            {
+                                ref: node => {
+                                    if (node === null) cleaned.push(id);
+                                },
+                            },
+                            () => {
+                                shared();
+                                ++fires;
+                                return item();
+                            }
+                        );
+                    }
+                )
+            )
+        );
+        armed = true;
+
+        expect(() => {
+            items.set([3, 0, 1, 2]);
+            flushEffects();
+        }).not.toThrow();
+        expect(document.querySelector('ul').childNodes.length).toBe(0);
+        expect(cleaned.toSorted()).toEqual([0, 1, 2, 3]);
+        const before = fires;
+        shared.set(1);
+        flushEffects();
+        expect(fires).toBe(before);
+    });
+
     it('1. initial render with 3 items', () => {
         const items = signal([
             { id: 'a', name: 'A' },

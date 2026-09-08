@@ -379,6 +379,66 @@ const disposeEntryMap = <T>(map: EntryMap<T>): void => {
     for (const entry of map.values()) entry.$_dispose();
 };
 
+/** Desired indices of the longest subsequence already in DOM order. */
+const stableSequence = <T>(
+    entries: Entry<T>[],
+    previous: Entry<T>[],
+    first: number,
+    last: number,
+    node: Node | null,
+    stop: Node
+): number[] => {
+    const order: number[] = [];
+    let cursor = node;
+    const parent = stop.parentNode;
+    for (const entry of previous) {
+        const index = entry.$_index;
+        if (index < first || index > last || entries[index] !== entry || entry.$_node.parentNode !== parent) continue;
+        if (entry.$_node !== cursor) break;
+        order.push(index);
+        cursor = cursor.nextSibling;
+    }
+    // Usually the previous entry array still matches DOM order. If consumers
+    // moved rows or inserted other nodes, recover order from the live range.
+    if (cursor !== stop) {
+        order.length = 0;
+        const indices = new Map<Node, number>();
+        for (let i = first; i <= last; ++i) indices.set((entries[i] as Entry<T>).$_node, i);
+        for (; node !== null && node !== stop; node = node.nextSibling) {
+            const index = indices.get(node);
+            if (index !== undefined) order.push(index);
+        }
+    }
+    // Insertion-only middles already have all surviving rows in order.
+    let sorted = true;
+    for (let i = 1; i < order.length; ++i) {
+        if ((order[i - 1] as number) > (order[i] as number)) {
+            sorted = false;
+            break;
+        }
+    }
+    if (sorted) return order;
+    const predecessors: number[] = new Array(last - first + 1);
+    const sequence: number[] = [];
+    for (const index of order) {
+        let low = 0;
+        let high = sequence.length;
+        while (low < high) {
+            const middle = (low + high) >>> 1;
+            if ((sequence[middle] as number) < index) low = middle + 1;
+            else high = middle;
+        }
+        predecessors[index - first] = low === 0 ? -1 : (sequence[low - 1] as number);
+        sequence[low] = index;
+    }
+    let index = sequence[sequence.length - 1] as number;
+    for (let i = sequence.length - 1; i >= 0; --i) {
+        sequence[i] = index;
+        index = predecessors[index - first] as number;
+    }
+    return sequence;
+};
+
 /**
  * Keyed list renderer.
  *
@@ -414,6 +474,7 @@ export const forEach = <T>(
     fragment.appendChild(end);
 
     let previousMap: EntryMap<T> = new Map();
+    let previousEntries: Entry<T>[] = [];
 
     effect(() => {
         const array = each();
@@ -422,6 +483,7 @@ export const forEach = <T>(
         if (parent === null) {
             disposeEntryMap(previousMap);
             previousMap = new Map();
+            previousEntries = [];
             return;
         }
         const newMap: EntryMap<T> = new Map();
@@ -508,40 +570,64 @@ export const forEach = <T>(
                 }
             }
 
-            // Reorder + insert. Trim already-correct head/tail, then walk the
-            // remaining middle in reverse so each step's anchor (the node that
-            // should follow `i`) is already in its final position.
+            // Trim settled ends and handle rotations / swaps at the ends
+            // directly. Reserve the subsequence search for a mixed middle.
             let firstUnplaced = 0;
             let lastUnplaced = length - 1;
-            // Head trim: advance past entries already at the correct DOM slot.
             let headReference = start.nextSibling;
-            while (firstUnplaced <= lastUnplaced && (newEntries[firstUnplaced] as Entry<T>).$_node === headReference) {
-                headReference = (headReference as Node).nextSibling;
-                ++firstUnplaced;
-            }
-            // Tail trim: retreat past entries already at the correct DOM slot.
             let tailReference: Node = end;
-            while (lastUnplaced >= firstUnplaced) {
-                const expected = tailReference.previousSibling;
-                if ((newEntries[lastUnplaced] as Entry<T>).$_node !== expected) {
-                    break;
+            while (firstUnplaced <= lastUnplaced) {
+                const firstNode = (newEntries[firstUnplaced] as Entry<T>).$_node;
+                if (firstNode === headReference) {
+                    headReference = firstNode.nextSibling;
+                    ++firstUnplaced;
+                    continue;
                 }
-                tailReference = expected as Node;
-                --lastUnplaced;
+                const lastNode = (newEntries[lastUnplaced] as Entry<T>).$_node;
+                if (lastNode === tailReference.previousSibling) {
+                    tailReference = lastNode;
+                    --lastUnplaced;
+                    continue;
+                }
+                if (firstUnplaced === lastUnplaced || headReference === tailReference) break;
+                if (
+                    !isOwnedRange(start, end, parent) ||
+                    headReference === null ||
+                    headReference.parentNode !== parent ||
+                    tailReference.parentNode !== parent
+                )
+                    break reconcile;
+                if (lastNode === headReference) {
+                    headReference = lastNode.nextSibling;
+                    parent.insertBefore(lastNode, tailReference);
+                    tailReference = lastNode;
+                    --lastUnplaced;
+                } else if (firstNode === tailReference.previousSibling) {
+                    parent.insertBefore(firstNode, headReference);
+                    ++firstUnplaced;
+                } else break;
             }
+            const stable =
+                firstUnplaced < lastUnplaced && headReference !== tailReference
+                    ? stableSequence(newEntries, previousEntries, firstUnplaced, lastUnplaced, headReference, tailReference)
+                    : [];
+            let stableIndex = stable.length - 1;
             let nextReference: Node = tailReference;
             for (let i = lastUnplaced; i >= firstUnplaced; --i) {
                 const entry = newEntries[i] as Entry<T>;
                 if (!isOwnedRange(start, end, parent) || (nextReference !== end && nextReference.parentNode !== parent)) {
                     break reconcile;
                 }
-                if (entry.$_node.nextSibling !== nextReference) {
+                if (stableIndex >= 0 && stable[stableIndex] === i && entry.$_node.parentNode === parent) {
+                    --stableIndex;
+                } else if (entry.$_node.nextSibling !== nextReference) {
                     parent.insertBefore(entry.$_node, nextReference);
                 }
                 nextReference = entry.$_node;
             }
             if (isOwnedRange(start, end, parent)) {
                 previousMap = newMap;
+                previousEntries = newEntries;
                 return;
             }
         }
@@ -549,6 +635,7 @@ export const forEach = <T>(
         disposeEntryMap(previousMap);
         disposeEntryMap(newMap);
         previousMap = new Map();
+        previousEntries = [];
     }, 1);
 
     return fragment;
