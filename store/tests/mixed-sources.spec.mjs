@@ -48,6 +48,33 @@ describe('mixed source equality cutoff', () => {
         }
     }
 
+    for (const kind of ['signal', 'state']) {
+        it(`rechecks a direct source changed while validating an equal computed (${kind})`, () => {
+            const direct = kind === 'signal' ? signal(0) : state({ value: 0 });
+            const read = kind === 'signal' ? direct : () => direct.value;
+            const write = kind === 'signal' ? direct.set : value => (direct.value = value);
+            const trigger = signal(false);
+            const derived = computed(() => {
+                if (trigger()) write(1);
+                return 0;
+            });
+            const values = [];
+            effect(() => {
+                // Validate the direct source before pulling the computed that changes it.
+                values.push(read() + derived());
+            }, 1);
+            expect(values).toEqual([0]);
+
+            trigger.set(true);
+            flushEffects();
+            // Allow a write during the callback to schedule a follow-up run.
+            flushEffects();
+
+            expect(read()).toBe(1);
+            expect(values.at(-1)).toBe(1);
+        });
+    }
+
     it('skips a live mixed computed getter and its downstream effect', () => {
         const direct = signal(10);
         const source = signal(0);

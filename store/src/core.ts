@@ -140,6 +140,21 @@ export const unwrapValue = <T>(value: T): T =>
  * PUSH PHASE: Enables push notifications to flow through this node
  */
 export const makeLive = (node: ReactiveNode): void => {
+    // Validate missed notifications while polling is still enabled. The caller's
+    // read will rethrow any cached error after its dependency is fully registered.
+    if ((node.$_flags & (Flag.DIRTY | Flag.CHECK | Flag.COMPUTING)) === 0 && node.$_stamp !== globalVersion) {
+        const prevTracked = tracked;
+        tracked = false;
+        try {
+            computedRead(node);
+        } catch {
+            // A property getter can throw before the computed caches its error.
+            // Do not let promotion turn that failed validation into a cache hit.
+            if (node.$_stamp !== globalVersion) node.$_flags |= Flag.DIRTY;
+        } finally {
+            tracked = prevTracked;
+        }
+    }
     node.$_flags |= Flag.LIVE;
     const nodeSources = node.$_sources;
     for (let i = 0, len = nodeSources.length; i < len; ++i) {
@@ -248,7 +263,7 @@ export const flushEffects = (): void => {
  * PUSH PHASE: Schedules the transition from push to pull phase
  */
 export const scheduleFlush = (): void => {
-    if (!flushScheduled) {
+    if (!flushScheduled && batched.length !== 0) {
         flushScheduled = true;
         scheduler(flushEffects);
     }
@@ -269,6 +284,10 @@ export const trackStateDependency = <T>(deps: DepsSet<ReactiveNode>, cachedValue
 
     if (noSource || existing.$_dependents !== deps) {
         const previous = skipIndex === 0 ? undefined : sourcesArray[skipIndex - 1];
+        // Detach the old suffix before a repeated read returns to user code.
+        if (!noSource) {
+            clearSources(currentComputing as ReactiveNode, skipIndex);
+        }
         // Only coalesce identical observations; writes between reads must remain visible.
         if (
             previous !== undefined &&
@@ -278,11 +297,6 @@ export const trackStateDependency = <T>(deps: DepsSet<ReactiveNode>, cachedValue
         ) {
             return;
         }
-        // Different dependency - clear old ones from this point and rebuild
-        if (!noSource) {
-            clearSources(currentComputing as ReactiveNode, skipIndex);
-        }
-
         // Track deps version, value getter, and last seen value for polling.
         // The getter is stable for the lifetime of the DepsSet, so source
         // entries can reuse it directly instead of receiving it per read.
@@ -316,7 +330,6 @@ export const markNeedsCheck = (node: ReactiveNode): void => {
         if ((flags & (Flag.COMPUTING | Flag.EFFECT | Flag.DIRTY)) === (Flag.COMPUTING | Flag.EFFECT)) {
             node.$_flags = flags | Flag.DIRTY;
             batchedAdd(node);
-            scheduleFlush();
         }
         return;
     }
@@ -324,7 +337,6 @@ export const markNeedsCheck = (node: ReactiveNode): void => {
     node.$_flags = flags | Flag.CHECK;
     if ((flags & Flag.EFFECT) !== 0) {
         batchedAdd(node);
-        scheduleFlush();
     }
     for (const dep of node.$_deps) {
         markNeedsCheck(dep);
@@ -335,13 +347,15 @@ export const markNeedsCheck = (node: ReactiveNode): void => {
  * Mark all dependents in a Set as needing check
  * PUSH PHASE: Entry point for push propagation when a source value changes
  */
-export const markDependents = (deps: DepsSet<ReactiveNode>): void => {
+export const markDependents = (deps: DepsSet<ReactiveNode>, schedule = true): void => {
     ++globalVersion;
     // Increment deps version for non-live computed polling
     ++deps.$_version;
     for (const dep of deps) {
         markNeedsCheck(dep);
     }
+    // A synchronous scheduler must not run effects halfway through propagation.
+    if (schedule) scheduleFlush();
 };
 
 /**
@@ -416,6 +430,7 @@ export const untracked = <T>(callback: () => T): T => {
  * @returns true if sources changed, false if unchanged
  */
 export const checkSources = (sourcesArray: SourceEntry[]): boolean => {
+    const startVersion = globalVersion;
     const prevTracked = tracked;
     tracked = false;
     const len = sourcesArray.length;
@@ -445,5 +460,6 @@ export const checkSources = (sourcesArray: SourceEntry[]): boolean => {
         }
     }
     tracked = prevTracked;
-    return false;
+    // Pulling a later computed may have changed a source already checked above.
+    return startVersion !== globalVersion;
 };

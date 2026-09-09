@@ -37,6 +37,37 @@ describe('source read coalescing', () => {
         });
     }
 
+    for (const kind of ['signal', 'state', 'computed']) {
+        it(`detaches a replaced source before a coalesced ${kind} read returns`, () => {
+            const toggle = signal(false);
+            const source = kind === 'state' ? state({ value: 1 }) : signal(1);
+            const read = kind === 'computed' ? computed(source) : kind === 'signal' ? source : () => source.value;
+            const obsolete = signal(1);
+            let runs = 0;
+            effect(() => {
+                ++runs;
+                const switched = toggle();
+                read();
+                if (switched) {
+                    read();
+                    // This source belonged to the old branch and must already be detached.
+                    obsolete.set(2);
+                } else {
+                    obsolete();
+                }
+            }, 1);
+            expect(runs).toBe(1);
+
+            toggle.set(true);
+            flushEffects();
+            // Expose any spurious rerun queued by the obsolete source's write.
+            flushEffects();
+
+            expect(obsolete()).toBe(2);
+            expect(runs).toBe(2);
+        });
+    }
+
     it('keeps separate observations when a signal is written between reads', () => {
         const source = signal(1);
         let node;

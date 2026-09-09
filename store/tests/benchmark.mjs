@@ -671,7 +671,7 @@ async function mixedSources(framework) {
                     if (tick % 1000 === 0) direct.write(tick / 1000);
                 });
             }
-            if (result !== hard(2 * Math.floor(tick / 1000) + Math.floor(tick / 100) % 2)) {
+            if (result !== hard(2 * Math.floor(tick / 1000) + (Math.floor(tick / 100) % 2))) {
                 throw new Error('mixedSources produced a stale value');
             }
         }
@@ -944,7 +944,9 @@ async function sourceInsertion(framework) {
                 for (let i = 64; i < 128; i++) value += sources[i].read();
                 return value;
             });
-            return fw.effect(() => { result = sum.read(); });
+            return fw.effect(() => {
+                result = sum.read();
+            });
         },
         () => {
             for (let i = 0; i < 200; i++) {

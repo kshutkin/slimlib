@@ -347,6 +347,8 @@ flushEffects(); // runs = 2 (batched update executed immediately)
 
 Sets a custom scheduler function for effect execution. By default, effects are scheduled using `queueMicrotask`. You can replace it with any function that accepts a callback.
 
+With a synchronous scheduler, all affected dependencies are invalidated before effects run for a source write or a state method call, so effects observe consistent direct and computed values.
+
 ```js
 import { setScheduler } from "@slimlib/store";
 
