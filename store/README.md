@@ -101,7 +101,7 @@ store.items.push(4);
 console.log(doubled()); // 20
 ```
 
-Consecutive reads of the same signal, state property, or computed value have less dependency-tracking overhead. This benefits code that repeatedly reads a value, such as inside a loop, while still observing changes made between reads and tracking conditional dependencies automatically.
+Consecutive reads of the same signal or state property share a dependency entry when they observe the same value and no notification occurs for that source between reads. This reduces dependency-tracking overhead while preserving changes made between reads. Each computed read records a separate dependency entry; computed results remain cached until dependencies change.
 
 Effects and computed values used by effects skip unnecessary re-runs when their computed dependencies remain equal, even if they also read signals or state properties directly. For example, an effect reading a user name and a computed item count will not re-run when the items change but the count stays the same, unless the user name also notifies a change. Skipped effects do not run their cleanup callbacks. Direct signal and state notifications still trigger updates, including changes reverted within a batch and state method calls that leave a property's value unchanged.
 
