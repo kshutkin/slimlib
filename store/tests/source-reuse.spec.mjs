@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { currentComputing } from '../src/core.js';
 import { computed, effect, flushEffects, scope, setActiveScope, signal, state, unwrapValue } from '../src/index.js';
 
-describe('source read coalescing', () => {
+describe('source read tracking', () => {
     let testScope;
 
     beforeEach(() => {
@@ -18,7 +18,7 @@ describe('source read coalescing', () => {
     });
 
     for (const kind of ['signal', 'state', 'computed']) {
-        it(`coalesces consecutive ${kind} reads`, () => {
+        it(`tracks consecutive ${kind} reads`, () => {
             const source = kind === 'state' ? state({ value: 1 }) : signal(1);
             const read = kind === 'computed' ? computed(source) : kind === 'signal' ? source : () => source.value;
             let node;
@@ -29,16 +29,16 @@ describe('source read coalescing', () => {
                 return value;
             });
             expect(sum()).toBe(1000);
-            expect(node.$_sources).toHaveLength(1);
+            expect(node.$_sources).toHaveLength(kind === 'computed' ? 1000 : 1);
             if (kind !== 'state') source.set(2);
             else source.value = 2;
             expect(sum()).toBe(2000);
-            expect(node.$_sources).toHaveLength(1);
+            expect(node.$_sources).toHaveLength(kind === 'computed' ? 1000 : 1);
         });
     }
 
     for (const kind of ['signal', 'state', 'computed']) {
-        it(`detaches a replaced source before a coalesced ${kind} read returns`, () => {
+        it(`detaches a replaced source before a repeated ${kind} read returns`, () => {
             const toggle = signal(false);
             const source = kind === 'state' ? state({ value: 1 }) : signal(1);
             const read = kind === 'computed' ? computed(source) : kind === 'signal' ? source : () => source.value;

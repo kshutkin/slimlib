@@ -58,7 +58,7 @@ export class DepsSet<T> extends Set<T> {
  * @param node - The source ReactiveNode (undefined for state/signal sources)
  * @param version - Initial version number
  * @param getter - Value getter (undefined for computed sources)
- * @param storedValue - Observed direct-source value or computed-source write stamp
+ * @param storedValue - Observed direct-source value (undefined for computed sources)
  */
 export const createSourceEntry = (
     dependents: DepsSet<ReactiveNode>,

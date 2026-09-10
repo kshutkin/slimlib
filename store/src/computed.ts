@@ -25,37 +25,27 @@ export function computedRead<T>(self: ReactiveNode): T {
     if (tracked && currentComputing !== undefined) {
         // Inline tracking for computed dependencies
         const consumerSources = currentComputing.$_sources;
-        let skipIndex = currentComputing.$_skipped;
+        const skipIndex = currentComputing.$_skipped;
         const deps = self.$_deps;
         const existing = consumerSources[skipIndex];
         const noSource = existing === undefined;
 
         if (noSource || existing.$_dependents !== deps) {
-            const previous = skipIndex === 0 ? undefined : consumerSources[skipIndex - 1];
-            // Detach the old suffix before a repeated read returns to user code.
             if (!noSource) {
                 clearSources(currentComputing, skipIndex);
             }
-            // The write stamp ensures these reads observe the same result. Keep
-            // separate entries if any source was notified between the reads.
-            if (previous !== undefined && previous.$_dependents === deps && previous.$_storedValue === globalVersion) {
-                --skipIndex;
-            } else {
-                // Push source entry - version will be updated after source computes
-                // Uses shared createSourceEntry factory for V8 hidden class monomorphism
-                consumerSources.push(createSourceEntry(deps as DepsSet<ReactiveNode>, self, 0, undefined, globalVersion));
+            // Push source entry - version will be updated after source computes
+            // Uses shared createSourceEntry factory for V8 hidden class monomorphism
+            consumerSources.push(createSourceEntry(deps as DepsSet<ReactiveNode>, self, 0, undefined, undefined));
 
-                // Only register with source if we're live
-                if ((currentComputing.$_flags & (Flag.EFFECT | Flag.LIVE)) !== 0) {
-                    (deps as DepsSet<ReactiveNode>).add(currentComputing);
-                    // If source computed is not live, make it live
-                    if ((self.$_flags & Flag.LIVE) === 0) {
-                        makeLive(self);
-                    }
+            // Only register with source if we're live
+            if ((currentComputing.$_flags & (Flag.EFFECT | Flag.LIVE)) !== 0) {
+                (deps as DepsSet<ReactiveNode>).add(currentComputing);
+                // If source computed is not live, make it live
+                if ((self.$_flags & Flag.LIVE) === 0) {
+                    makeLive(self);
                 }
             }
-        } else {
-            existing.$_storedValue = globalVersion;
         }
         // Mark that this node has computed sources (for version update loop optimization)
         currentComputing.$_flags |= Flag.HAS_COMPUTED_SOURCE;
