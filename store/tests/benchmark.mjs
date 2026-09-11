@@ -149,7 +149,10 @@ const alienFramework = {
         const c = alienComputed(fn);
         return { read: () => c() };
     },
-    effect: fn => alienEffect(fn),
+    effect: fn =>
+        alienEffect(() => {
+            fn();
+        }),
     withBatch: fn => {
         startBatch();
         fn();
