@@ -101,6 +101,10 @@ store.items.push(4);
 console.log(doubled()); // 20
 ```
 
+Consecutive reads of the same signal or state property share a dependency entry when they observe the same value and no notification occurs for that source between reads. This reduces dependency-tracking overhead while preserving changes made between reads. Each computed read records a separate dependency entry; computed results remain cached until dependencies change.
+
+Effects and computed values used by effects skip unnecessary re-runs when their computed dependencies remain equal, even if they also read signals or state properties directly. For example, an effect reading a user name and a computed item count will not re-run when the items change but the count stays the same, unless the user name also notifies a change. Skipped effects do not run their cleanup callbacks. Direct signal and state notifications still trigger updates, including changes reverted within a batch and state method calls that leave a property's value unchanged.
+
 ##### Reactive vs Imperative Usage
 
 Computeds support two usage patterns:
@@ -342,6 +346,8 @@ flushEffects(); // runs = 2 (batched update executed immediately)
 #### `setScheduler(fn: (callback: () => void) => void): void`
 
 Sets a custom scheduler function for effect execution. By default, effects are scheduled using `queueMicrotask`. You can replace it with any function that accepts a callback.
+
+With a synchronous scheduler, all affected dependencies are invalidated before effects run for a source write or a state method call, so effects observe consistent direct and computed values.
 
 ```js
 import { setScheduler } from "@slimlib/store";

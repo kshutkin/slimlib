@@ -1,5 +1,5 @@
 import {
-    checkComputedSources,
+    checkSources,
     clearSources,
     createSourceEntry,
     currentComputing,
@@ -31,11 +31,9 @@ export function computedRead<T>(self: ReactiveNode): T {
         const noSource = existing === undefined;
 
         if (noSource || existing.$_dependents !== deps) {
-            // Different dependency - clear old ones from this point and rebuild
             if (!noSource) {
                 clearSources(currentComputing, skipIndex);
             }
-
             // Push source entry - version will be updated after source computes
             // Uses shared createSourceEntry factory for V8 hidden class monomorphism
             consumerSources.push(createSourceEntry(deps as DepsSet<ReactiveNode>, self, 0, undefined, undefined));
@@ -51,7 +49,7 @@ export function computedRead<T>(self: ReactiveNode): T {
         }
         // Mark that this node has computed sources (for version update loop optimization)
         currentComputing.$_flags |= Flag.HAS_COMPUTED_SOURCE;
-        ++currentComputing.$_skipped;
+        currentComputing.$_skipped = skipIndex + 1;
     }
 
     let flags = self.$_flags;
@@ -86,44 +84,47 @@ export function computedRead<T>(self: ReactiveNode): T {
             const prevTracked = tracked;
             // TODO: inline after it combined to a single scope?
             setTracked(false);
-            for (let i = 0, len = sourcesArray.length; i < len; ++i) {
-                const source = sourcesArray[i] as SourceEntry;
-                const sourceNode = source.$_node; // Extract once at loop start
-                if (sourceNode === undefined) {
-                    // State source - check if deps version changed
-                    const currentDepsVersion = (source.$_dependents as DepsSet<ReactiveNode>).$_version as number;
-                    if (source.$_version !== currentDepsVersion) {
-                        // Deps version changed, check if actual value reverted (primitives only)
-                        const storedValue = source.$_storedValue;
-                        const storedType = typeof storedValue;
-                        if (storedValue === null || (storedType !== 'object' && storedType !== 'function')) {
-                            const currentValue = (source.$_getter as () => unknown)();
-                            if (Object.is(currentValue, storedValue)) {
-                                // Value reverted - update depsVersion and continue checking
-                                source.$_version = currentDepsVersion;
-                                continue;
+            try {
+                for (let i = 0, len = sourcesArray.length; i < len; ++i) {
+                    const source = sourcesArray[i] as SourceEntry;
+                    const sourceNode = source.$_node; // Extract once at loop start
+                    if (sourceNode === undefined) {
+                        // State source - check if deps version changed
+                        const currentDepsVersion = (source.$_dependents as DepsSet<ReactiveNode>).$_version as number;
+                        if (source.$_version !== currentDepsVersion) {
+                            // Deps version changed, check if actual value reverted (primitives only)
+                            const storedValue = source.$_storedValue;
+                            const storedType = typeof storedValue;
+                            if (storedValue === null || (storedType !== 'object' && storedType !== 'function')) {
+                                const currentValue = (source.$_getter as () => unknown)();
+                                if (Object.is(currentValue, storedValue)) {
+                                    // Value reverted - update depsVersion and continue checking
+                                    source.$_version = currentDepsVersion;
+                                    continue;
+                                }
                             }
+                            // Value actually changed - mark DIRTY and skip remaining
+                            sourceChanged = true;
+                            break;
                         }
-                        // Value actually changed - mark DIRTY and skip remaining
-                        sourceChanged = true;
-                        break;
-                    }
-                } else {
-                    // Computed source - use sourceNode directly (already extracted above)
-                    try {
-                        computedRead(sourceNode);
-                    } catch {
-                        // Error counts as changed
-                        sourceChanged = true;
-                        break;
-                    }
-                    if (source.$_version !== sourceNode.$_version) {
-                        sourceChanged = true;
-                        break; // EXIT EARLY - don't process remaining sources
+                    } else {
+                        // Computed source - use sourceNode directly (already extracted above)
+                        try {
+                            computedRead(sourceNode);
+                        } catch {
+                            // Error counts as changed
+                            sourceChanged = true;
+                            break;
+                        }
+                        if (source.$_version !== sourceNode.$_version) {
+                            sourceChanged = true;
+                            break; // EXIT EARLY - don't process remaining sources
+                        }
                     }
                 }
+            } finally {
+                setTracked(prevTracked);
             }
-            setTracked(prevTracked);
 
             if (sourceChanged) {
                 // Source changed or threw - mark DIRTY and proceed to recompute
@@ -144,8 +145,8 @@ export function computedRead<T>(self: ReactiveNode): T {
     // Live computeds receive CHECK via push - verify sources before recomputing
     // Non-live computeds already verified above during polling
     // Note: Check for Flag.HAS_VALUE OR Flag.HAS_ERROR since cached errors should also use this path
-    if ((flags & (Flag.DIRTY | Flag.CHECK | Flag.HAS_STATE_SOURCE)) === Flag.CHECK && hasCached) {
-        if (checkComputedSources(sourcesArray)) {
+    if ((flags & (Flag.DIRTY | Flag.CHECK | Flag.HAS_COMPUTED_SOURCE)) === (Flag.CHECK | Flag.HAS_COMPUTED_SOURCE) && hasCached) {
+        if (checkSources(sourcesArray)) {
             // Sources changed or errored - mark DIRTY and let getter run
             flags = (flags & ~Flag.CHECK) | Flag.DIRTY;
         } else {

@@ -149,7 +149,10 @@ const alienFramework = {
         const c = alienComputed(fn);
         return { read: () => c() };
     },
-    effect: fn => alienEffect(fn),
+    effect: fn =>
+        alienEffect(() => {
+            fn();
+        }),
     withBatch: fn => {
         startBatch();
         fn();
@@ -643,6 +646,41 @@ async function avoidablePropagation(framework) {
     );
 }
 
+// Mixed direct/computed consumers should honor equality cutoff without losing
+// direct-source notifications. Advance tick across calls to avoid no-op writes.
+async function mixedSources(framework) {
+    let source;
+    let direct;
+    let tick;
+    let result;
+
+    await runBenchmark(
+        framework,
+        'mixedSources',
+        fw => {
+            tick = 0;
+            source = fw.signal(0);
+            direct = fw.signal(0);
+            const bucket = fw.computed(() => Math.floor(source.read() / 100) % 2);
+            const mixed = fw.computed(() => hard(direct.read() + bucket.read()));
+            return fw.effect(() => {
+                result = direct.read() + mixed.read();
+            });
+        },
+        () => {
+            for (let i = 0; i < 1000; i++) {
+                framework.withBatch(() => {
+                    source.write(++tick);
+                    if (tick % 1000 === 0) direct.write(tick / 1000);
+                });
+            }
+            if (result !== hard(2 * Math.floor(tick / 1000) + (Math.floor(tick / 100) % 2))) {
+                throw new Error('mixedSources produced a stale value');
+            }
+        }
+    );
+}
+
 async function diamond(framework) {
     const width = 5;
     let head;
@@ -867,6 +905,61 @@ async function molBench(framework) {
 // S.js Benchmarks
 // ============================================================================
 
+async function createRepeatedReads(framework) {
+    for (const useComputed of [false, true]) {
+        let source;
+        await runBenchmark(
+            framework,
+            useComputed ? 'createRepeatedComputedReads' : 'createRepeatedSignalReads',
+            fw => {
+                const input = fw.signal(1);
+                source = useComputed ? fw.computed(() => input.read()) : input;
+            },
+            () => {
+                for (let i = 0; i < 100; i++) {
+                    const value = framework.computed(() => {
+                        let sum = 0;
+                        for (let j = 0; j < 1000; j++) sum += source.read();
+                        return sum;
+                    });
+                    if (value.read() !== 1000) throw new Error('repeated reads produced a stale value');
+                }
+            }
+        );
+    }
+}
+
+async function sourceInsertion(framework) {
+    let toggle;
+    let result;
+    await runBenchmark(
+        framework,
+        'sourceInsertion',
+        fw => {
+            toggle = fw.signal(false);
+            const sources = Array.from({ length: 128 }, () => fw.signal(1));
+            const extra = fw.signal(10);
+            const sum = fw.computed(() => {
+                const includeExtra = toggle.read();
+                let value = 0;
+                for (let i = 0; i < 64; i++) value += sources[i].read();
+                if (includeExtra) value += extra.read();
+                for (let i = 64; i < 128; i++) value += sources[i].read();
+                return value;
+            });
+            return fw.effect(() => {
+                result = sum.read();
+            });
+        },
+        () => {
+            for (let i = 0; i < 200; i++) {
+                framework.withBatch(() => toggle.write(i % 2 === 0));
+                if (result !== (i % 2 === 0 ? 138 : 128)) throw new Error('source insertion produced a stale value');
+            }
+        }
+    );
+}
+
 async function createSignals(framework) {
     const COUNT = 100000;
 
@@ -1067,13 +1160,12 @@ function runGraph(framework, graph, iterations) {
 
 // ============================================================================
 // Pure Computed Chain Benchmark
-// Tests FLAG_HAS_STATE_SOURCE optimization for non-live computed chains
+// Tests source polling and cache reuse in non-live computed chains
 // ============================================================================
 
 async function pureComputedChain(framework) {
-    // This benchmark tests the optimization where non-live computeds
-    // that only depend on other computeds (no state/signals) can skip
-    // the polling loop and directly verify computed sources.
+    // This benchmark tests source validation in non-live computed chains
+    // when unrelated writes invalidate the global-version cache.
     //
     // Setup:
     // - One signal at the root
@@ -1161,6 +1253,7 @@ const benchmarks = [
     deepPropagation,
     broadPropagation,
     avoidablePropagation,
+    mixedSources,
     diamond,
     triangle,
     mux,
@@ -1168,6 +1261,8 @@ const benchmarks = [
     unstable,
     molBench,
     // S.js
+    createRepeatedReads,
+    sourceInsertion,
     createSignals,
     createComputations,
     updateSignals,
