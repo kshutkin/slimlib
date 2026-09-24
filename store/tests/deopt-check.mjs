@@ -199,7 +199,7 @@ console.log('── 2. Signal read inside computed (tracked) ──');
 }
 console.log();
 
-// ── 3. Computed chain (tests runWithTracking, checkComputedSources) ──
+// ── 3. Computed chain (tests runWithTracking, checkSources) ──
 console.log('── 3. Computed chain (4 deep) ──');
 {
     const base = signal(1);

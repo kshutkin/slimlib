@@ -30,9 +30,6 @@ export const enum Flag {
     // PUSH PHASE: When set, node receives push notifications from sources
     LIVE = 1 << 6, // 64 - computed is live (has live dependents)
 
-    // PULL PHASE: Has at least one state/signal source (requires polling, can't skip loop)
-    HAS_STATE_SOURCE = 1 << 7, // 128 - has state/signal dependency
-
     // PULL PHASE: Has at least one computed source (requires version update loop)
-    HAS_COMPUTED_SOURCE = 1 << 8, // 256 - has computed dependency
+    HAS_COMPUTED_SOURCE = 1 << 7, // 128 - has computed dependency
 }

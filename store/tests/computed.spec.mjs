@@ -1103,7 +1103,7 @@ describe('computed', () => {
 
     it('non-live computed with mixed sources (state + computed) handles error from computed source during polling', () => {
         // This test exercises the catch block in the polling loop for non-live computeds
-        // that have HAS_STATE_SOURCE flag (mixed state and computed sources).
+        // with mixed state and computed sources.
         // When polling sources, if a computed source throws, the error should mark
         // sourceChanged = true and trigger recomputation.
         const store = state({ flag: true, value: 5 });
@@ -1115,7 +1115,6 @@ describe('computed', () => {
         });
 
         // This computed reads BOTH state (flag) AND computed (errorProne)
-        // So it will have HAS_STATE_SOURCE flag set
         const mixed = computed(() => {
             const f = store.flag;
             return f ? errorProne() : 0;
@@ -1131,7 +1130,7 @@ describe('computed', () => {
         // Now when mixed is read:
         // 1. It's non-live, has cached value, doesn't have NEEDS_WORK
         // 2. globalVersion has changed, so it needs to poll sources
-        // 3. It has HAS_STATE_SOURCE, so it enters the polling loop
+        // 3. It enters the polling loop to check both kinds of source
         // 4. First source (flag) - state source, depsVersion unchanged
         // 5. Second source (errorProne) - computed source, computedRead throws
         // 6. The catch block sets sourceChanged = true, breaks

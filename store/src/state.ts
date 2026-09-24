@@ -1,4 +1,4 @@
-import { currentComputing, DepsSet, markDependents, tracked, trackStateDependency, unwrapValue } from './core';
+import { currentComputing, DepsSet, markDependents, scheduleFlush, tracked, trackStateDependency, unwrapValue } from './core';
 import { warnIfWriteInComputed } from './debug';
 import { propertyDepsSymbol, unwrap } from './symbols';
 import type { ReactiveNode } from './internal-types';
@@ -121,8 +121,11 @@ export function state<T extends object>(object: T = {} as T): T {
                                 if (propsMap === undefined) return result;
                                 for (const deps of propsMap.values()) {
                                     // PUSH: Propagate dirty flags to all property dependents
-                                    markDependents(deps);
+                                    markDependents(deps, false);
                                 }
+                                // Methods can mutate several properties; invalidate all
+                                // of them before a synchronous effect observes the result.
+                                scheduleFlush();
                             }
                             return result;
                         };
