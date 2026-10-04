@@ -1,4 +1,4 @@
-import { attributes, booleanAttribute, defineElement, numberAttribute, props, stringAttribute } from '@slimlib/element';
+import { attributes, booleanAttribute, defineElement, numberAttribute, props, shadowStyles, stringAttribute } from '@slimlib/element';
 import { setScheduler } from '@slimlib/store';
 
 // Microtask scheduler so reflection is async-realistic (like the jsx playground).
@@ -41,6 +41,22 @@ defineElement(
     }
 );
 
+const shadowSheet = new CSSStyleSheet();
+shadowSheet.replaceSync(`
+    :host { display: block; }
+    button {
+        color: var(--shadow-demo-color, rebeccapurple);
+        border: 2px solid currentColor;
+        border-radius: 0.5rem;
+        background: transparent;
+        padding: 0.5rem 0.75rem;
+        font: inherit;
+        cursor: pointer;
+    }
+`);
+
+defineElement('shadow-demo', [shadowStyles([shadowSheet])], () => <button type='button'>Styled inside shadow DOM</button>);
+
 const appRoot = document.getElementById('app');
 
 const element = document.createElement('reflect-demo');
@@ -78,4 +94,12 @@ row.append(
 
 attributePanel.append(row);
 
-appRoot.append(panel, attributePanel);
+const shadowPanel = document.createElement('div');
+shadowPanel.className = 'demo';
+shadowPanel.innerHTML = `
+    <h2>shadow DOM styles</h2>
+    <p class="hint">The button below is rendered inside a shadow root and styled by an adopted stylesheet.</p>
+`;
+shadowPanel.appendChild(document.createElement('shadow-demo'));
+
+appRoot.append(panel, attributePanel, shadowPanel);
