@@ -1,5 +1,11 @@
 # @slimlib/element
 
+## 0.5.0
+
+### Minor Changes
+
+- 2dc7b3c: new shadowStyles middleware to support shadow DOM and adopted stylesheets
+
 ## 0.4.1
 
 ### Patch Changes
