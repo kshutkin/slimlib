@@ -51,6 +51,7 @@ describe('@slimlib/element public API (DEV)', () => {
         expect(typeof elementModule.requestContext).toBe('function');
         expect(typeof elementModule.disabledFeatures).toBe('function');
         expect(typeof elementModule.formAssociated).toBe('function');
+        expect(typeof elementModule.shadowStyles).toBe('function');
         expect(typeof elementModule.withInternals).toBe('function');
         expect(typeof elementModule.withValidation).toBe('function');
         expect(typeof elementModule.onAdopted).toBe('function');
@@ -66,6 +67,47 @@ describe('@slimlib/element public API (DEV)', () => {
         element.setAttribute('value', 'hello');
 
         expect(element.value).toBe('hello');
+    });
+});
+
+describe('shadow styles (DEV)', () => {
+    it('adopts sheets and renders into a reusable shadow root', async () => {
+        const { createElement } = await import('@slimlib/jsx');
+        const { defineElement, shadowStyles } = await import('../src/index.js');
+        const tag = uniqueTag('x-shadow-styles');
+        const sheet = new CSSStyleSheet();
+        sheet.replaceSync('span { color: rgb(255, 0, 0); }');
+        let renders = 0;
+
+        defineElement(tag, [shadowStyles([sheet])], () => {
+            renders++;
+            return createElement('span', null, 'inside');
+        });
+
+        const element = document.createElement(tag);
+        document.body.appendChild(element);
+        const root = element.shadowRoot;
+
+        expect(root).toBeInstanceOf(ShadowRoot);
+        expect(root.adoptedStyleSheets).toEqual([sheet]);
+        expect(root.querySelector('span')?.textContent).toBe('inside');
+        expect(element.querySelector('span')).toBeNull();
+        expect(getComputedStyle(root.querySelector('span')).color).toBe('rgb(255, 0, 0)');
+
+        element.remove();
+        await nextMicrotask();
+        expect(root.querySelector('span')).toBeNull();
+
+        document.body.appendChild(element);
+        expect(element.shadowRoot).toBe(root);
+        expect(root.adoptedStyleSheets).toEqual([sheet]);
+        expect(root.querySelector('span')?.textContent).toBe('inside');
+        expect(renders).toBe(2);
+
+        const sibling = document.createElement(tag);
+        document.body.appendChild(sibling);
+        expect(sibling.shadowRoot?.adoptedStyleSheets[0]).toBe(sheet);
+        expect(sibling.shadowRoot?.querySelector('span')?.textContent).toBe('inside');
     });
 });
 
