@@ -25,6 +25,7 @@ export const MockDataSource = /** @type {const} */ ({
  * @property {string} [instanceName]
  * @property {boolean} generated
  * @property {Function} [target]
+ * @property {unknown} [receiver]
  */
 
 /**
@@ -144,10 +145,7 @@ export default function createRecordingMockFactory() {
                         strings.push(`Object.preventExtensions(${identifier})`);
                         break;
                     case MockDataSource.call:
-                        strings.push(
-                            identifier +
-                                getParameters(/** @type {unknown[]} */ (effect.options), /** @type {ReplacerFunction} */ (replacer))
-                        );
+                        strings.push(getCallCode(identifier, effect, /** @type {ReplacerFunction} */ (replacer)));
                         break;
                 }
             }
@@ -163,9 +161,7 @@ export default function createRecordingMockFactory() {
             const parentName = parent?.instanceName ?? /** @type {string} */ (parent?.name);
             switch (/** @type {number} */ (mockData.source)) {
                 case MockDataSource.call:
-                    return (
-                        parentName + getParameters(/** @type {unknown[]} */ (mockData.options), /** @type {ReplacerFunction} */ (replacer))
-                    );
+                    return getCallCode(parentName, mockData, /** @type {ReplacerFunction} */ (replacer));
                 case MockDataSource.get:
                     return propertyAccess(parentName, mockData.name);
                 case MockDataSource.construct: {
@@ -241,7 +237,7 @@ export default function createRecordingMockFactory() {
         value.generated = true;
         switch (/** @type {number} */ (value.source)) {
             case MockDataSource.call:
-                return getPrevCode(value) + getParameters(/** @type {unknown[]} */ (value.options), replacer);
+                return getCallCode(getPrevCode(value), value, replacer);
             case MockDataSource.get:
                 return propertyAccess(getPrevCode(value), value.name);
             case MockDataSource.root:
@@ -271,6 +267,18 @@ export default function createRecordingMockFactory() {
         function getPrevCode(mockData) {
             return mockData.parent ? getCode(mockData.parent, replacer, bumpCount) : '';
         }
+    }
+
+    /**
+     * @param {string} callee
+     * @param {MockData} call
+     * @param {ReplacerFunction} replacer
+     */
+    function getCallCode(callee, call, replacer) {
+        if (call.receiver === undefined && call.parent?.source !== MockDataSource.get) {
+            return callee + getParameters(/** @type {unknown[]} */ (call.options), replacer);
+        }
+        return `Reflect.apply(${callee},${stringify(call.receiver, replacer)},${stringify(call.options, replacer)})`;
     }
 
     /**
@@ -454,6 +462,10 @@ export default function createRecordingMockFactory() {
                     const realThis = unwrapValue(thisArg);
                     const realArguments = unwrapValue(argumentsList);
                     ++mockData.useCount;
+                    // Replaying an extracted method also needs its original receiver.
+                    // Count that reference so receiver factories are evaluated only once.
+                    const receiverData = getMockData(thisArg);
+                    if (receiverData) ++receiverData.useCount;
                     const result = Reflect.apply(target, realThis, /** @type {unknown[]} */ (realArguments));
                     if (result === null || (typeof result !== 'object' && typeof result !== 'function')) {
                         if (!mockData.sideEffects) {
@@ -465,6 +477,7 @@ export default function createRecordingMockFactory() {
                             parent: mockData,
                             source: MockDataSource.call,
                             options: realArguments,
+                            receiver: thisArg,
                             generated: false,
                         });
                         ++mockData.useCount;
@@ -476,6 +489,7 @@ export default function createRecordingMockFactory() {
                         parent: mockData,
                         source: MockDataSource.call,
                         options: realArguments,
+                        receiver: thisArg,
                         generated: false,
                     });
                 },

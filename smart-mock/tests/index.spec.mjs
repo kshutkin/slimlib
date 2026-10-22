@@ -35,12 +35,12 @@ describe('smart-mock', () => {
         });
 
         it('call', () => {
-            expect(generate(createMock({ ok: () => ({}) }, 'test').ok())).toEqual('test.ok()');
+            expect(generate(createMock({ ok: () => ({}) }, 'test').ok())).toEqual('Reflect.apply(test.ok,test,[])');
         });
 
         it('call with parameters', () => {
             expect(generate(createMock({ ok: (/** @type {{ some: number }} */ arg) => ({ arg }) }, 'test').ok({ some: 1 }))).toEqual(
-                'test.ok({some:1})'
+                'Reflect.apply(test.ok,test,[{some:1}])'
             );
         });
 
@@ -55,8 +55,8 @@ describe('smart-mock', () => {
             const instance = factory();
             const secondInstance = instance.api.addInstance();
             const result = generate([instance, secondInstance]);
-            expect(generateGlobals()).toEqual('const tmp_0 = test()');
-            expect(result).toEqual('[tmp_0,tmp_0.api.addInstance()]');
+            expect(generateGlobals()).toEqual('const tmp_0 = test()\nconst tmp_1 = tmp_0.api');
+            expect(result).toEqual('[tmp_0,Reflect.apply(tmp_1.addInstance,tmp_1,[])]');
         });
 
         it('with global arguments', () => {
@@ -64,8 +64,8 @@ describe('smart-mock', () => {
             const instance = factory({ test: 1 });
             const secondInstance = instance.api.addInstance();
             const result = generate([instance, secondInstance]);
-            expect(generateGlobals()).toEqual('const tmp_0 = test({test:1})');
-            expect(result).toEqual('[tmp_0,tmp_0.api.addInstance()]');
+            expect(generateGlobals()).toEqual('const tmp_0 = test({test:1})\nconst tmp_1 = tmp_0.api');
+            expect(result).toEqual('[tmp_0,Reflect.apply(tmp_1.addInstance,tmp_1,[])]');
         });
 
         it('with global getter in between', () => {
@@ -73,8 +73,10 @@ describe('smart-mock', () => {
             const instance = factory.test();
             const secondInstance = instance.api.addInstance();
             const result = generate([instance, secondInstance]);
-            expect(generateGlobals()).toEqual('const tmp_1 = test.test\nconst tmp_0 = tmp_1()');
-            expect(result).toEqual('[tmp_0,tmp_0.api.addInstance()]');
+            expect(generateGlobals()).toEqual(
+                'const tmp_2 = test.test\nconst tmp_0 = Reflect.apply(tmp_2,test,[])\nconst tmp_1 = tmp_0.api'
+            );
+            expect(result).toEqual('[tmp_0,Reflect.apply(tmp_1.addInstance,tmp_1,[])]');
         });
 
         it('new', () => {
@@ -297,7 +299,7 @@ describe('smart-mock', () => {
             const result = generate(mock);
             const globals = generateGlobals();
             expect(result).toEqual('mock');
-            expect(globals).toEqual('mock.name = "some name"\nconst tmp_0 = mock.test\ntmp_0()');
+            expect(globals).toEqual('mock.name = "some name"\nconst tmp_0 = mock.test\nReflect.apply(tmp_0,mock,[])');
         });
 
         it('call with result as exit + assigment on root', () => {
@@ -316,7 +318,7 @@ describe('smart-mock', () => {
 
             const result = generate(testMethodResult);
             const globals = generateGlobals();
-            expect(result).toEqual('mock.test()');
+            expect(result).toEqual('Reflect.apply(mock.test,mock,[])');
             expect(globals).toEqual('mock.name = "some name"');
         });
     });

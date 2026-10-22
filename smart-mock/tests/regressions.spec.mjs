@@ -161,3 +161,113 @@ describe('property mock caching', () => {
         expect(getter.child.value).toBe(2);
     });
 });
+
+describe('call receivers', () => {
+    it('preserves this in replayed method side effects', () => {
+        const { createMock, generateGlobals } = createRecordingMockFactory();
+        const root = {
+            count: 0,
+            increment() {
+                this.count++;
+            },
+        };
+        createMock(root, 'root').increment();
+        const replay = {
+            count: 0,
+            increment() {
+                this.count++;
+            },
+        };
+        new Function('root', generateGlobals())(replay);
+        expect(replay.count).toBe(1);
+    });
+
+    it('preserves this in inline method results', () => {
+        const { createMock, generate, generateGlobals } = createRecordingMockFactory();
+        const root = {
+            count: 2,
+            read() {
+                return { count: this.count };
+            },
+        };
+        const code = generate(createMock(root, 'root').read());
+        expect(new Function('root', `${generateGlobals()}\nreturn (${code});`)(root)).toEqual({ count: 2 });
+    });
+
+    it('reuses the original receiver when extracting methods and shared results', () => {
+        const { createMock, generate, generateGlobals } = createRecordingMockFactory();
+        let constructions = 0;
+        const root = () => {
+            constructions++;
+            return {
+                count: 0,
+                increment() {
+                    return { count: ++this.count, shared: false };
+                },
+            };
+        };
+        const mock = createMock(root, 'root');
+        const result = mock().increment();
+        result.shared = true;
+        const code = generate(result);
+        const globals = generateGlobals();
+        constructions = 0;
+        expect(new Function('root', `${globals}\nreturn (${code});`)(root)).toEqual({ count: 1, shared: true });
+        expect(constructions).toBe(1);
+    });
+
+    it('keeps detached method calls unbound', () => {
+        const { createMock, generate, generateGlobals } = createRecordingMockFactory();
+        /** @this {unknown} */
+        function read() {
+            return { receiver: this };
+        }
+        const root = { read };
+        const detached = createMock(root, 'root').read;
+        const code = generate(detached());
+        const result = new Function('root', `${generateGlobals()}\nreturn (${code});`)(root);
+        expect(result.receiver).toBeUndefined();
+    });
+
+    it('honors explicit mocked receivers for method calls', () => {
+        const { createMock, generate, generateGlobals } = createRecordingMockFactory();
+        const root = {
+            count: 1,
+            read() {
+                return { count: this.count };
+            },
+        };
+        const other = { count: 7 };
+        const mock = createMock(root, 'root');
+        const receiver = createMock(other, 'other');
+        const code = generate(Reflect.apply(mock.read, receiver, []));
+        const result = new Function('root', 'other', `${generateGlobals()}\nreturn (${code});`)(root, other);
+        expect(result).toEqual({ count: 7 });
+    });
+
+    it.each([undefined, null, 0, false])('preserves the explicit receiver %s of root functions', receiver => {
+        const { createMock, generate, generateGlobals } = createRecordingMockFactory();
+        /** @this {unknown} */
+        function root() {
+            return { receiver: this };
+        }
+        const code = generate(Reflect.apply(createMock(root, 'root'), receiver, []));
+        expect(new Function('root', `${generateGlobals()}\nreturn (${code});`)(root).receiver).toBe(receiver);
+    });
+
+    it('preserves receivers through Function.prototype.call and apply', () => {
+        const { createMock, generate, generateGlobals } = createRecordingMockFactory();
+        const root = {
+            count: 1,
+            read() {
+                return { count: this.count };
+            },
+        };
+        const other = { count: 7 };
+        const method = createMock(root, 'root').read;
+        const receiver = createMock(other, 'other');
+        const code = generate([method.call(receiver), method.apply(receiver, [])]);
+        const result = new Function('root', 'other', `${generateGlobals()}\nreturn (${code});`)(root, other);
+        expect(result).toEqual([{ count: 7 }, { count: 7 }]);
+    });
+});

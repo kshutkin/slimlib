@@ -44,15 +44,17 @@ const status = mock.fly();
 mock.land();
 ```
 
-At this point `generate(mock)` will result in `mock`, `generate(mock.name)` in `'Moth'` and `generate(status)` in `fly.fly()`. And if you afterwards call `generateGlobals()` you get something like:
+At this point `generate(mock)` will result in `fly`, `generate(mock.name)` in `"Moth"` and `generate(status)` in `Reflect.apply(fly.fly,fly,[])`. And if you afterwards call `generateGlobals()` you get something like:
 
 ```javascript
 fly.name = "Moth";
 const tmp_0 = fly.land;
-tmp_0();
+Reflect.apply(tmp_0, fly, []);
 ```
 
 Each `generate` call updates counters / flags in the mock so `generateGlobals` only emits what was not generated at the time of the call.
+
+Recorded calls preserve their original `this` receiver, including detached methods and explicit receivers. Generated method calls use `Reflect.apply` so extracting a function into a temporary variable does not change its receiver.
 
 # License
 
