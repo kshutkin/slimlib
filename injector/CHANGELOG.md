@@ -1,5 +1,15 @@
 Changelog
 
+## 2.0.3
+
+### Patch Changes
+
+- f2c9b49: Preserve dependency annotation arrays during injection so they can be reused or frozen, including when a callback throws.
+- Updated dependencies [545127d]
+- Updated dependencies [3cdc9c2]
+- Updated dependencies [67ec61e]
+  - @slimlib/get-parameter-names@1.0.2
+
 ## 2.0.2
 
 ### Patch Changes

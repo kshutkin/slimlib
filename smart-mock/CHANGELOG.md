@@ -1,5 +1,14 @@
 Changelog
 
+## 1.0.3
+
+### Patch Changes
+
+- d3af041: Preserve the original receiver of recorded calls, including extracted methods, detached calls, and explicit receivers, without recreating shared receiver objects.
+- 44fe826: Escape generated string literals and property keys so values with quotes, backslashes, or line breaks replay correctly.
+- fc55567: Refresh cached property mocks when their underlying object or function changes, including replacements through getters and raw objects.
+- 98f2c54: Preserve explicit undefined values in generated arguments, array elements, and object properties.
+
 ## 1.0.2
 
 ### Patch Changes
