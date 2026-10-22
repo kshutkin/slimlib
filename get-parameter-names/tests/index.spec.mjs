@@ -170,6 +170,44 @@ describe('function tests', () => {
         expect(getParameterNames(f11)).toEqual(['a', 'b']);
     });
 
+    it.each([
+        '(options = "a,b", service) => {}',
+        "(options = 'a,b', service) => {}",
+        '(options = "a\\",b", service) => {}',
+        '(options = "https://example.com/a,b", service) => {}',
+        '(options = "/* a,b */", service) => {}',
+        '(options = ")(,=", service) => {}',
+        '(options = `a,b`, service) => {}',
+        '(options = `a\\`,b`, service) => {}',
+        // biome-ignore lint/suspicious/noTemplateCurlyInString: parsing source text without evaluating its interpolation
+        '(options = `a${join("x,y")}b`, service) => {}',
+        '(options = "a\\\\", service) => {}',
+        '(options = [1, 2], service) => {}',
+        '(options = { x: 1, y: 2 }, service) => {}',
+        '(options = [{ x: [1, 2] }, { y: "a,b" }], service) => {}',
+        '(options = { create: () => [1, 2], text: "a,b" }, service) => {}',
+        '(options = factory([1, 2], { x: 1, y: 2 }), service) => {}',
+        '(options = (left, right) => ({ left, right }), service) => {}',
+        'function example(options = [1, 2], service) {}',
+        'class Example { constructor(options = { x: 1, y: 2 }, service) {} }',
+    ])('ignores commas inside default values in %s', source => {
+        expect(getParameterNames(source)).toEqual(['options', 'service']);
+    });
+
+    it('keeps parameters after several compound defaults', () => {
+        const source = '(text = "a,b", array = [1, 2], object = { x: 1, y: 2 }, service) => {}';
+        expect(getParameterNames(source)).toEqual(['text', 'array', 'object', 'service']);
+    });
+
+    it('preserves parameters following comments with quotes and delimiters', () => {
+        const source = '(options = [1, /* "\'` , ) } */ 2], // "\'` , ) }\n service) => {}';
+        expect(getParameterNames(source)).toEqual(['options', 'service']);
+    });
+
+    it.each(['\n', '\r', '\u2028', '\u2029'])('ends line comments at %j', separator => {
+        expect(getParameterNames(`(options, // ignored${separator} service) => {}`)).toEqual(['options', 'service']);
+    });
+
     it('supports function created using the Function constructor', () => {
         var f = new Function('a', 'b', 'return a + b');
 

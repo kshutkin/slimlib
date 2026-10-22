@@ -1,10 +1,9 @@
 /* based on https://github.com/CaptEmulation/get-parameter-names (MIT) */
 
 // Match static as a whole token; JavaScript identifiers also allow $, Unicode, and joiners.
-const STRIP_PATTERN =
-    /(?<![$\p{ID_Continue}\u200c\u200d])static(?![$\p{ID_Continue}\u200c\u200d]).*$|\/\/.*$|\/\*[\s\S]*?\*\/|^\s*async(?:\s*|\()(?!\s*=)|\s/gmu;
+const STRIP_PATTERN = /(?<![$\p{ID_Continue}\u200c\u200d])static(?![$\p{ID_Continue}\u200c\u200d]).*$|^\s*async(?:\s*|\()(?!\s*=)|\s/gmu;
 
-const DELIMITERS = new Set(['=', '(', ')', ',']);
+const LITERALS_AND_COMMENTS = /\/\/.*|\/\*[\s\S]*?\*\/|(["'`])(?:\\[\s\S]|(?!\1)[^\\])*\1/g;
 
 /**
  * Parse a function and extract its parameter names
@@ -12,51 +11,45 @@ const DELIMITERS = new Set(['=', '(', ')', ',']);
  * @returns {string[]} Array of parameter names
  */
 export function getParameterNames(input) {
-    const cleaned = input.toString().replace(STRIP_PATTERN, '');
+    // Mask literals and remove comments before reading delimiters.
+    const cleaned = input
+        .toString()
+        .replace(LITERALS_AND_COMMENTS, token => (token[0] === '/' ? '' : '0'))
+        .replace(STRIP_PATTERN, '');
 
-    let firstVar = true;
-    let depthDefaultParams = 0;
-    let depthParenthesis = 0;
+    const opening = cleaned.indexOf('(');
+    const arrow = cleaned.indexOf('=>');
+    if (arrow !== -1 && (opening === -1 || arrow < opening)) {
+        return [cleaned.slice(0, arrow)];
+    }
+    if (opening === -1) return [];
+
+    let depth = 0;
+    let inDefault = false;
+    let name = '';
     const vars = [];
 
-    let buffer = '';
-    let currentDelimiter = null;
-
-    for (const char of cleaned) {
-        if (DELIMITERS.has(char)) {
-            // Process the segment
-            const delimiter = currentDelimiter;
-            const text = buffer;
-            buffer = '';
-            currentDelimiter = char;
-
-            if (!delimiter) {
-                if (text.length) vars.push(text);
-            } else if (delimiter === '=') {
-                if (text[0] === '>' && depthDefaultParams === 0) return vars;
-                depthDefaultParams++;
-            } else if (delimiter === ')') {
-                if (depthParenthesis === 0) return vars;
-                depthParenthesis--;
-            } else if (delimiter === '(') {
-                if (firstVar) {
-                    vars.pop();
-                    if (text.length) vars.push(text);
-                    firstVar = false;
-                } else if (vars.length) {
-                    firstVar = true;
-                    depthParenthesis++;
-                } else if (depthParenthesis === 0) {
-                    depthDefaultParams = 0;
-                    vars.push(text);
-                }
-            } else if (delimiter === ',' && depthParenthesis === 0) {
-                depthDefaultParams = 0;
-                vars.push(text);
+    for (const char of cleaned.slice(opening + 1)) {
+        // Only top-level commas separate parameters; nested expressions belong to defaults.
+        if (depth === 0) {
+            if (char === ')') {
+                if (name || inDefault) vars.push(name);
+                break;
             }
-        } else {
-            buffer += char;
+            if (char === ',') {
+                vars.push(name);
+                name = '';
+                inDefault = false;
+                continue;
+            }
+            if (char === '=') {
+                inDefault = true;
+                continue;
+            }
         }
+        if ('([{'.includes(char)) depth++;
+        else if (')]}'.includes(char)) depth--;
+        else if (depth === 0 && !inDefault) name += char;
     }
 
     return vars;

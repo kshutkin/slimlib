@@ -31,6 +31,13 @@ describe('createInject', () => {
         });
         expect(inject((staticPath, service) => [staticPath, service])).toEqual(['/assets', 'registered service']);
     });
+
+    it('keeps dependency positions after compound default values', () => {
+        const inject = createInject();
+        inject($provide => $provide('service', 'registered service'));
+        const result = inject((text = 'a,b', array = [1, 2], object = { x: 1, y: 2 }, service) => ({ text, array, object, service }));
+        expect(result).toEqual({ text: 'a,b', array: [1, 2], object: { x: 1, y: 2 }, service: 'registered service' });
+    });
 });
 
 describe('createInjectAnnotated', () => {
