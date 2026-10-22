@@ -1,21 +1,19 @@
 /* based on https://github.com/CaptEmulation/get-parameter-names (MIT) */
 
-// Match static as a whole token; JavaScript identifiers also allow $, Unicode, and joiners.
-const STRIP_PATTERN = /(?<![$\p{ID_Continue}\u200c\u200d])static(?![$\p{ID_Continue}\u200c\u200d]).*$|^\s*async(?:\s*|\()(?!\s*=)|\s/gmu;
-
-const LITERALS_AND_COMMENTS = /\/\/.*|\/\*[\s\S]*?\*\/|(["'`])(?:\\[\s\S]|(?!\1)[^\\])*\1/g;
-
 /**
  * Parse a function and extract its parameter names
  * @param {Function | string} input - The function or function string to parse
  * @returns {string[]} Array of parameter names
  */
 export function getParameterNames(input) {
-    // Mask literals and remove comments before reading delimiters.
     const cleaned = input
         .toString()
-        .replace(LITERALS_AND_COMMENTS, token => (token[0] === '/' ? '' : '0'))
-        .replace(STRIP_PATTERN, '');
+        // Remove comments and mask quoted literals so their contents cannot act as parameter delimiters.
+        // The captured opening quote (\1) also closes the literal; backslash escapes consume the next character.
+        .replace(/\/\/.*|\/\*[\s\S]*?\*\/|(["'`])(?:\\[\s\S]|(?!\1)[^\\])*\1/g, token => (token[0] === '/' ? '' : '0'))
+        // Strip whitespace/leading async and skip static declarations. Static must be a complete token:
+        // $, Unicode identifier characters, and joiners stay part of a name such as $static or staticPath.
+        .replace(/(?<![$\p{ID_Continue}\u200c\u200d])static(?![$\p{ID_Continue}\u200c\u200d]).*$|^\s*async(?:\s*|\()(?!\s*=)|\s/gmu, '');
 
     const opening = cleaned.indexOf('(');
     const arrow = cleaned.indexOf('=>');
