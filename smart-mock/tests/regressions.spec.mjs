@@ -53,3 +53,57 @@ describe('generated literals and property keys', () => {
         expect(root).toEqual({ [key]: 'value"\\\n' });
     });
 });
+
+describe('undefined serialization', () => {
+    it('preserves explicit undefined array elements and object properties', () => {
+        const { generate } = createRecordingMockFactory();
+        const value = { array: [undefined, 1, undefined], single: [undefined], property: undefined };
+        const result = evaluate(generate(value));
+        expect(result).toEqual(value);
+        expect(result.array).toHaveLength(3);
+        expect(result.single).toHaveLength(1);
+        expect(Object.hasOwn(result, 'property')).toBe(true);
+        expect(generate(undefined)).toBeUndefined();
+    });
+
+    it('preserves undefined arguments in inline and shared calls', () => {
+        const { createMock, generate, generateGlobals } = createRecordingMockFactory();
+        /** @param {...unknown} args */
+        const root = (...args) => ({ args, tag: false });
+        const mock = createMock(root, 'root');
+        const inline = generate(mock(undefined));
+        expect(new Function('root', `return (${inline});`)(root).args).toEqual([undefined]);
+
+        const shared = mock(undefined, 1, undefined);
+        shared.tag = true;
+        const code = generate(shared);
+        const result = new Function('root', `${generateGlobals()}\nreturn (${code});`)(root);
+        expect(result.args).toEqual([undefined, 1, undefined]);
+    });
+
+    it('preserves undefined arguments in side-effect calls and constructors', () => {
+        const { createMock, generate, generateGlobals } = createRecordingMockFactory();
+        /** @type {unknown[][]} */
+        const calls = [];
+        const mock = createMock((/** @type {unknown[]} */ ...args) => {
+            calls.push(args);
+        }, 'record');
+        mock(undefined, 1, undefined);
+        const globals = generateGlobals();
+        calls.length = 0;
+        new Function('record', globals)((/** @type {unknown[]} */ ...args) => {
+            calls.push(args);
+        });
+        expect(calls).toEqual([[undefined, 1, undefined]]);
+
+        class Root {
+            /** @param {...unknown} args */
+            constructor(...args) {
+                this.args = args;
+            }
+        }
+        const Constructor = createMock(Root, 'Root');
+        const code = generate(new Constructor(undefined, 1, undefined));
+        expect(new Function('Root', `return (${code});`)(Root).args).toEqual([undefined, 1, undefined]);
+    });
+});

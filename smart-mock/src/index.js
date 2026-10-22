@@ -192,6 +192,7 @@ export default function createRecordingMockFactory() {
      * @returns {string | null | undefined | RegExp | boolean}
      */
     function generate(object) {
+        if (object === undefined) return undefined;
         stringify(object, /** @type {ReplacerFunction} */ (bumpReplacer));
         return stringify(object, /** @type {ReplacerFunction} */ (replacer));
     }
@@ -515,7 +516,7 @@ function stringify(value, replacer) {
         return null;
     }
     if (value === undefined) {
-        return undefined;
+        return 'void 0';
     }
     if (typeof value === 'number') {
         return `${value}`;
