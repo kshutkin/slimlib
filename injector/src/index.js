@@ -46,10 +46,10 @@ export function createInjectAnnotated() {
 
     return (funcOrArray, scope = {}) => {
         if (Array.isArray(funcOrArray)) {
-            const func = /** @type {(...args: any[]) => any} */ (funcOrArray.pop());
+            const func = /** @type {(...args: any[]) => any} */ (funcOrArray[funcOrArray.length - 1]);
             return func.apply(
                 scope,
-                /** @type {string[]} */ (funcOrArray).map(key => dependencies[key])
+                /** @type {string[]} */ (funcOrArray.slice(0, -1)).map(key => dependencies[key])
             );
         }
         // If not an array, just call the function with no dependencies

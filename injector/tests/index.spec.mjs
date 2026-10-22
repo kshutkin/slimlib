@@ -65,6 +65,60 @@ describe('createInjectAnnotated', () => {
         expect(value).toEqual('test');
     });
 
+    it('reuses an annotation without changing it and respects each call scope', () => {
+        const inject = createInjectAnnotated();
+        inject([
+            '$provide',
+            provide => {
+                provide('left', 2);
+                provide('right', 3);
+            },
+        ]);
+        const annotation = [
+            'left',
+            'right',
+            function (left, right) {
+                return this.base + left * right;
+            },
+        ];
+        const original = [...annotation];
+
+        expect(inject(annotation, { base: 10 })).toBe(16);
+        expect(annotation).toEqual(original);
+        expect(inject(annotation, { base: 20 })).toBe(26);
+        expect(annotation).toEqual(original);
+    });
+
+    it('reuses an annotation with no dependencies', () => {
+        const inject = createInjectAnnotated();
+        const callback = () => 'no dependencies';
+        const annotation = [callback];
+        expect(inject(annotation)).toBe('no dependencies');
+        expect(inject(annotation)).toBe('no dependencies');
+        expect(annotation).toEqual([callback]);
+    });
+
+    it('accepts frozen annotations', () => {
+        const inject = createInjectAnnotated();
+        inject(['$provide', provide => provide('value', 42)]);
+        const annotation = Object.freeze(['value', value => value]);
+        expect(inject(annotation)).toBe(42);
+        expect(inject(annotation)).toBe(42);
+        const empty = Object.freeze([() => 'no dependencies']);
+        expect(inject(empty)).toBe('no dependencies');
+    });
+
+    it('preserves an annotation when its callback throws', () => {
+        const inject = createInjectAnnotated();
+        const callback = () => {
+            throw new Error('callback failed');
+        };
+        const annotation = ['value', callback];
+        expect(() => inject(annotation)).toThrow('callback failed');
+        expect(annotation).toEqual(['value', callback]);
+        expect(() => inject(annotation)).toThrow('callback failed');
+    });
+
     it('inject multiple dependencies', () => {
         const inject = createInjectAnnotated();
 
