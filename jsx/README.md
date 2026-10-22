@@ -162,16 +162,7 @@ Override the heuristic:
 <my-el prop:state={obj} />        {/* force JS property */}
 ```
 
-**Cache limitation with customized built-ins:** native elements and customized built-ins share the same `tagName`. If they expose different setter availability for the same property, the first cached decision applies to both, making plain props depend on creation order. For example, native `input.list` is getter-only, while a customized input might add a `list` setter accepting suggestions. Rendering the native input first makes the customized input's plain `list` prop become an attribute, bypassing its setter; rendering the customized input first makes a later native input attempt to assign its read-only property, which can throw.
-
-Use explicit prefixes on both element types to bypass the shared cache:
-
-```jsx
-<input attr:list="countries" />
-<input is="x-suggestions" prop:list={['Rome', 'Berlin']} />
-```
-
-Here, `x-suggestions` is a registered customized built-in extending `HTMLInputElement` with a `list` setter accepting an array.
+For customized built-ins with different setter availability from their native element, use explicit prefixes; see the [cache limitation and workaround](./TECH-DEBT.md#property-setter-cache-shared-across-element-classes).
 
 ### Events: `on:event`
 
@@ -459,7 +450,7 @@ The factory only affects elements created during the callback; once it returns, 
 - **Scheduler-agnostic commit.** `@slimlib/jsx` never calls `flushEffects()` internally — that would silently force _every_ pending `@slimlib/store` effect (including ones from other packages) to run on the renderer's terms. Instead, the renderer enqueues effects via the store's scheduler and trusts the host to decide commit timing. See [Commit timing](#commit-timing) for the two supported modes.
 - **DocumentFragment only when needed.** When a component returns a single Node, the renderer inserts it directly. Fragment wrapping is reserved for primitives, arrays, and function-children — keeping deep-tree mounts cheap.
 - **Keyed reconciliation lives in a sub-entry.** `forEach` is opt-in via `@slimlib/jsx/for-each` so apps that don't need keyed lists don't pay for the diff algorithm. A reverse-walk reorder using `nextSibling` checks avoids the LIS step; reconcile is wrapped in `untracked()` to prevent the outer effect from re-subscribing on item writes.
-- **Prototype-setter cache.** Each `(tagName, propName)` pair walks the prototype chain until a descriptor is found; that decision is cached for the lifetime of the program. Missing descriptors are not cached, allowing later custom-element upgrades to add setters. The cache is shared across element classes with the same tag name; see the [customized built-in limitation](#explicit-prop--attr-prefixes).
+- **Prototype-setter cache.** Each `(tagName, propName)` pair walks the prototype chain until a descriptor is found; that decision is cached for the lifetime of the program. Missing descriptors are not cached, allowing later custom-element upgrades to add setters. The cache is shared across element classes with the same tag name; see the [customized built-in limitation](./TECH-DEBT.md#property-setter-cache-shared-across-element-classes).
 - **Context rides the scope tree.** `Provider` stores values on the active scope keyed by the context symbol, chaining each scope's value table to its parent's via `Object.create` so descendants transparently see ancestor entries; `inject` (and `RootProvider`'s probe) walk the same parent chain. No DOM traversal and no `context-request` events — resolution reuses the scope graph already maintained for effect disposal.
 
 ## License
