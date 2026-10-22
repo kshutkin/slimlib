@@ -60,6 +60,17 @@ const unwrapValue = value => (value != null && /** @type {any} */ (value)[unwrap
  */
 const getMockData = value => (value != null && /** @type {any} */ (value)[mock]) || undefined;
 
+const identifierPattern = /^[A-Za-z_$][\w$]*$/;
+
+/**
+ * @param {string} parent
+ * @param {string | symbol} name
+ */
+const propertyAccess = (parent, name) => {
+    const key = String(name);
+    return identifierPattern.test(key) ? `${parent}.${key}` : `${parent}[${JSON.stringify(key)}]`;
+};
+
 /**
  * @returns {{createMock: <T extends object>(object: T, name: string) => T, generateGlobals: () => string, generate: (object: unknown) => string | null | undefined | RegExp | boolean}}
  */
@@ -109,9 +120,7 @@ export default function createRecordingMockFactory() {
                 switch (/** @type {number} */ (effect.source)) {
                     case MockDataSource.set:
                         strings.push(
-                            identifier +
-                                '.' +
-                                /** @type {string} */ (effect.name) +
+                            propertyAccess(identifier, effect.name) +
                                 ' = ' +
                                 stringify(effect.options, /** @type {ReplacerFunction} */ (replacer))
                         );
@@ -120,7 +129,7 @@ export default function createRecordingMockFactory() {
                     //     strings.push('Object.defineProperty(' + identifier + ', "' + (effect.name as string) + '", ' + stringify(effect.options, replacer as ReplacerFunction) + ')');
                     //     break;
                     case MockDataSource.deleteProperty:
-                        strings.push(`delete ${identifier}["${String(effect.name)}"]`);
+                        strings.push(`delete ${identifier}[${JSON.stringify(String(effect.name))}]`);
                         break;
                     case MockDataSource.setPrototypeOf:
                         strings.push(
@@ -158,7 +167,7 @@ export default function createRecordingMockFactory() {
                         parentName + getParameters(/** @type {unknown[]} */ (mockData.options), /** @type {ReplacerFunction} */ (replacer))
                     );
                 case MockDataSource.get:
-                    return `${parentName}.${String(mockData.name)}`;
+                    return propertyAccess(parentName, mockData.name);
                 case MockDataSource.construct: {
                     const newTarget = stringify(mockData.target, /** @type {ReplacerFunction} */ (replacer));
                     return parentName !== newTarget
@@ -233,7 +242,7 @@ export default function createRecordingMockFactory() {
             case MockDataSource.call:
                 return getPrevCode(value) + getParameters(/** @type {unknown[]} */ (value.options), replacer);
             case MockDataSource.get:
-                return `${getPrevCode(value)}.${String(value.name)}`;
+                return propertyAccess(getPrevCode(value), value.name);
             case MockDataSource.root:
                 return /** @type {string} */ (value.name);
             case MockDataSource.construct: {
@@ -525,8 +534,11 @@ function stringify(value, replacer) {
     }
     if (typeof value === 'object') {
         return `{${Object.entries(value)
-            .map(([k, v]) => `${k}:${stringify(v, replacer)}`)
+            .map(([k, v]) => {
+                const key = k === '__proto__' ? `[${JSON.stringify(k)}]` : identifierPattern.test(k) ? k : JSON.stringify(k);
+                return `${key}:${stringify(v, replacer)}`;
+            })
             .join(',')}}`;
     }
-    return `"${String(value)}"`;
+    return JSON.stringify(String(value));
 }
