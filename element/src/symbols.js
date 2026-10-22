@@ -19,6 +19,7 @@ export const [
     FORM_STATE_RESTORE,
     RENDER_GENERATION,
     INTERNALS,
-] = /** @type {[symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol]} */ (
-    Array.from({ length: 12 }, Symbol)
+    RENDER_ROOT,
+] = /** @type {[symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol]} */ (
+    Array.from({ length: 13 }, Symbol)
 );

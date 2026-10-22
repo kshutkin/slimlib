@@ -10,6 +10,7 @@ import {
     numberAttribute,
     requestContext,
     rootContextProvider,
+    shadowStyles,
     stringAttribute,
     withValidation,
 } from '@slimlib/element';
@@ -27,6 +28,10 @@ const renderFn = (() => null) as unknown as RenderFunction;
 it('createCustomElement without middleware returns HTMLElement constructor', () => {
     const El = createCustomElement(renderFn);
     expectTypeOf<InstanceType<typeof El>>().toExtend<HTMLElement>();
+});
+
+it('shadowStyles accepts constructable stylesheets as middleware', () => {
+    expectTypeOf(shadowStyles([] as CSSStyleSheet[])).toMatchTypeOf<Middleware>();
 });
 
 it('count attribute is number | null', () => {

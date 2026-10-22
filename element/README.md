@@ -90,6 +90,23 @@ defineElement('my-field', [withInternals(), formAssociated()], () => {
 });
 ```
 
+### Shadow DOM styles
+
+Pass constructable stylesheets to `shadowStyles()` to render inside an open
+shadow root and adopt the sheets in the supplied order:
+
+```jsx
+import sheet from './counter.css' with { type: 'css' };
+import { defineElement, shadowStyles } from '@slimlib/element';
+
+defineElement('shadow-counter', [shadowStyles([sheet])], () => <button>Count</button>);
+```
+
+The same `CSSStyleSheet` can be adopted by multiple instances. The shadow root
+and its sheets remain attached across disconnects; render content is recreated
+when the element reconnects. `shadowStyles()` accepts ready-made sheets and
+does not compile CSS or resolve stylesheet imports.
+
 ### DOM context protocol
 
 `@slimlib/element` implements the Web Components Context Protocol separately
@@ -168,6 +185,7 @@ middleware; in DEV a missing one logs a warning and the subscription is ignored.
 | `onAdopted()` | `adoptedCallback`, surfaced via `onAdoptedCallback`. |
 | `onMove()` | `connectedMoveCallback`, surfaced via `onConnectedMove`. |
 | `disabledFeatures(features)` | `static disabledFeatures` (e.g. `['shadow']`). |
+| `shadowStyles(sheets)` | Open shadow root, ordered adopted stylesheets, and shadow-root rendering. |
 
 ### Context protocol
 

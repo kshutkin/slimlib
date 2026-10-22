@@ -15,6 +15,7 @@ import {
     MOUNT,
     MOVE,
     RENDER_GENERATION,
+    RENDER_ROOT,
     UNMOUNT,
 } from './symbols.js';
 import { ContextRequestEvent } from './utils/context-request-event.js';
@@ -27,6 +28,7 @@ export { formAssociated } from './middleware/form-associated.js';
 export { onAdopted } from './middleware/on-adopted.js';
 export { onMove } from './middleware/on-move.js';
 export { rootContextProvider } from './middleware/root-context-provider.js';
+export { shadowStyles } from './middleware/shadow-styles.js';
 export { withInternals } from './middleware/with-internals.js';
 export { withValidation } from './middleware/with-validation.js';
 
@@ -83,7 +85,7 @@ export const createContext = key => /** @type {Context<KeyType, ValueType>} */ (
 export { ContextRequestEvent };
 
 /**
- * Create an unregistered light-DOM custom element constructor backed by `@slimlib/jsx`.
+ * Create an unregistered custom element constructor backed by `@slimlib/jsx`.
  *
  * Reactive properties are declared inside the render callback via `props({...})`.
  * Class-time custom element features are composed with middleware.
@@ -119,7 +121,7 @@ export const createCustomElement = (middlewareOrRender, maybeRender, ElementBase
 };
 
 /**
- * Define and register an autonomous light-DOM custom element backed by `@slimlib/jsx`.
+ * Define and register an autonomous custom element backed by `@slimlib/jsx`.
  *
  * @overload
  * @param {string} tag
@@ -229,7 +231,7 @@ const createCoreElementClass = (ElementBase, userRender) =>
                 currentHost = /** @type {ElementHost} */ (/** @type {unknown} */ (this));
                 this.#disposeRender = render(
                     () => /** @type {JsxChild} */ (userRender(/** @type {ElementHost} */ (/** @type {unknown} */ (this)))),
-                    this
+                    /** @type {Record<symbol, ShadowRoot | undefined>} */ (/** @type {unknown} */ (this))[RENDER_ROOT] ?? this
                 );
                 currentHost = previousHost;
                 emit(/** @type {LifecycleHost} */ (this), MOUNT);
