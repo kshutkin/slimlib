@@ -20,7 +20,7 @@ export const MockDataSource = /** @type {const} */ ({
  * @property {MockData} [parent]
  * @property {number} source
  * @property {unknown | unknown[]} [options]
- * @property {{[key: string | symbol]: MockData}} [mocks]
+ * @property {{[key: string | symbol]: object}} [mocks]
  * @property {MockData[]} [sideEffects]
  * @property {string} [instanceName]
  * @property {boolean} generated
@@ -320,11 +320,12 @@ export default function createRecordingMockFactory() {
                     if (value === null || (typeof value !== 'object' && typeof value !== 'function')) {
                         return value;
                     }
-                    if (!mockData.mocks) {
-                        mockData.mocks = Object.create(null);
-                    }
-                    if (!(/** @type {{[key: string | symbol]: MockData}} */ (mockData.mocks)[p])) {
-                        /** @type {{[key: string | symbol]: MockData}} */ (mockData.mocks)[p] = createInternalMock(value, {
+                    /** @type {NonNullable<MockData['mocks']>} */
+                    const mocks = mockData.mocks ?? Object.create(null);
+                    mockData.mocks = mocks;
+                    let result = mocks[p];
+                    if (result === undefined || unwrapValue(result) !== value) {
+                        result = mocks[p] = createInternalMock(value, {
                             useCount: 0,
                             name: p,
                             parent: mockData,
@@ -332,7 +333,6 @@ export default function createRecordingMockFactory() {
                             generated: false,
                         });
                     }
-                    const result = /** @type {{[key: string | symbol]: MockData}} */ (mockData.mocks)[p];
                     ++mockData.useCount;
                     return result;
                 },

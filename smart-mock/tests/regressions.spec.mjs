@@ -107,3 +107,57 @@ describe('undefined serialization', () => {
         expect(new Function('Root', `return (${code});`)(Root).args).toEqual([undefined, 1, undefined]);
     });
 });
+
+describe('property mock caching', () => {
+    it('refreshes replaced objects and functions while preserving stable reads', () => {
+        const { createMock } = createRecordingMockFactory();
+        const root = { child: { value: 1 }, method: () => 1 };
+        const mock = createMock(root, 'root');
+        const previous = mock.child;
+        const previousMethod = mock.method;
+        expect(mock.child).toBe(previous);
+        expect(mock.method).toBe(previousMethod);
+        mock.child = { value: 2 };
+        mock.method = () => 2;
+        expect(mock.child).not.toBe(previous);
+        expect(mock.child.value).toBe(2);
+        expect(mock.method).not.toBe(previousMethod);
+        expect(mock.method()).toBe(2);
+        expect(mock.child).toBe(mock.child);
+        expect(mock.method).toBe(mock.method);
+    });
+
+    it('refreshes deleted, restored, and redefined properties', () => {
+        const { createMock } = createRecordingMockFactory();
+        const mock = createMock({ child: { value: 1 } }, 'root');
+        const previous = mock.child;
+        Reflect.deleteProperty(mock, 'child');
+        expect(mock.child).toBeUndefined();
+        mock.child = { value: 2 };
+        expect(mock.child.value).toBe(2);
+        expect(mock.child).not.toBe(previous);
+        Object.defineProperty(mock, 'child', { value: { value: 3 } });
+        expect(mock.child.value).toBe(3);
+    });
+
+    it('refreshes values changed through the raw object or a getter', () => {
+        const { createMock } = createRecordingMockFactory();
+        const root = { child: { value: 1 } };
+        const mock = createMock(root, 'root');
+        void mock.child;
+        root.child = { value: 2 };
+        expect(mock.child.value).toBe(2);
+
+        let value = 0;
+        const getter = createMock(
+            {
+                get child() {
+                    return { value: ++value };
+                },
+            },
+            'getter'
+        );
+        expect(getter.child.value).toBe(1);
+        expect(getter.child.value).toBe(2);
+    });
+});
