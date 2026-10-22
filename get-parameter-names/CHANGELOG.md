@@ -1,5 +1,13 @@
 Changelog
 
+## 1.0.2
+
+### Patch Changes
+
+- 545127d: Preserve parameter positions when default values contain commas inside quoted strings, arrays, or objects.
+- 3cdc9c2: Inline the parameter parser's regular expressions to reduce minified size, with comments explaining literal masking and identifier boundaries.
+- 67ec61e: Preserve identifiers containing static when extracting function and constructor parameter names.
+
 ## 1.0.1
 
 ### Patch Changes
