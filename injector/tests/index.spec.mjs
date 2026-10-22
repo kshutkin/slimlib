@@ -22,6 +22,15 @@ describe('createInject', () => {
 
         expect(value).toEqual('test');
     });
+
+    it('injects dependencies whose names contain static', () => {
+        const inject = createInject();
+        inject($provide => {
+            $provide('staticPath', '/assets');
+            $provide('service', 'registered service');
+        });
+        expect(inject((staticPath, service) => [staticPath, service])).toEqual(['/assets', 'registered service']);
+    });
 });
 
 describe('createInjectAnnotated', () => {

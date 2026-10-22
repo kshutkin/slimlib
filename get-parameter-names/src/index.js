@@ -1,6 +1,8 @@
 /* based on https://github.com/CaptEmulation/get-parameter-names (MIT) */
 
-const STRIP_PATTERN = /(static.*$)|(\/\/.*$)|(\/\*[\s\S]*?\*\/)|^\s*async(?:\s*|\()(?!\s*=)|\s/gm;
+// Match static as a whole token; JavaScript identifiers also allow $, Unicode, and joiners.
+const STRIP_PATTERN =
+    /(?<![$\p{ID_Continue}\u200c\u200d])static(?![$\p{ID_Continue}\u200c\u200d]).*$|\/\/.*$|\/\*[\s\S]*?\*\/|^\s*async(?:\s*|\()(?!\s*=)|\s/gmu;
 
 const DELIMITERS = new Set(['=', '(', ')', ',']);
 

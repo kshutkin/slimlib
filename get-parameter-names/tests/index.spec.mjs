@@ -104,6 +104,19 @@ describe('function tests', () => {
         expect(getParameterNames(test9)).toEqual([]);
     });
 
+    it.each([
+        ['(staticPath, service) => {}', ['staticPath', 'service']],
+        ['staticPath => staticPath', ['staticPath']],
+        ['function staticFactory(service) {}', ['service']],
+        ['function example(service, isstatic) {}', ['service', 'isstatic']],
+        ['(πstatic = 1, $static = 2, service) => {}', ['πstatic', '$static', 'service']],
+        ['(a\u200cstatic = 1, a\u200dstatic = 2, service) => {}', ['a\u200cstatic', 'a\u200dstatic', 'service']],
+        ['(\n staticPath,\n staticπ,\n $static,\n service\n) => {}', ['staticPath', 'staticπ', '$static', 'service']],
+        ['(path = staticPath, service) => {}', ['path', 'service']],
+    ])('preserves static inside identifiers in %s', (source, expected) => {
+        expect(getParameterNames(source)).toEqual(expected);
+    });
+
     it('supports ES2015 fat arrow functions with parens', () => {
         var f = '(a,b) => a + b';
 
@@ -230,6 +243,21 @@ describe('function tests', () => {
     });
 
     describe('ES2016 Class', () => {
+        it('keeps support for static members on the class declaration line', () => {
+            const source = 'class Example { static get value() { return true; }\n constructor(staticPath, service) {} }';
+            expect(getParameterNames(source)).toEqual(['staticPath', 'service']);
+        });
+
+        it('preserves constructor parameters containing static after static members', () => {
+            class Example {
+                static get value() {
+                    return true;
+                }
+                constructor(staticPath, service) {}
+            }
+            expect(getParameterNames(Example)).toEqual(['staticPath', 'service']);
+        });
+
         it('constructor with static get before constructor', () => {
             var f =
                 'class Cat {\n      static get foo () {\n  ' +
