@@ -182,7 +182,17 @@ const appendChild = (parent: Node, child: Child): void => {
                 } else {
                     textNode = null;
                     scopeInstance = newScope;
-                    insertBefore(liveParent, value, end);
+                    // Insertion evaluates returned functions, including those in arrays.
+                    // Their effects, refs, and listeners belong to this subtree too.
+                    newScope(onDispose => {
+                        const prev = currentOnDispose;
+                        currentOnDispose = onDispose;
+                        try {
+                            insertBefore(liveParent, value, end);
+                        } finally {
+                            currentOnDispose = prev;
+                        }
+                    });
                 }
                 return () => {
                     if (scopeInstance !== undefined) {
@@ -233,10 +243,8 @@ const insertBefore = (parent: Node, child: Child, anchor: Node): void => {
     } else if (child instanceof Node) {
         parent.insertBefore(child, anchor);
     } else if (typeof child === 'function') {
-        // One-shot eager evaluation: a function-child returning another function
-        // is unwrapped here without creating an effect. No re-runs → no leak,
-        // so no sub-scope is needed. The outer effect (set up by appendChild)
-        // owns reactivity for this slot.
+        // Unwrap returned functions inside the caller's subtree scope and cleanup
+        // context. The outer effect owns reactivity for this slot.
         insertBefore(parent, (child as () => Child)(), anchor);
     } else {
         parent.insertBefore(document.createTextNode('' + (child as Primitive)), anchor);

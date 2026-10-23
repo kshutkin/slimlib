@@ -437,6 +437,84 @@ describe('attribute prefix + children-in-props', () => {
 // Sub-scope per dynamic boundary: a function-child must dispose its previous
 // subtree (effects, on:* listeners, ref(null) callbacks) when it re-runs.
 describe('sub-scope per dynamic boundary', () => {
+    it.each([
+        ['directly', factory => factory],
+        ['inside nested arrays', factory => [null, [() => factory]]],
+    ])('cleans up a returned factory %s when hidden and on final disposal', (_name, wrap) => {
+        const root = document.createElement('div');
+        const visible = signal(true);
+        const refs = [];
+        let clicks = 0;
+        const makeButton = () =>
+            createElement('button', {
+                ref: el => refs.push(el),
+                'on:click': () => clicks++,
+            });
+        const dispose = render(() => createElement('div', null, () => (visible() ? wrap(makeButton) : null)), root);
+
+        try {
+            const first = root.querySelector('button');
+            expect(refs).toEqual([first]);
+            first.click();
+            expect(clicks).toBe(1);
+
+            visible.set(false);
+            flushEffects();
+            expect(root.querySelector('button')).toBeNull();
+            expect(refs).toEqual([first, null]);
+            first.click();
+            expect(clicks).toBe(1);
+
+            visible.set(true);
+            flushEffects();
+            const second = root.querySelector('button');
+            expect(second).not.toBe(first);
+            expect(refs).toEqual([first, null, second]);
+            second.click();
+            expect(clicks).toBe(2);
+
+            dispose();
+            expect(refs).toEqual([first, null, second, null]);
+            second.click();
+            expect(clicks).toBe(2);
+        } finally {
+            dispose();
+        }
+    });
+
+    it('disposes effects created by a returned factory when the subtree is hidden', () => {
+        const root = document.createElement('div');
+        const visible = signal(true);
+        const inner = signal(0);
+        const runs = [];
+        let cleanups = 0;
+        const makeChild = () => {
+            effect(() => {
+                runs.push(inner());
+                return () => cleanups++;
+            }, 1);
+            return createElement('span', null, 'child');
+        };
+        const dispose = render(() => createElement('div', null, () => (visible() ? makeChild : null)), root);
+
+        try {
+            expect(runs).toEqual([0]);
+            inner.set(1);
+            flushEffects();
+            expect(runs).toEqual([0, 1]);
+            expect(cleanups).toBe(1);
+
+            visible.set(false);
+            flushEffects();
+            expect(cleanups).toBe(2);
+            inner.set(2);
+            flushEffects();
+            expect(runs).toEqual([0, 1]);
+        } finally {
+            dispose();
+        }
+    });
+
     it('disposes inner effect when conditional swaps it away', () => {
         const root = document.createElement('div');
         const cond = signal(true);
