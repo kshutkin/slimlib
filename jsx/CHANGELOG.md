@@ -1,5 +1,11 @@
 Changelog
 
+## 0.5.1
+
+### Patch Changes
+
+- c9c7e9a: Dispose effects, event listeners, and refs created by nested function children when their subtree is replaced.
+
 ## 0.5.0
 
 ### Minor Changes
