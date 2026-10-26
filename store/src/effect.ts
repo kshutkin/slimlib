@@ -168,15 +168,18 @@ export const effect = (callback: () => void | EffectCleanup, eager: EffectOption
     const effectId = node.$_stamp;
 
     const dispose = (): void => {
-        // Mark as disposed to prevent running if still in batched queue
-        disposed = true;
-        // Unregister from GC tracking (only in DEV mode)
-        unregisterEffect(gcToken);
-        // Run cleanup if it exists (stored in $_value)
-        if (typeof node.$_value === 'function') {
-            (node.$_value as EffectCleanup)();
+        // Manual disposal may be followed by scope disposal or cleanup re-entry.
+        if (!disposed) {
+            // Mark as disposed to prevent running if still in batched queue
+            disposed = true;
+            // Unregister from GC tracking (only in DEV mode)
+            unregisterEffect(gcToken);
+            // Run cleanup if it exists (stored in $_value)
+            if (typeof node.$_value === 'function') {
+                (node.$_value as EffectCleanup)();
+            }
+            clearSources(node);
         }
-        clearSources(node);
     };
 
     // Track to appropriate scope

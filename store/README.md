@@ -17,6 +17,8 @@ It also works really well with imperative code because the state primitive is Pr
 
 [Changelog](./CHANGELOG.md)
 
+[Known effect GC and lifetime limitation](./TECH-DEBT.md#effect-garbage-collection-and-the-documented-lifetime-contract)
+
 ## Installation
 
 ```bash

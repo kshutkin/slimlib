@@ -153,6 +153,29 @@ describe('effect', () => {
         expect(subscriber).toHaveBeenCalledTimes(1); // Still 1, not 2
     });
 
+    it('repeated effect disposal calls cleanup only once', () => {
+        const cleanup = vi.fn();
+        const dispose = effect(() => cleanup, 1);
+
+        dispose();
+        dispose();
+
+        expect(cleanup).toHaveBeenCalledTimes(1);
+    });
+
+    it('manual effect disposal followed by scope disposal calls cleanup only once', () => {
+        const cleanup = vi.fn();
+        let dispose;
+        const owner = scope(() => {
+            dispose = effect(() => cleanup, 1);
+        });
+
+        dispose();
+        owner();
+
+        expect(cleanup).toHaveBeenCalledTimes(1);
+    });
+
     it('dispose calls cleanup function', async () => {
         let cleanupCalled = false;
         const store = state({ count: 0 });
