@@ -1,3 +1,5 @@
+[![Branch coverage](https://raw.githubusercontent.com/kshutkin/slimlib/coverage/list/badge.svg)](https://github.com/kshutkin/slimlib/tree/coverage/list/coverage)
+
 # List
 
 Doubly linked list implementation in TypeScript.

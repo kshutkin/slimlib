@@ -1,3 +1,5 @@
+[![Branch coverage](https://raw.githubusercontent.com/kshutkin/slimlib/coverage/injector/badge.svg)](https://github.com/kshutkin/slimlib/tree/coverage/injector/coverage)
+
 # injector
 
 Parameter-names-based dependency injector for Node.js.

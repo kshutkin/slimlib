@@ -1,4 +1,75 @@
 {
     "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-    "extends": ["config:base"]
+    "extends": ["config:recommended"],
+    "vulnerabilityAlerts": {
+        "enabled": true
+    },
+    "packageRules": [
+        {
+            "description": "Keep store performance comparison baselines stable",
+            "matchFileNames": ["store/package.json"],
+            "matchDepTypes": ["devDependencies"],
+            "matchPackageNames": [
+                "@angular/core",
+                "@preact/signals-core",
+                "@reactively/core",
+                "@vue/reactivity",
+                "alien-signals",
+                "solid-js",
+                "svelte"
+            ],
+            "enabled": false
+        },
+        {
+            "description": "Keep JSX performance and size comparison baselines stable",
+            "matchFileNames": ["jsx/package.json"],
+            "matchDepTypes": ["devDependencies"],
+            "matchPackageNames": [
+                "@mastrojs/reactive",
+                "lighterhtml",
+                "lit-html",
+                "mithril",
+                "nano-jsx",
+                "preact",
+                "react",
+                "react-dom",
+                "snabbdom",
+                "solid-js",
+                "svelte",
+                "uhtml",
+                "vanjs-core",
+                "voby",
+                "vue"
+            ],
+            "enabled": false
+        },
+        {
+            "description": "Update Slimlib dependencies only outside their declared compatibility ranges",
+            "matchPackageNames": ["@slimlib/**"],
+            "rangeStrategy": "replace"
+        },
+        {
+            "description": "Keep Node declarations on major 24 with in-range lockfile updates",
+            "matchPackageNames": ["@types/node"],
+            "allowedVersions": "24.x",
+            "rangeStrategy": "update-lockfile"
+        },
+        {
+            "description": "Update stable development tools automatically only for vulnerability alerts",
+            "matchPackageNames": ["@changesets/**", "vitest", "@vitest/**", "@biomejs/biome", "rollup"],
+            "enabled": false
+        },
+        {
+            "description": "Disable ordinary dts-buddy updates before allowing minor releases",
+            "matchPackageNames": ["dts-buddy"],
+            "rangeStrategy": "bump",
+            "enabled": false
+        },
+        {
+            "description": "Allow ordinary dts-buddy minor updates",
+            "matchPackageNames": ["dts-buddy"],
+            "matchUpdateTypes": ["minor"],
+            "enabled": true
+        }
+    ]
 }

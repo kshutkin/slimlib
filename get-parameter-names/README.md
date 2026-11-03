@@ -1,3 +1,5 @@
+[![Branch coverage](https://raw.githubusercontent.com/kshutkin/slimlib/coverage/get-parameter-names/badge.svg)](https://github.com/kshutkin/slimlib/tree/coverage/get-parameter-names/coverage)
+
 # Get Parameter Names
 
 Parse a function and extract its parameter names.

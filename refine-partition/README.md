@@ -1,3 +1,5 @@
+[![Branch coverage](https://raw.githubusercontent.com/kshutkin/slimlib/coverage/refine-partition/badge.svg)](https://github.com/kshutkin/slimlib/tree/coverage/refine-partition/coverage)
+
 # Refine Partition
 
 A simple partition refinement implementation.

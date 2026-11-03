@@ -1,3 +1,5 @@
+[![Branch coverage](https://raw.githubusercontent.com/kshutkin/slimlib/coverage/smart-mock/badge.svg)](https://github.com/kshutkin/slimlib/tree/coverage/smart-mock/coverage)
+
 # Smart Mock
 
 Yet another proxy mock (YAPM?). Still in a very early state (EXPECT BUGS!).

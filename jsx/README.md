@@ -1,3 +1,5 @@
+[![Branch coverage](https://raw.githubusercontent.com/kshutkin/slimlib/coverage/jsx/badge.svg)](https://github.com/kshutkin/slimlib/tree/coverage/jsx/coverage)
+
 # @slimlib/jsx
 
 Tiny JSX renderer ~5.8KiB minified, ~2.4 KiB gzip together with reactive primitives. Real DOM nodes, no virtual DOM.

@@ -1,3 +1,5 @@
+[![Branch coverage](https://raw.githubusercontent.com/kshutkin/slimlib/coverage/store/badge.svg)](https://github.com/kshutkin/slimlib/tree/coverage/store/coverage)
+
 # Store
 
 Reactive state management for SPAs with automatic dependency tracking.

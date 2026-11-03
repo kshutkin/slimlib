@@ -6,12 +6,16 @@ Collection of slim general-purpose typescript/javascript libraries
 
 ## Packages
 
-- [list](./list/README.md)
-- [get-parameter-names](./get-parameter-names/README.md)
-- [store](./store/README.md)
-- [injector](./injector/README.md)
-- [refine-partition](./refine-partition/README.md)
-- [smart-mock](./smart-mock/README.md)
+| Package | Branch coverage |
+| --- | --- |
+| [list](./list/README.md) | [![Branch coverage](https://raw.githubusercontent.com/kshutkin/slimlib/coverage/list/badge.svg)](https://github.com/kshutkin/slimlib/tree/coverage/list/coverage) |
+| [get-parameter-names](./get-parameter-names/README.md) | [![Branch coverage](https://raw.githubusercontent.com/kshutkin/slimlib/coverage/get-parameter-names/badge.svg)](https://github.com/kshutkin/slimlib/tree/coverage/get-parameter-names/coverage) |
+| [store](./store/README.md) | [![Branch coverage](https://raw.githubusercontent.com/kshutkin/slimlib/coverage/store/badge.svg)](https://github.com/kshutkin/slimlib/tree/coverage/store/coverage) |
+| [injector](./injector/README.md) | [![Branch coverage](https://raw.githubusercontent.com/kshutkin/slimlib/coverage/injector/badge.svg)](https://github.com/kshutkin/slimlib/tree/coverage/injector/coverage) |
+| [refine-partition](./refine-partition/README.md) | [![Branch coverage](https://raw.githubusercontent.com/kshutkin/slimlib/coverage/refine-partition/badge.svg)](https://github.com/kshutkin/slimlib/tree/coverage/refine-partition/coverage) |
+| [smart-mock](./smart-mock/README.md) | [![Branch coverage](https://raw.githubusercontent.com/kshutkin/slimlib/coverage/smart-mock/badge.svg)](https://github.com/kshutkin/slimlib/tree/coverage/smart-mock/coverage) |
+| [jsx](./jsx/README.md) | [![Branch coverage](https://raw.githubusercontent.com/kshutkin/slimlib/coverage/jsx/badge.svg)](https://github.com/kshutkin/slimlib/tree/coverage/jsx/coverage) |
+| [element](./element/README.md) | [![Branch coverage](https://raw.githubusercontent.com/kshutkin/slimlib/coverage/element/badge.svg)](https://github.com/kshutkin/slimlib/tree/coverage/element/coverage) |
 
 # License
 

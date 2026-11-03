@@ -1,3 +1,5 @@
+[![Branch coverage](https://raw.githubusercontent.com/kshutkin/slimlib/coverage/element/badge.svg)](https://github.com/kshutkin/slimlib/tree/coverage/element/coverage)
+
 # @slimlib/element
 
 Functional Custom Elements backed by [`@slimlib/jsx`](../jsx) for rendering and
