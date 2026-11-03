@@ -56,7 +56,7 @@
         },
         {
             "description": "Update stable development tools automatically only for vulnerability alerts",
-            "matchPackageNames": ["@changesets/**", "vitest", "@vitest/**", "@biomejs/biome", "rollup"],
+            "matchPackageNames": ["@changesets/**", "vitest", "@vitest/**", "@biomejs/biome", "rollup", "esbuild"],
             "enabled": false
         },
         {
