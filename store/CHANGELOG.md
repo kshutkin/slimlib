@@ -1,5 +1,11 @@
 Changelog
 
+## 2.2.3
+
+### Patch Changes
+
+- 9286052: Prevent effect cleanup from running more than once when its disposer is called repeatedly or its owning scope is disposed after manual disposal.
+
 ## 2.2.2
 
 ### Patch Changes
