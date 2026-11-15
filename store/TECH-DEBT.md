@@ -2,7 +2,7 @@
 
 ## Effect garbage collection and the documented lifetime contract
 
-Status: deferred; implementation unchanged.
+Status: lifetime contract and scope retention deferred; eager setup rollback fixed.
 
 The README says that an effect created outside a scope needs its disposer to be retained to prevent garbage collection. The current implementation does not provide that behavior: a reachable reactive source strongly retains its subscribed effects, even when their disposers are no longer referenced.
 
@@ -18,11 +18,11 @@ Dropping the disposer does not break this chain. Calling it removes the subscrip
 
 An entire unreachable signal/effect graph can still be collected; cyclic references alone do not prevent GC. The mismatch concerns effects subscribed to sources that remain reachable. Computeds have separate liveness tracking, so this observation should not be generalized to every reactive primitive.
 
-A forced-GC probe against the current source confirmed that normal and failed eager-effect callbacks remain alive while their signal remains reachable. A callback in an entirely unreachable signal/effect graph was collected. The development `FinalizationRegistry` warning is diagnostic; it does not unsubscribe effects.
+A forced-GC probe confirmed that normal effect callbacks remain alive while their signal remains reachable. Before the eager setup rollback below was implemented, failed eager-effect callbacks were retained in the same way. A callback in an entirely unreachable signal/effect graph was collected. The development `FinalizationRegistry` warning is diagnostic; it does not unsubscribe effects.
 
-### Related failure: eager setup throws before returning a disposer
+### Eager setup throws before returning a disposer (resolved)
 
-In [src/effect.ts](./src/effect.ts), the initial eager `runner()` call propagates errors without rolling back subscriptions established before the throw:
+In [src/effect.ts](./src/effect.ts), the initial eager `runner()` call now disposes the effect before rethrowing the original error. This removes subscriptions, unregisters development GC tracking, and prevents an already queued effect from running. Errors during later runs retain their existing recovery behavior.
 
 ```js
 import { effect, EffectOptions, flushEffects, signal } from '@slimlib/store';
@@ -37,26 +37,29 @@ try {
         if (value() === 0) throw new Error('Setup failed');
     }, EffectOptions.EAGER);
 } catch {
-    // effect() never returned its disposer.
+    // effect() disposed the failed effect before rethrowing.
 }
 
 value.set(1);
 flushEffects();
-// runs === 2, although initial setup failed and dispose is undefined.
+// runs === 1; the failed effect stays stopped, although dispose is undefined.
 ```
 
-The read of `value()` subscribes the effect before the exception. As long as the signal stays reachable, the failed effect can run again and retain resources captured by its callback.
+Regression coverage in [tests/eager-failure.spec.mjs](./tests/eager-failure.spec.mjs) checks shared signal/state/computed sources, scoped and unscoped effects, microtask and synchronous schedulers, queued execution, original thrown values, and recovery after later-run errors.
+
+### Remaining scope retention
+
+Scope registration is unchanged. An owning scope still retains the failed effect's disposer, and therefore its callback and captured objects, until the scope is disposed or becomes unreachable. Manually disposed effects have the same retention behavior. Removing subscriptions stops further runs but does not immediately release these scope-held references.
 
 ### Workaround
 
-Explicitly dispose effects, either through their returned disposers or an owning scope. Retaining a disposer is useful for teardown, but dropping it is not a way to stop the effect. For an eager setup failure that prevents receiving a disposer, an explicitly created owning scope can still be disposed by the caller.
+Explicitly dispose effects, either through their returned disposers or an owning scope. Retaining a disposer is useful for teardown, but dropping it is not a way to stop the effect. Eager setup failures unsubscribe automatically. Scope disposal also releases registrations for already disposed effects.
 
 ### Resolution and validation
 
 - Decide whether to restore the documented collection behavior for unowned effects or revise the public lifetime contract and README examples to require explicit teardown while sources remain reachable. A change to dependency ownership needs size and performance measurements.
-- Independently, roll back subscriptions and registration when the initial eager run throws. Garbage collection, even with weak subscriptions, would not provide immediate or deterministic rollback.
+- Consider unlinking disposed effects from owning scopes without adding an allocation per registration. Compare size and performance before changing scope storage.
 - Add GC regressions with a reachable source and a dropped disposer, an unreachable whole graph, and effects kept alive by a disposer or scope. Existing computed GC coverage does not establish the effect lifetime contract.
-- Add a regression proving that changing a source after eager setup fails does not re-run the failed effect, including when another effect still depends on that source.
 
 ## Object accessors bypass reactive input tracking
 

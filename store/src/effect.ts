@@ -205,7 +205,12 @@ export const effect = (callback: () => void | EffectCleanup, eager: EffectOption
         // executes inside a queueMicrotask callback, where thrown errors
         // would become unhandled rejections; the flush loop logs them via
         // console.error instead.)
-        runner();
+        try {
+            runner();
+        } catch (error) {
+            dispose();
+            throw error;
+        }
     }
 
     return dispose;
