@@ -1,5 +1,11 @@
 Changelog
 
+## 2.2.4
+
+### Patch Changes
+
+- 8a6cc3e: Dispose eager effects when their initial callback throws, removing subscriptions and preventing queued or future runs before rethrowing the original error.
+
 ## 2.2.3
 
 ### Patch Changes
