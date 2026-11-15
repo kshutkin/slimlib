@@ -22,7 +22,7 @@
         "@vitest/coverage-v8": "^4.1.7",
         "dts-buddy": "^0.8.3",
         "pkgprn-internal": "^0.12.1",
-        "playwright": "^1.49.0",
+        "playwright": "^1.65.1",
         "typescript": "~5.9.3",
         "vitest": "^4.1.7"
     }
