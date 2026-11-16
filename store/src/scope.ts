@@ -8,7 +8,7 @@ import type { OnDisposeCallback, Scope, ScopeCallback, ScopeParent } from './typ
  * Effects created within a scope callback are automatically tracked and disposed together
  */
 export const scope = (callback?: ScopeCallback, parent: Scope | undefined = activeScope): Scope => {
-    const effects: (() => void)[] = [];
+    const effects: Array<(() => void) | undefined> = [];
     const children: Scope[] = [];
     const cleanups: Array<() => void> = [];
     let disposed = false;
@@ -68,7 +68,7 @@ export const scope = (callback?: ScopeCallback, parent: Scope | undefined = acti
     }) as Scope;
 
     // Internal symbols for effect tracking and child management
-    ctx[trackSymbol] = (dispose: () => void) => effects.push(dispose);
+    ctx[trackSymbol] = effects;
     ctx[childrenSymbol] = children;
     ctx[parentSymbol] = parent;
 

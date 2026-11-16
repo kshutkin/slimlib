@@ -2,7 +2,7 @@
 
 ## Effect garbage collection and the documented lifetime contract
 
-Status: lifetime contract and scope retention deferred; eager setup rollback fixed.
+Status: lifetime contract and manual-disposal retention deferred; eager setup rollback and scope unregistration fixed.
 
 The README says that an effect created outside a scope needs its disposer to be retained to prevent garbage collection. The current implementation does not provide that behavior: a reachable reactive source strongly retains its subscribed effects, even when their disposers are no longer referenced.
 
@@ -22,7 +22,7 @@ A forced-GC probe confirmed that normal effect callbacks remain alive while thei
 
 ### Eager setup throws before returning a disposer (resolved)
 
-In [src/effect.ts](./src/effect.ts), the initial eager `runner()` call now disposes the effect before rethrowing the original error. This removes subscriptions, unregisters development GC tracking, and prevents an already queued effect from running. Errors during later runs retain their existing recovery behavior.
+In [src/effect.ts](./src/effect.ts), the initial eager `runner()` call now removes the failed effect from its owning scope and disposes it before rethrowing the original error. This removes subscriptions, unregisters development GC tracking, and prevents an already queued effect from running. The scope array and registration index are used only during setup and in the eager catch, without adding captures to the disposer or runner. Errors during later runs retain their existing recovery behavior.
 
 ```js
 import { effect, EffectOptions, flushEffects, signal } from '@slimlib/store';
@@ -45,11 +45,11 @@ flushEffects();
 // runs === 1; the failed effect stays stopped, although dispose is undefined.
 ```
 
-Regression coverage in [tests/eager-failure.spec.mjs](./tests/eager-failure.spec.mjs) checks shared signal/state/computed sources, scoped and unscoped effects, microtask and synchronous schedulers, queued execution, original thrown values, and recovery after later-run errors.
+Regression coverage in [tests/eager-failure.spec.mjs](./tests/eager-failure.spec.mjs) checks shared signal/state/computed sources, scoped and unscoped effects, microtask and synchronous schedulers, queued execution, original thrown values, and recovery after later-run errors. Forced-GC tests verify that failed callbacks and their captured objects are collectible while the owning scope remains live, including after queued execution. Lifecycle tests cover neighboring effects, effects created during failed setup, and callbacks that dispose their scope before throwing.
 
 ### Remaining scope retention
 
-Scope registration is unchanged. An owning scope still retains the failed effect's disposer, and therefore its callback and captured objects, until the scope is disposed or becomes unreachable. Manually disposed effects have the same retention behavior. Removing subscriptions stops further runs but does not immediately release these scope-held references.
+Failed eager setups clear their scope slots immediately. Successful effects that are later manually disposed remain registered with their owning scope, which retains their callbacks and captured objects until the scope is disposed or becomes unreachable. Removing subscriptions stops further runs but does not immediately release these scope-held references. Cleared scope slots are not compacted or reused, so the array retains its capacity until scope disposal.
 
 ### Workaround
 
@@ -58,7 +58,7 @@ Explicitly dispose effects, either through their returned disposers or an owning
 ### Resolution and validation
 
 - Decide whether to restore the documented collection behavior for unowned effects or revise the public lifetime contract and README examples to require explicit teardown while sources remain reachable. A change to dependency ownership needs size and performance measurements.
-- Consider unlinking disposed effects from owning scopes without adding an allocation per registration. Compare size and performance before changing scope storage.
+- Consider unlinking successfully created effects from owning scopes on manual disposal without adding an allocation per registration. Compare size and performance before changing scope storage or reusing cleared slots.
 - Add GC regressions with a reachable source and a dropped disposer, an unreachable whole graph, and effects kept alive by a disposer or scope. Existing computed GC coverage does not establish the effect lifetime contract.
 
 ## Object accessors bypass reactive input tracking

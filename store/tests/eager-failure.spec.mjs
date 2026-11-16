@@ -1,6 +1,26 @@
+import { setImmediate } from 'node:timers/promises';
+
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { computed, EffectOptions, effect, flushEffects, scope, setActiveScope, setScheduler, signal, state } from '../src/index.js';
+
+function createFailedEffect(value, queueBeforeThrow) {
+    const payload = { runs: 0 };
+    const callback = () => {
+        payload.runs++;
+        const current = value();
+        if (queueBeforeThrow && current === 0) value.set(1);
+        throw undefined;
+    };
+    const refs = { callback: new WeakRef(callback), payload: new WeakRef(payload) };
+    try {
+        effect(callback, EffectOptions.EAGER);
+    } catch {
+        // Retain only WeakRefs after setup fails.
+    }
+    expect(payload.runs).toBe(1);
+    return refs;
+}
 
 describe('eager effect setup failure', () => {
     let owner;
@@ -140,5 +160,101 @@ describe('eager effect setup failure', () => {
         value.set(1);
         flushEffects();
         expect(callback).toHaveBeenCalledTimes(1);
+    });
+
+    it.each([false, true])('releases the failed callback while its scope remains live (queued: %s)', async queued => {
+        const value = signal(0);
+        const observed = [];
+        effect(() => {
+            observed.push(value());
+        }, EffectOptions.EAGER);
+        const refs = createFailedEffect(value, queued);
+        flushEffects();
+
+        for (let i = 0; i < 10; i++) {
+            await setImmediate();
+            global.gc();
+            if (refs.callback.deref() === undefined && refs.payload.deref() === undefined) break;
+        }
+
+        expect(refs.callback.deref()).toBeUndefined();
+        expect(refs.payload.deref()).toBeUndefined();
+        value.set(2);
+        flushEffects();
+        expect(observed.at(-1)).toBe(2);
+    });
+
+    it('disposes neighboring effects after multiple eager setups fail', () => {
+        const value = signal(0);
+        const before = vi.fn();
+        const after = vi.fn();
+        const callback = vi.fn(() => {
+            value();
+            return before;
+        });
+        effect(callback, EffectOptions.EAGER);
+        createFailedEffect(value, false);
+        createFailedEffect(value, false);
+        effect(() => {
+            value();
+            return after;
+        }, EffectOptions.EAGER);
+
+        owner();
+
+        expect(before).toHaveBeenCalledTimes(1);
+        expect(after).toHaveBeenCalledTimes(1);
+        value.set(1);
+        flushEffects();
+        expect(callback).toHaveBeenCalledTimes(1);
+    });
+
+    it('keeps effects created during failed setup registered with the scope', () => {
+        const value = signal(0);
+        const cleanup = vi.fn();
+        const failure = new Error('Outer setup failed');
+        const nested = vi.fn(() => {
+            value();
+            return cleanup;
+        });
+
+        expect(() =>
+            effect(() => {
+                effect(nested, EffectOptions.EAGER);
+                throw failure;
+            }, EffectOptions.EAGER)
+        ).toThrow(failure);
+
+        value.set(1);
+        flushEffects();
+        expect(nested).toHaveBeenCalledTimes(2);
+        expect(cleanup).toHaveBeenCalledTimes(1);
+
+        owner();
+        expect(cleanup).toHaveBeenCalledTimes(2);
+        value.set(2);
+        flushEffects();
+        expect(nested).toHaveBeenCalledTimes(2);
+    });
+
+    it('preserves the error when the eager callback disposes its own scope before throwing', () => {
+        const cleanup = vi.fn();
+        const failure = new Error('Setup failed after scope disposal');
+        effect(() => cleanup, EffectOptions.EAGER);
+        let caught;
+
+        try {
+            effect(() => {
+                owner();
+                throw failure;
+            }, EffectOptions.EAGER);
+        } catch (error) {
+            caught = error;
+        }
+
+        expect(caught).toBe(failure);
+        expect(cleanup).toHaveBeenCalledTimes(1);
+        owner();
+        expect(cleanup).toHaveBeenCalledTimes(1);
     });
 });

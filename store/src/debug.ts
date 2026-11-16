@@ -35,9 +35,9 @@ export const debugConfig = (flags: number): void => {
 /**
  * Safely call each function in an iterable, logging any errors to console
  */
-export const safeForEach = (fns: Array<() => void>): void => {
+export const safeForEach = (fns: Array<(() => void) | undefined>): void => {
     for (let i = 0, len = fns.length; i < len; ++i) {
-        const fn = fns[i] as () => void;
+        const fn = fns[i];
         try {
             fn?.();
         } catch (e) {

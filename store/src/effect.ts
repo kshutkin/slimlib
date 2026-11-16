@@ -182,10 +182,8 @@ export const effect = (callback: () => void | EffectCleanup, eager: EffectOption
         }
     };
 
-    // Track to appropriate scope
-    if (effectScope) {
-        (effectScope[trackSymbol] as (dispose: () => void) => void)(dispose);
-    }
+    const effects = effectScope?.[trackSymbol] as Array<(() => void) | undefined> | undefined;
+    const effectIndex = effects ? effects.push(dispose) - 1 : -1;
 
     // ----------------------------------------------------------------
     // Initial scheduling (triggers first PULL when flush runs)
@@ -208,6 +206,7 @@ export const effect = (callback: () => void | EffectCleanup, eager: EffectOption
         try {
             runner();
         } catch (error) {
+            if (!disposed && effects) effects[effectIndex] = undefined;
             dispose();
             throw error;
         }
