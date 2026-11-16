@@ -1,5 +1,11 @@
 Changelog
 
+## 2.2.5
+
+### Patch Changes
+
+- 9708499: Remove failed eager effects from their owning scope so their callbacks and captured objects can be collected before the scope is disposed.
+
 ## 2.2.4
 
 ### Patch Changes
