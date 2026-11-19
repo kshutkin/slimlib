@@ -1,5 +1,11 @@
 Changelog
 
+## 2.2.6
+
+### Patch Changes
+
+- f3b3caa: Remove manually disposed effects from their owning scope so their callbacks and captured objects can be collected while the scope is still alive.
+
 ## 2.2.5
 
 ### Patch Changes
