@@ -170,6 +170,7 @@ export const effect = (callback: () => void | EffectCleanup, eager: EffectOption
     const dispose = (): void => {
         // Manual disposal may be followed by scope disposal or cleanup re-entry.
         if (!disposed) {
+            if (effects) effects[effectIndex] = undefined;
             // Mark as disposed to prevent running if still in batched queue
             disposed = true;
             // Unregister from GC tracking (only in DEV mode)
@@ -206,7 +207,6 @@ export const effect = (callback: () => void | EffectCleanup, eager: EffectOption
         try {
             runner();
         } catch (error) {
-            if (!disposed && effects) effects[effectIndex] = undefined;
             dispose();
             throw error;
         }

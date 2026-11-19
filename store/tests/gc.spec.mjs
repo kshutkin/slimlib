@@ -1,6 +1,6 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
-import { computed, effect, flushEffects, scope, setActiveScope, signal, state } from '../src/index.js';
+import { computed, EffectOptions, effect, flushEffects, scope, setActiveScope, signal, state } from '../src/index.js';
 
 function flushPromises() {
     return new Promise(resolve => setTimeout(resolve));
@@ -56,6 +56,54 @@ describe('garbage collection', () => {
         if (typeof global.gc !== 'function') {
             throw new Error('These tests require --expose-gc. Check vitest.config.mjs poolOptions.');
         }
+    });
+
+    it.each([
+        EffectOptions.EAGER,
+        EffectOptions.DEFERRED,
+    ])('releases a manually disposed effect while its scope and source are live (mode: %s)', async mode => {
+        const value = signal(0);
+        const observed = [];
+        const neighbor = () => {
+            observed.push(value());
+        };
+        const refs = (() => {
+            const payload = { runs: 0, cleanups: 0 };
+            const cleanup = () => {
+                payload.cleanups++;
+            };
+            const callback = () => {
+                value();
+                payload.runs++;
+                return cleanup;
+            };
+            const dispose = effect(callback, mode);
+            effect(neighbor, EffectOptions.EAGER);
+            flushEffects();
+
+            value.set(1);
+            dispose();
+            flushEffects();
+
+            expect(payload).toEqual({ runs: 1, cleanups: 1 });
+            return [new WeakRef(callback), new WeakRef(cleanup), new WeakRef(payload)];
+        })();
+
+        for (let i = 0; i < 10; i++) {
+            await flushPromises();
+            forceGC();
+            if (refs.every(ref => ref.deref() === undefined)) break;
+        }
+
+        expect(refs.map(ref => ref.deref())).toEqual([undefined, undefined, undefined]);
+        value.set(2);
+        flushEffects();
+        expect(observed).toEqual([0, 1, 2]);
+
+        testScope();
+        value.set(3);
+        flushEffects();
+        expect(observed).toEqual([0, 1, 2]);
     });
 
     it('unreferenced computed is garbage collected', async () => {

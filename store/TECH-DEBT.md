@@ -2,7 +2,7 @@
 
 ## Effect garbage collection and the documented lifetime contract
 
-Status: lifetime contract and manual-disposal retention deferred; eager setup rollback and scope unregistration fixed.
+Status: lifetime contract and scope-array growth deferred; manual-disposal scope retention and eager setup rollback fixed. Throwing cleanup remains a separate issue below.
 
 The README says that an effect created outside a scope needs its disposer to be retained to prevent garbage collection. The current implementation does not provide that behavior: a reachable reactive source strongly retains its subscribed effects, even when their disposers are no longer referenced.
 
@@ -14,7 +14,7 @@ In [src/core.ts](./src/core.ts), `DepsSet` extends an ordinary `Set`, and depend
 reachable signal -> dependency Set -> effect node -> callback
 ```
 
-Dropping the disposer does not break this chain. Calling it removes the subscriptions through `clearSources`. Disposing an owning scope also disposes its effects.
+Dropping the disposer does not break this chain. Calling it removes the subscriptions through `clearSources` when cleanup returns normally. Disposing an owning scope also disposes its effects. Throwing cleanup can skip unsubscription, as described below.
 
 An entire unreachable signal/effect graph can still be collected; cyclic references alone do not prevent GC. The mismatch concerns effects subscribed to sources that remain reachable. Computeds have separate liveness tracking, so this observation should not be generalized to every reactive primitive.
 
@@ -22,7 +22,7 @@ A forced-GC probe confirmed that normal effect callbacks remain alive while thei
 
 ### Eager setup throws before returning a disposer (resolved)
 
-In [src/effect.ts](./src/effect.ts), the initial eager `runner()` call now removes the failed effect from its owning scope and disposes it before rethrowing the original error. This removes subscriptions, unregisters development GC tracking, and prevents an already queued effect from running. The scope array and registration index are used only during setup and in the eager catch, without adding captures to the disposer or runner. Errors during later runs retain their existing recovery behavior.
+In [src/effect.ts](./src/effect.ts), the initial eager `runner()` call now disposes the failed effect before rethrowing the original error. The disposer uses its captured scope array and registration index to clear the slot on first disposal, including manual disposal and scope teardown. Eager setup rollback removes subscriptions, unregisters development GC tracking, and prevents an already queued effect from running. Errors during later runs retain their existing recovery behavior.
 
 ```js
 import { effect, EffectOptions, flushEffects, signal } from '@slimlib/store';
@@ -47,19 +47,100 @@ flushEffects();
 
 Regression coverage in [tests/eager-failure.spec.mjs](./tests/eager-failure.spec.mjs) checks shared signal/state/computed sources, scoped and unscoped effects, microtask and synchronous schedulers, queued execution, original thrown values, and recovery after later-run errors. Forced-GC tests verify that failed callbacks and their captured objects are collectible while the owning scope remains live, including after queued execution. Lifecycle tests cover neighboring effects, effects created during failed setup, and callbacks that dispose their scope before throwing.
 
-### Remaining scope retention
+### Remaining scope-array growth
 
-Failed eager setups clear their scope slots immediately. Successful effects that are later manually disposed remain registered with their owning scope, which retains their callbacks and captured objects until the scope is disposed or becomes unreachable. Removing subscriptions stops further runs but does not immediately release these scope-held references. Cleared scope slots are not compacted or reused, so the array retains its capacity until scope disposal.
+Failed eager setups and manually disposed effects clear their scope slots immediately. After successful unsubscription, callbacks and captured objects can be collected while the owner remains live, provided no disposer or queued work still retains them. [GC regressions](./tests/gc.spec.mjs) cover manual disposal of eager and deferred effects with an update queued. Cleared slots are not compacted or reused, so array capacity and teardown scans remain proportional to registrations since scope creation rather than the number of live effects.
 
 ### Workaround
 
-Explicitly dispose effects, either through their returned disposers or an owning scope. Retaining a disposer is useful for teardown, but dropping it is not a way to stop the effect. Eager setup failures unsubscribe automatically. Scope disposal also releases registrations for already disposed effects.
+Explicitly dispose effects, either through their returned disposers or an owning scope. Retaining a disposer is useful for teardown, but dropping it is not a way to stop the effect. Eager setup failures unsubscribe automatically. Scope disposal clears the registration array.
 
 ### Resolution and validation
 
 - Decide whether to restore the documented collection behavior for unowned effects or revise the public lifetime contract and README examples to require explicit teardown while sources remain reachable. A change to dependency ownership needs size and performance measurements.
-- Consider unlinking successfully created effects from owning scopes on manual disposal without adding an allocation per registration. Compare size and performance before changing scope storage or reusing cleared slots.
+- Consider stable compaction only if long-lived scopes with frequent manual disposal justify it. Measure heap growth and teardown time with a small live population and many historical registrations; preserve cleanup order when relocating entries.
 - Add GC regressions with a reachable source and a dropped disposer, an unreachable whole graph, and effects kept alive by a disposer or scope. Existing computed GC coverage does not establish the effect lifetime contract.
+
+## Effects created in a disposed active scope remain live
+
+Status: deferred.
+
+In [src/scope.ts](./src/scope.ts), calling a scope without a callback disposes it but does not change `activeScope`. An enclosing scope callback or effect runner restores the previous active scope only when it returns. Code that continues executing in that context can therefore create effects owned by an already disposed scope.
+
+### Scenario
+
+```js
+import { effect, EffectOptions, flushEffects, scope, signal } from '@slimlib/store';
+
+const value = signal(0);
+const owner = scope();
+let runs = 0;
+
+owner(() => {
+    owner();
+    effect(() => {
+        value();
+        runs++;
+    }, EffectOptions.EAGER);
+});
+
+value.set(1);
+flushEffects();
+owner(); // Already disposed: does not stop the newly registered effect.
+// runs === 2; the effect remains subscribed.
+```
+
+The same situation can occur when an eager callback disposes its own scope, or when teardown callbacks create effects while the disposed owner remains active. Registrations appended during effect teardown can also fall outside its initial iteration boundary. Ordinary disposal after the scope callback has returned does not by itself leave that scope active.
+
+### Workaround
+
+Finish creating owned effects before disposing the scope. If code can create an effect after its owner has been disposed, retain and call the effect's individual disposer rather than relying on another scope-disposal call.
+
+### Proposed fix and validation
+
+- Define the policy for creating effects under a disposed active owner: reject creation, return an inert disposer, or give the effect another explicit owner. Silently ignoring the callback is an observable API decision.
+- A closed-registration marker and a creation guard are one possible implementation. Account for child, effect, and scope cleanup callbacks, and avoid reopening a disposed registry.
+- Cover eager and deferred creation after explicit disposal inside an active callback, creation during teardown, repeated scope disposal, and queued work. Preserve existing teardown order and exception isolation.
+
+## Throwing final effect cleanup skips source unsubscription
+
+Status: deferred.
+
+In [src/effect.ts](./src/effect.ts), disposal marks the effect disposed, clears its scope registration, and unregisters development GC tracking before calling the final cleanup. `clearSources(node)` follows the cleanup call. If cleanup throws, source unsubscription is skipped.
+
+### Scenario
+
+```js
+import { effect, EffectOptions, signal } from '@slimlib/store';
+
+const value = signal(0);
+const stop = effect(() => {
+    value();
+    return () => {
+        throw new Error('Cleanup failed');
+    };
+}, EffectOptions.EAGER);
+
+try {
+    stop();
+} catch {
+    // The effect is marked disposed, but its source subscriptions remain.
+}
+
+stop(); // No-op: retrying does not reach clearSources either.
+```
+
+The disposed runner skips subsequent executions, so this does not cause the callback to keep running. A reachable source still retains the subscribed node, callback, and captured objects, however. Forced-GC probes confirmed this retention. Scope teardown catches the error and continues disposing its other effects, but cannot retry unsubscription for the failed one.
+
+### Workaround
+
+Keep final cleanup nonthrowing, for example by handling and reporting cleanup failures inside the cleanup function. Catching an error around the returned disposer does not remove subscriptions that were already skipped.
+
+### Proposed fix and validation
+
+- Run final cleanup in `try` and `clearSources(node)` in `finally`, while preserving cleanup error propagation and idempotent disposal.
+- Cover manual and scope disposal, scoped and unscoped effects, repeated disposal, queued execution, and cleanup that disposes neighboring effects.
+- Add forced-GC regressions with the source still reachable, verifying that the callback, cleanup, and captured payload become collectible after a throwing cleanup. Existing error-handling tests only establish that other scope cleanup continues.
 
 ## Object accessors bypass reactive input tracking
 
