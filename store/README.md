@@ -6,20 +6,18 @@ Reactive state management for SPAs with automatic dependency tracking.
 
 ## Why This Library
 
-It is mostly DX. I don't want mandatory scopes, lifetime management, explicit batches, or non-tree-shakable code in my apps, and that's what I provide.
+It is mostly DX. I don't want mandatory scopes, explicit batches, or non-tree-shakable code in my apps, and that's what I provide.
 
 It also works really well with imperative code because the state primitive is Proxy-based (at the same time it works with native objects like Set or Map without any wrappers, a wrapper will be more optimized, but it is not required).
 
 - **Relatively small and tree shakable** - less than 5KiB minified, you pay only for what you use
-- **GC friendly** - all primitives can be garbage collected
+- **GC friendly** - unreachable signals, state, computeds, and effects can be collected, even when they reference one another
 - **Easy batching** - by default it is batched to the next microtask, but it is configurable
 - **Relatively fast** - it is not faster than Alien Signals, but faster than other big frameworks (it truly depends on the scenario)
 - **Proxy-based state** - easy to understand imperative code, signal alternative is also provided
 - **Dev mode** - you get warnings when you do stupid things
 
 [Changelog](./CHANGELOG.md)
-
-[Known effect GC and lifetime limitation](./TECH-DEBT.md#effect-garbage-collection-and-the-documented-lifetime-contract)
 
 ## Installation
 
@@ -148,14 +146,14 @@ Creates a reactive effect that runs when its dependencies change. Returns a disp
 - Effects run on the next microtask (not synchronously) by default
 - Multiple synchronous changes are automatically batched
 - The cleanup function runs before each re-execution and when the effect is disposed
-- **Important**: If not created within a scope, you must hold a reference to the dispose function to prevent the effect from being garbage collected
+- If you create an effect outside a scope, keep its disposer and call it when you’re done. A reachable source can keep the effect subscribed after you drop the disposer.
 
 ```js
 import { effect, state } from "@slimlib/store";
 
 const store = state({ count: 0 });
 
-// Hold the dispose function to prevent GC
+// Keep the disposer so you can stop the effect later
 const dispose = effect(() => {
   console.log(store.count);
 
@@ -165,7 +163,8 @@ const dispose = effect(() => {
   };
 });
 
-store.count = 1; // Effect runs after microtask
+store.count = 1;
+await Promise.resolve(); // Let the scheduled first run finish
 
 dispose(); // Stop the effect, run cleanup
 ```
@@ -432,24 +431,22 @@ For zero-cost production builds, configure your bundler to replace the `DEV` con
 
 ##### `SUPPRESS_EFFECT_GC_WARNING`
 
-By default in development mode, the library warns when an effect is garbage collected without being properly disposed. This helps detect memory leaks where effects are created but never cleaned up.
+By default in development mode, the library can warn when an effect is garbage collected without being disposed.
 
 ```js
-// ⚠️ This will trigger a warning in dev mode:
+// This can trigger a warning in development mode:
 (() => {
   const store = state({ count: 0 });
   effect(() => {
     console.log(store.count);
   });
-  // dispose function is not stored or called!
 })();
-// When the scope exits, the effect's dispose function becomes unreachable
-// and will be garbage collected, triggering a warning.
+// Once the scheduled run finishes, the store and effect can be collected together.
 ```
 
 The warning includes a stack trace showing where the orphaned effect was created, making it easy to track down the issue.
 
-To suppress this warning (e.g., in tests or when intentionally letting effects be GC'd), use the `SUPPRESS_EFFECT_GC_WARNING` flag:
+Use the `SUPPRESS_EFFECT_GC_WARNING` flag to suppress this diagnostic, for example in tests.
 
 ```js
 import { debugConfig, SUPPRESS_EFFECT_GC_WARNING } from "@slimlib/store";
