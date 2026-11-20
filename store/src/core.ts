@@ -337,9 +337,10 @@ export const markNeedsCheck = (node: ReactiveNode): void => {
     node.$_flags = flags | Flag.CHECK;
     if ((flags & Flag.EFFECT) !== 0) {
         batchedAdd(node);
-    }
-    for (const dep of node.$_deps) {
-        markNeedsCheck(dep);
+    } else {
+        for (const dep of node.$_deps) {
+            markNeedsCheck(dep);
+        }
     }
 };
 
