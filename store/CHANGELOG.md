@@ -1,5 +1,12 @@
 Changelog
 
+## 2.2.8
+
+### Patch Changes
+
+- a3c7fdf: Clarify that callers should keep and call the disposer for effects created outside a scope. A reachable source can keep an effect subscribed after its disposer is dropped.
+- 8670204: Speed up effect notification by skipping the empty dependent traversal after queueing an effect.
+
 ## 2.2.7
 
 ### Patch Changes
