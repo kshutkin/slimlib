@@ -1,5 +1,11 @@
 Changelog
 
+## 2.2.7
+
+### Patch Changes
+
+- dbc9d0c: Unsubscribe disposed effects from their reactive sources even when their final cleanup throws, so live sources can release the disposed effects.
+
 ## 2.2.6
 
 ### Patch Changes
