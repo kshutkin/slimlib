@@ -175,11 +175,14 @@ export const effect = (callback: () => void | EffectCleanup, eager: EffectOption
             disposed = true;
             // Unregister from GC tracking (only in DEV mode)
             unregisterEffect(gcToken);
-            // Run cleanup if it exists (stored in $_value)
-            if (typeof node.$_value === 'function') {
-                (node.$_value as EffectCleanup)();
+            try {
+                // Run cleanup if it exists (stored in $_value)
+                if (typeof node.$_value === 'function') {
+                    (node.$_value as EffectCleanup)();
+                }
+            } finally {
+                clearSources(node);
             }
-            clearSources(node);
         }
     };
 

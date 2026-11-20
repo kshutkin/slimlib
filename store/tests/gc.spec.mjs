@@ -59,10 +59,13 @@ describe('garbage collection', () => {
     });
 
     it.each([
-        EffectOptions.EAGER,
-        EffectOptions.DEFERRED,
-    ])('releases a manually disposed effect while its scope and source are live (mode: %s)', async mode => {
+        { mode: EffectOptions.EAGER, throws: false },
+        { mode: EffectOptions.DEFERRED, throws: false },
+        { mode: EffectOptions.EAGER, throws: true },
+        { mode: EffectOptions.DEFERRED, throws: true },
+    ])('releases a manually disposed effect with a live scope and source (mode: $mode, throws: $throws)', async ({ mode, throws }) => {
         const value = signal(0);
+        const failure = new Error('Final cleanup failed');
         const observed = [];
         const neighbor = () => {
             observed.push(value());
@@ -71,6 +74,7 @@ describe('garbage collection', () => {
             const payload = { runs: 0, cleanups: 0 };
             const cleanup = () => {
                 payload.cleanups++;
+                if (throws) throw failure;
             };
             const callback = () => {
                 value();
@@ -82,6 +86,8 @@ describe('garbage collection', () => {
             flushEffects();
 
             value.set(1);
+            if (throws) expect(dispose).toThrow(failure);
+            else dispose();
             dispose();
             flushEffects();
 
