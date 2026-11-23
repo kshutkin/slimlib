@@ -25,8 +25,7 @@ export const scope = (callback?: ScopeCallback, parent: Scope | undefined = acti
 
             // Close registration before draining the list in creation order.
             ctx[trackSymbol] = undefined;
-            unlinkDisposer(registration, cb as symbol | undefined);
-            registration = undefined;
+            registration = unlinkDisposer(registration, cb as symbol | undefined);
             drainDisposers(disposers);
             safeForEach(cleanups);
 

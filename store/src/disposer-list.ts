@@ -17,8 +17,8 @@ export const registerDisposer = (head: DisposerNode, disposer: EffectDisposer): 
     return node;
 };
 
-export const unlinkDisposer = (node: DisposerNode | undefined, flag?: symbol): void => {
-    if (flag !== skipScopeRemoval && node !== undefined) {
+export const unlinkDisposer = (node: DisposerNode | undefined, flag?: symbol): undefined => {
+    if (node && flag !== skipScopeRemoval) {
         node.$_previous.$_next = node.$_next;
         node.$_next.$_previous = node.$_previous;
     }

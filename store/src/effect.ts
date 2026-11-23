@@ -171,8 +171,7 @@ export const effect = (callback: () => void | EffectCleanup, eager: EffectOption
     const dispose: EffectDisposer = (flag = undefined) => {
         // Manual disposal may be followed by scope disposal or cleanup re-entry.
         if (!disposed) {
-            unlinkDisposer(registration, flag);
-            registration = undefined;
+            registration = unlinkDisposer(registration, flag);
             // Mark as disposed to prevent running if still in batched queue
             disposed = true;
             // Unregister from GC tracking (only in DEV mode)
