@@ -295,6 +295,31 @@ describe('scope', () => {
             expect(innerSub).toHaveBeenCalledTimes(1);
         });
 
+        it('disposes mixed registrations in creation order across manual removals', async () => {
+            /** @type {string[]} */
+            const order = [];
+            let stopNext = () => {};
+            let stopEarly = () => {};
+            const owner = scope(onDispose => {
+                onDispose(() => order.push('owner'));
+                effect(() => () => {
+                    order.push('first effect');
+                    stopNext();
+                });
+                stopNext = scope(onCleanup => onCleanup(() => order.push('first child')));
+                stopEarly = effect(() => () => order.push('manual effect'));
+                scope(onCleanup => onCleanup(() => order.push('second child')));
+                effect(() => () => order.push('last effect'));
+            });
+
+            await flushAll();
+            stopEarly();
+            owner();
+            owner();
+
+            expect(order).toEqual(['manual effect', 'first effect', 'first child', 'second child', 'last effect', 'owner']);
+        });
+
         it('explicit undefined parent creates detached scope', async () => {
             const innerSub = vi.fn();
             const store = state({ count: 0 });

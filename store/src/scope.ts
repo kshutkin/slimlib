@@ -1,7 +1,7 @@
 import { safeForEach } from './debug';
+import { DisposerNode, drainDisposers, registerDisposer, unlinkDisposer } from './disposer-list';
 import { activeScope, setActiveScope } from './globals';
-import { childrenSymbol, parentSymbol, skipScopeRemoval, trackSymbol } from './symbols';
-import type { EffectDisposer } from './internal-types';
+import { parentSymbol, skipScopeRemoval, trackSymbol } from './symbols';
 import type { OnDisposeCallback, Scope, ScopeCallback, ScopeParent } from './types';
 
 /**
@@ -9,81 +9,49 @@ import type { OnDisposeCallback, Scope, ScopeCallback, ScopeParent } from './typ
  * Effects created within a scope callback are automatically tracked and disposed together
  */
 export const scope = (callback?: ScopeCallback, parent: Scope | undefined = activeScope): Scope => {
-    const effects: Array<EffectDisposer | undefined> = [];
-    const children: Scope[] = [];
     const cleanups: Array<() => void> = [];
-    let disposed = false;
-    let myIndex = -1;
 
     /**
      * Register a cleanup function to run when scope is disposed
      */
     const onDispose: OnDisposeCallback = cleanup => {
-        if (disposed) {
-            return;
-        }
-        cleanups.push(cleanup);
+        if (ctx[trackSymbol] !== undefined) cleanups.push(cleanup);
     };
 
-    const ctx = ((cb?: ScopeCallback) => {
-        if (!cb) {
-            // Dispose - return early if already disposed (idempotent)
-            if (disposed) {
-                return;
-            }
-            // Dispose
-            disposed = true;
+    const run = (cb?: ScopeCallback | symbol) => {
+        const disposers = ctx[trackSymbol] as DisposerNode | undefined;
+        if (!cb || cb === skipScopeRemoval) {
+            if (disposers === undefined) return;
 
-            // Dispose children first (depth-first)
-            safeForEach(children);
-
-            // Stop all effects and clear their slots together.
-            for (let i = 0, len = effects.length; i < len; ++i) {
-                const dispose = effects[i];
-                try {
-                    dispose?.(skipScopeRemoval);
-                } catch (e) {
-                    console.error(e);
-                }
-            }
-            effects.length = 0;
-
-            // Run cleanup handlers
+            // Close registration before draining the list in creation order.
+            ctx[trackSymbol] = undefined;
+            unlinkDisposer(registration, cb as symbol | undefined);
+            registration = undefined;
+            drainDisposers(disposers);
             safeForEach(cleanups);
-
-            // Remove from parent
-            if (parent) {
-                (parent[childrenSymbol] as (Scope | undefined)[])[myIndex] = undefined;
-            }
 
             return;
         }
 
         // Extend scope - silently ignore if disposed
-        if (disposed) {
-            return ctx;
-        }
+        if (disposers === undefined) return ctx;
 
         // Run callback in this scope's context
         const prev = activeScope;
         setActiveScope(ctx);
         try {
-            cb(onDispose);
+            (cb as ScopeCallback)(onDispose);
         } finally {
             setActiveScope(prev);
         }
         return ctx;
-    }) as Scope;
+    };
+    const ctx = run as Scope;
 
-    // Internal symbols for effect tracking and child management
-    ctx[trackSymbol] = effects;
-    ctx[childrenSymbol] = children;
+    ctx[trackSymbol] = new DisposerNode(run);
     ctx[parentSymbol] = parent;
-
-    // Register with parent
-    if (parent) {
-        myIndex = (parent[childrenSymbol] as Scope[]).push(ctx) - 1;
-    }
+    const parentDisposers = parent?.[trackSymbol] as DisposerNode | undefined;
+    let registration = parentDisposers === undefined ? undefined : registerDisposer(parentDisposers, run);
 
     // Run initial callback if provided
     if (callback) {

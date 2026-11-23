@@ -1,8 +1,9 @@
 import { batchedAddNew, checkSources, clearSources, DepsSet, noopGetter, runWithTracking, scheduleFlush } from './core';
 import { cycleMessage, registerEffect, unregisterEffect, warnIfNoActiveScope } from './debug';
+import { type DisposerNode, registerDisposer, unlinkDisposer } from './disposer-list';
 import { Flag } from './flags';
 import { activeScope, setActiveScope } from './globals';
-import { skipScopeRemoval, trackSymbol } from './symbols';
+import { trackSymbol } from './symbols';
 import type { EffectDisposer, ReactiveNode } from './internal-types';
 import type { EffectCleanup } from './types';
 
@@ -170,7 +171,8 @@ export const effect = (callback: () => void | EffectCleanup, eager: EffectOption
     const dispose: EffectDisposer = (flag = undefined) => {
         // Manual disposal may be followed by scope disposal or cleanup re-entry.
         if (!disposed) {
-            if (flag !== skipScopeRemoval && effects) effects[effectIndex] = undefined;
+            unlinkDisposer(registration, flag);
+            registration = undefined;
             // Mark as disposed to prevent running if still in batched queue
             disposed = true;
             // Unregister from GC tracking (only in DEV mode)
@@ -186,8 +188,8 @@ export const effect = (callback: () => void | EffectCleanup, eager: EffectOption
         }
     };
 
-    const effects = effectScope?.[trackSymbol] as Array<EffectDisposer | undefined> | undefined;
-    const effectIndex = effects ? effects.push(dispose) - 1 : -1;
+    const disposers = effectScope?.[trackSymbol] as DisposerNode | undefined;
+    let registration = disposers === undefined ? undefined : registerDisposer(disposers, dispose);
 
     // ----------------------------------------------------------------
     // Initial scheduling (triggers first PULL when flush runs)
