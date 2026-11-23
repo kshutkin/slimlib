@@ -1,6 +1,7 @@
 import { safeForEach } from './debug';
 import { activeScope, setActiveScope } from './globals';
-import { childrenSymbol, parentSymbol, trackSymbol } from './symbols';
+import { childrenSymbol, parentSymbol, skipScopeRemoval, trackSymbol } from './symbols';
+import type { EffectDisposer } from './internal-types';
 import type { OnDisposeCallback, Scope, ScopeCallback, ScopeParent } from './types';
 
 /**
@@ -8,7 +9,7 @@ import type { OnDisposeCallback, Scope, ScopeCallback, ScopeParent } from './typ
  * Effects created within a scope callback are automatically tracked and disposed together
  */
 export const scope = (callback?: ScopeCallback, parent: Scope | undefined = activeScope): Scope => {
-    const effects: Array<(() => void) | undefined> = [];
+    const effects: Array<EffectDisposer | undefined> = [];
     const children: Scope[] = [];
     const cleanups: Array<() => void> = [];
     let disposed = false;
@@ -36,8 +37,15 @@ export const scope = (callback?: ScopeCallback, parent: Scope | undefined = acti
             // Dispose children first (depth-first)
             safeForEach(children);
 
-            // Stop all effects
-            safeForEach(effects);
+            // Stop all effects and clear their slots together.
+            for (let i = 0, len = effects.length; i < len; ++i) {
+                const dispose = effects[i];
+                try {
+                    dispose?.(skipScopeRemoval);
+                } catch (e) {
+                    console.error(e);
+                }
+            }
             effects.length = 0;
 
             // Run cleanup handlers

@@ -2,6 +2,10 @@
  * Internal types used for implementation - not part of public API
  */
 
+import type { skipScopeRemoval } from './symbols';
+
+export type EffectDisposer = (flag?: typeof skipScopeRemoval) => void;
+
 /**
  * Source entry for dependencies (unified for monomorphism).
  * Properties are initialized for both types to ensure consistent hidden class.

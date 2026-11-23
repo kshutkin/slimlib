@@ -2,8 +2,8 @@ import { batchedAddNew, checkSources, clearSources, DepsSet, noopGetter, runWith
 import { cycleMessage, registerEffect, unregisterEffect, warnIfNoActiveScope } from './debug';
 import { Flag } from './flags';
 import { activeScope, setActiveScope } from './globals';
-import { trackSymbol } from './symbols';
-import type { ReactiveNode } from './internal-types';
+import { skipScopeRemoval, trackSymbol } from './symbols';
+import type { EffectDisposer, ReactiveNode } from './internal-types';
 import type { EffectCleanup } from './types';
 
 // biome-ignore lint/suspicious/noConstEnum: optimization
@@ -167,10 +167,10 @@ export const effect = (callback: () => void | EffectCleanup, eager: EffectOption
 
     const effectId = node.$_stamp;
 
-    const dispose = (): void => {
+    const dispose: EffectDisposer = (flag = undefined) => {
         // Manual disposal may be followed by scope disposal or cleanup re-entry.
         if (!disposed) {
-            if (effects) effects[effectIndex] = undefined;
+            if (flag !== skipScopeRemoval && effects) effects[effectIndex] = undefined;
             // Mark as disposed to prevent running if still in batched queue
             disposed = true;
             // Unregister from GC tracking (only in DEV mode)
@@ -186,7 +186,7 @@ export const effect = (callback: () => void | EffectCleanup, eager: EffectOption
         }
     };
 
-    const effects = effectScope?.[trackSymbol] as Array<(() => void) | undefined> | undefined;
+    const effects = effectScope?.[trackSymbol] as Array<EffectDisposer | undefined> | undefined;
     const effectIndex = effects ? effects.push(dispose) - 1 : -1;
 
     // ----------------------------------------------------------------

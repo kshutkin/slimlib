@@ -1,4 +1,4 @@
-// Symbols for objects that ARE exposed to users
+// Symbols for exposed objects and private lifecycle markers
 // These must remain symbols to avoid leaking internal implementation details
 export const [
     unwrap,
@@ -6,5 +6,6 @@ export const [
     trackSymbol,
     childrenSymbol,
     parentSymbol,
+    skipScopeRemoval,
     // biome-ignore lint/suspicious/noSparseArray: fine
-] = Array.from([, , , , ,], Symbol) as [symbol, symbol, symbol, symbol, symbol];
+] = Array.from([, , , , , ,], Symbol) as [symbol, symbol, symbol, symbol, symbol, symbol];
