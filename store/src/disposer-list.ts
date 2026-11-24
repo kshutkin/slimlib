@@ -25,8 +25,8 @@ export const unlinkDisposer = (node: DisposerNode | undefined, flag?: symbol): u
 };
 
 export const drainDisposers = (head: DisposerNode): void => {
-    // Read the next link after cleanup, which can manually unlink a sibling.
-    for (let node = head.$_next; node !== head; node = node.$_next) {
+    // Read the previous link after cleanup, which can manually unlink a sibling.
+    for (let node = head.$_previous; node !== head; node = node.$_previous) {
         try {
             node.$_disposer(skipScopeRemoval);
         } catch (e) {

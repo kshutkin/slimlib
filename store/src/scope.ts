@@ -23,7 +23,7 @@ export const scope = (callback?: ScopeCallback, parent: Scope | undefined = acti
         if (!cb || cb === skipScopeRemoval) {
             if (disposers === undefined) return;
 
-            // Close registration before draining the list in creation order.
+            // Close registration before draining the list in reverse registration order.
             ctx[trackSymbol] = undefined;
             registration = unlinkDisposer(registration, cb as symbol | undefined);
             drainDisposers(disposers);

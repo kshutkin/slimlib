@@ -418,20 +418,20 @@ describe('edge cases', () => {
             }
         });
 
-        it('continues to a child scope after a preceding effect disposer throws', () => {
+        it('continues to an older child scope after an effect disposer throws', () => {
             const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
             try {
                 const failure = new Error('Effect cleanup failed');
                 const cleanup = vi.fn();
                 const parent = scope(() => {
+                    scope(onDispose => onDispose(cleanup));
                     effect(
                         () => () => {
                             throw failure;
                         },
                         EffectOptions.EAGER
                     );
-                    scope(onDispose => onDispose(cleanup));
                 });
 
                 parent();
