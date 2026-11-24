@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
-import { effect, flushEffects, setScheduler, signal } from '@slimlib/store';
+import { activeScope, EffectOptions, effect, flushEffects, scope, setScheduler, signal } from '@slimlib/store';
 
 import { createElement, render } from '../src/index.ts';
 
@@ -13,6 +13,59 @@ let customElementId = 0;
 const uniqueTag = baseName => `${baseName}-${++customElementId}`;
 
 describe('function-child transitions', () => {
+    it('disposes registrations from each text evaluation while keeping the text binding active', () => {
+        const root = document.createElement('div');
+        const count = signal(0);
+        const events = [];
+        const owners = [];
+        const dispose = render(
+            () =>
+                createElement('div', null, () => {
+                    const value = count();
+                    owners.push(activeScope);
+                    if (value !== 1) effect(() => () => events.push(value), EffectOptions.EAGER);
+                    return value;
+                }),
+            root
+        );
+
+        const text = root.firstChild.childNodes[1];
+        expect(events).toEqual([0]);
+        count.set(1);
+        expect(events).toEqual([0]);
+        expect(text.data).toBe('1');
+        expect(root.firstChild.childNodes[1]).toBe(text);
+        expect(owners[0]).not.toBe(owners[1]);
+        const extendDisposedOwner = vi.fn();
+        owners[0](extendDisposedOwner);
+        owners[1](extendDisposedOwner);
+        expect(extendDisposedOwner).not.toHaveBeenCalled();
+
+        count.set(2);
+        expect(text.data).toBe('2');
+        expect(events).toEqual([0, 2]);
+        dispose();
+        expect(events).toEqual([0, 2]);
+    });
+
+    it('registers the subtree before siblings created during its evaluation', () => {
+        const events = [];
+        const dispose = render(() => {
+            const parent = activeScope;
+            return createElement('div', null, () => {
+                scope(onDispose => onDispose(() => events.push('sibling')), parent);
+                return createElement('button', {
+                    ref: node => {
+                        if (node === null) events.push('subtree');
+                    },
+                });
+            });
+        }, document.createElement('div'));
+
+        dispose();
+        expect(events).toEqual(['sibling', 'subtree']);
+    });
+
     it('handles primitives, bigint, and falsy values across updates', () => {
         const root = document.createElement('div');
         const sig = signal(0);
