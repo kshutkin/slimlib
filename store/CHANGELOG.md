@@ -1,5 +1,12 @@
 Changelog
 
+## 2.3.1
+
+### Patch Changes
+
+- cac9e16: Reduce dependency tracking overhead by avoiding a temporary closure on each computed recomputation and effect run.
+- 5c8a9fa: Reuse the same comparator when sorting out-of-order effect batches to avoid allocating a function on each sorted flush.
+
 ## 2.3.0
 
 ### Minor Changes
