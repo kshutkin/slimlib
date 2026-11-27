@@ -4,11 +4,12 @@ import {
     createSourceEntry,
     currentComputing,
     DepsSet,
+    endTracking,
     globalVersion,
     makeLive,
     noopGetter,
-    runWithTracking,
     setTracked,
+    startTracking,
     tracked,
 } from './core';
 import { cycleMessage } from './debug';
@@ -165,44 +166,45 @@ export function computedRead<T>(self: ReactiveNode): T {
     // Recompute if dirty or check (sources actually changed)
     if ((flags & (Flag.DIRTY | Flag.CHECK)) !== 0) {
         const wasDirty = (flags & Flag.DIRTY) !== 0;
+        const prevTracked = tracked;
+        const prev = startTracking(self);
+        try {
+            const newValue = (self.$_fn as () => T)();
 
-        runWithTracking(self, () => {
-            try {
-                const newValue = (self.$_fn as () => T)();
+            // Check if value actually changed (common path: no error recovery)
+            const changed = (flags & Flag.HAS_VALUE) === 0 || !(self.$_equals as (a: T, b: T) => boolean)(self.$_value as T, newValue);
 
-                // Check if value actually changed (common path: no error recovery)
-                const changed = (flags & Flag.HAS_VALUE) === 0 || !(self.$_equals as (a: T, b: T) => boolean)(self.$_value as T, newValue);
-
-                if (changed) {
-                    self.$_value = newValue;
-                    // Increment version to indicate value changed (for polling)
-                    ++self.$_version;
-                    self.$_flags = (self.$_flags | Flag.HAS_VALUE) & ~Flag.HAS_ERROR;
-                    // ===== PUSH PHASE (during pull): Mark CHECK-only dependents as DIRTY =====
-                    // When value changes during recomputation, upgrade dependent CHECK flags to DIRTY
-                    for (const dep of self.$_deps) {
-                        const depFlags = dep.$_flags;
-                        if ((depFlags & (Flag.COMPUTING | Flag.DIRTY | Flag.CHECK)) === Flag.CHECK) {
-                            dep.$_flags = depFlags | Flag.DIRTY;
-                        }
-                    }
-                } else if (wasDirty) {
-                    self.$_flags |= Flag.HAS_VALUE;
-                }
-
-                // Update last seen global version
-                self.$_stamp = globalVersion;
-            } catch (e) {
-                // Per TC39 Signals proposal: cache the error and mark as clean with error flag
-                // The error will be rethrown on subsequent reads until a dependency changes
-                // Reuse valueSymbol for error storage since a computed can't have both value and error
-                // Increment version since the result changed (to error)
+            if (changed) {
+                self.$_value = newValue;
+                // Increment version to indicate value changed (for polling)
                 ++self.$_version;
-                self.$_value = e as T;
-                self.$_flags = (self.$_flags & ~Flag.HAS_VALUE) | Flag.HAS_ERROR;
-                self.$_stamp = globalVersion;
+                self.$_flags = (self.$_flags | Flag.HAS_VALUE) & ~Flag.HAS_ERROR;
+                // ===== PUSH PHASE (during pull): Mark CHECK-only dependents as DIRTY =====
+                // When value changes during recomputation, upgrade dependent CHECK flags to DIRTY
+                for (const dep of self.$_deps) {
+                    const depFlags = dep.$_flags;
+                    if ((depFlags & (Flag.COMPUTING | Flag.DIRTY | Flag.CHECK)) === Flag.CHECK) {
+                        dep.$_flags = depFlags | Flag.DIRTY;
+                    }
+                }
+            } else if (wasDirty) {
+                self.$_flags |= Flag.HAS_VALUE;
             }
-        });
+
+            // Update last seen global version
+            self.$_stamp = globalVersion;
+        } catch (e) {
+            // Per TC39 Signals proposal: cache the error and mark as clean with error flag
+            // The error will be rethrown on subsequent reads until a dependency changes
+            // Reuse valueSymbol for error storage since a computed can't have both value and error
+            // Increment version since the result changed (to error)
+            ++self.$_version;
+            self.$_value = e as T;
+            self.$_flags = (self.$_flags & ~Flag.HAS_VALUE) | Flag.HAS_ERROR;
+            self.$_stamp = globalVersion;
+        } finally {
+            endTracking(self, prev, prevTracked);
+        }
     }
 
     // Check if we have a cached error to rethrow (stored in valueSymbol)

@@ -1,4 +1,4 @@
-import { batchedAddNew, checkSources, clearSources, DepsSet, noopGetter, runWithTracking, scheduleFlush } from './core';
+import { batchedAddNew, checkSources, clearSources, DepsSet, endTracking, noopGetter, scheduleFlush, startTracking, tracked } from './core';
 import { cycleMessage, registerEffect, unregisterEffect, warnIfNoActiveScope } from './debug';
 import { type DisposerNode, registerDisposer, unlinkDisposer } from './disposer-list';
 import { Flag } from './flags';
@@ -126,23 +126,24 @@ export const effect = (callback: () => void | EffectCleanup, eager: EffectOption
         }
 
         const previousScope = activeScope;
+        const prevTracked = tracked;
+        const prev = startTracking(node);
         setActiveScope(effectScope);
 
         // ----------------------------------------------------------------
         // PULL PHASE: Execute effect and track dependencies
         // ----------------------------------------------------------------
         try {
-            runWithTracking(node, () => {
-                // Run previous cleanup if it exists (stored in $_value)
-                if (typeof node.$_value === 'function') {
-                    (node.$_value as EffectCleanup)();
-                }
-                // Run the callback and store new cleanup in $_value
-                // (callback will PULL values from signals/state/computed)
-                node.$_value = callback();
-            });
+            // Run previous cleanup if it exists (stored in $_value)
+            if (typeof node.$_value === 'function') {
+                (node.$_value as EffectCleanup)();
+            }
+            // Run the callback and store new cleanup in $_value
+            // (callback will PULL values from signals/state/computed)
+            node.$_value = callback();
         } finally {
             setActiveScope(previousScope);
+            endTracking(node, prev, prevTracked);
         }
     };
 

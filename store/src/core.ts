@@ -360,47 +360,43 @@ export const markDependents = (deps: DepsSet<ReactiveNode>, schedule = true): vo
 };
 
 /**
- * Run a getter function with dependency tracking
- * Handles cycle detection, context setup, and source cleanup
- * PULL PHASE: Core of pull - executes computation while tracking dependencies
+ * Enter dependency tracking and return the previous computation.
+ * Callers save `tracked` separately so no context object is needed.
  */
-export const runWithTracking = <T>(node: ReactiveNode, getter: () => T): T => {
-    // Clear (DIRTY | CHECK) and the computed-source flag (recalculated during tracking)
-    // Note: Even when called from checkSources (which sets tracked=false), this works
-    // because runWithTracking sets tracked=true, so computedRead will re-set the flag
+export const startTracking = (node: ReactiveNode): ReactiveNode | undefined => {
+    // Clear the work flags and recalculate the computed-source flag during this run.
     node.$_flags = (node.$_flags & ~(Flag.DIRTY | Flag.CHECK | Flag.HAS_COMPUTED_SOURCE)) | Flag.COMPUTING;
     node.$_skipped = 0;
 
     const prev = currentComputing;
-    const prevTracked = tracked;
     currentComputing = node;
     tracked = true;
+    return prev;
+};
 
-    try {
-        return getter();
-    } finally {
-        currentComputing = prev;
-        tracked = prevTracked;
-        // biome-ignore lint/suspicious/noAssignInExpressions: optimization
-        const flags = (node.$_flags &= ~Flag.COMPUTING);
-        const nodeSources = node.$_sources;
-        const skipped = node.$_skipped;
-        const nodeSourcesLength = nodeSources.length;
-        // Only update versions if there are computed sources (state sources update inline)
-        if ((flags & Flag.HAS_COMPUTED_SOURCE) !== 0) {
-            const updateLen = Math.min(skipped, nodeSourcesLength);
-            for (let i = 0; i < updateLen; ++i) {
-                const entry = nodeSources[i] as SourceEntry;
-                const entryNode = entry.$_node;
-                if (entryNode !== undefined) {
-                    entry.$_version = entryNode.$_version;
-                }
+/** Restore dependency tracking and finalize the sources collected by this run. */
+export const endTracking = (node: ReactiveNode, prev: ReactiveNode | undefined, prevTracked: boolean): void => {
+    currentComputing = prev;
+    tracked = prevTracked;
+    // biome-ignore lint/suspicious/noAssignInExpressions: optimization
+    const flags = (node.$_flags &= ~Flag.COMPUTING);
+    const nodeSources = node.$_sources;
+    const skipped = node.$_skipped;
+    const nodeSourcesLength = nodeSources.length;
+    // Only update versions if there are computed sources (state sources update inline)
+    if ((flags & Flag.HAS_COMPUTED_SOURCE) !== 0) {
+        const updateLen = Math.min(skipped, nodeSourcesLength);
+        for (let i = 0; i < updateLen; ++i) {
+            const entry = nodeSources[i] as SourceEntry;
+            const entryNode = entry.$_node;
+            if (entryNode !== undefined) {
+                entry.$_version = entryNode.$_version;
             }
         }
-        // Clean up any excess sources that weren't reused
-        if (nodeSourcesLength > skipped) {
-            clearSources(node, skipped);
-        }
+    }
+    // Clean up any excess sources that weren't reused
+    if (nodeSourcesLength > skipped) {
+        clearSources(node, skipped);
     }
 };
 
@@ -454,7 +450,7 @@ export const checkSources = (sourcesArray: SourceEntry[]): boolean => {
             return true;
         }
         // Check if source version changed (meaning its value changed)
-        // Early exit - runWithTracking will update all versions during recomputation
+        // Early exit - endTracking will update all versions after recomputation
         if (sourceEntry.$_version !== sourceNode.$_version) {
             tracked = prevTracked;
             return true;
