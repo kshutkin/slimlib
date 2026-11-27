@@ -2,7 +2,7 @@ import { DEV } from 'esm-env';
 
 import { effect, scope, signal, untracked } from '@slimlib/store';
 
-import type { Scope, Signal } from '@slimlib/store';
+import type { Scope, ScopeCallback, Signal } from '@slimlib/store';
 import type { Child, Component, ElementType, Primitive, Props } from './types';
 
 /**
@@ -138,21 +138,29 @@ const appendChild = (parent: Node, child: Child): void => {
         // runner restores activeScope to the effect's creation scope across all
         // runs, so scope() default-parents correctly without an explicit parent.
         let scopeInstance: Scope | undefined;
+        let evaluated: Child;
+        const evaluate: ScopeCallback = onDispose => {
+            const prev = currentOnDispose;
+            currentOnDispose = onDispose;
+            try {
+                evaluated = (child as () => Child)();
+            } finally {
+                currentOnDispose = prev;
+            }
+        };
+        const disposeSubtree = (): void => {
+            const owner = scopeInstance;
+            scopeInstance = undefined;
+            owner?.();
+        };
         // Fast path: when the function-child resolves to a primitive we keep a
         // single Text node across re-runs and mutate `.data` in place instead
         // of paying for removeChild + createTextNode + insertBefore.
         let textNode: Text | null = null;
         effect(() => {
-            let value!: Child;
-            const newScope: Scope = scope(onDispose => {
-                const prev = currentOnDispose;
-                currentOnDispose = onDispose;
-                try {
-                    value = (child as () => Child)();
-                } finally {
-                    currentOnDispose = prev;
-                }
-            });
+            const newScope = scope(evaluate);
+            const value = evaluated;
+            evaluated = undefined;
             const isPrimitive =
                 value != null && value !== false && value !== true && typeof value !== 'object' && typeof value !== 'function';
             // Use start.parentNode (not the captured `parent`) so that if the
@@ -179,28 +187,22 @@ const appendChild = (parent: Node, child: Child): void => {
                     liveParent.insertBefore(textNode, end);
                     newScope();
                     scopeInstance = undefined;
-                } else {
-                    textNode = null;
-                    scopeInstance = newScope;
-                    // Insertion evaluates returned functions, including those in arrays.
-                    // Their effects, refs, and listeners belong to this subtree too.
-                    newScope(onDispose => {
-                        const prev = currentOnDispose;
-                        currentOnDispose = onDispose;
-                        try {
-                            insertBefore(liveParent, value, end);
-                        } finally {
-                            currentOnDispose = prev;
-                        }
-                    });
+                    return;
                 }
-                return () => {
-                    if (scopeInstance !== undefined) {
-                        const s = scopeInstance;
-                        scopeInstance = undefined;
-                        s();
+                textNode = null;
+                scopeInstance = newScope;
+                // Insertion evaluates returned functions, including those in arrays.
+                // Their effects, refs, and listeners belong to this subtree too.
+                newScope(onDispose => {
+                    const prev = currentOnDispose;
+                    currentOnDispose = onDispose;
+                    try {
+                        insertBefore(liveParent, value, end);
+                    } finally {
+                        currentOnDispose = prev;
                     }
-                };
+                });
+                return disposeSubtree;
             }
             newScope();
             textNode = null;

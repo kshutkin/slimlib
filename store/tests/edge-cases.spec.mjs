@@ -1,7 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { computed, effect, flushEffects, scope, setActiveScope, signal, state } from '../src/index.js';
-import { childrenSymbol } from '../src/symbols.js';
+import { computed, EffectOptions, effect, flushEffects, scope, setActiveScope, signal, state } from '../src/index.js';
 
 function flushPromises() {
     return new Promise(resolve => setTimeout(resolve));
@@ -419,34 +418,27 @@ describe('edge cases', () => {
             }
         });
 
-        it('should catch error when child in children array throws directly', () => {
-            // This test directly injects a throwing function into the children array
-            // to test the catch block in the children disposal loop (line 41 in scope.ts)
+        it('continues to an older child scope after an effect disposer throws', () => {
             const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
             try {
-                const parent = scope();
-
-                // Inject a throwing "child" directly into the children array
-                const children = parent[childrenSymbol];
-                children.push(() => {
-                    throw new Error('Direct child throw');
+                const failure = new Error('Effect cleanup failed');
+                const cleanup = vi.fn();
+                const parent = scope(() => {
+                    scope(onDispose => onDispose(cleanup));
+                    effect(
+                        () => () => {
+                            throw failure;
+                        },
+                        EffectOptions.EAGER
+                    );
                 });
 
-                // Also add a normal child to verify disposal continues
-                let normalChildDisposed = false;
-                children.push(() => {
-                    normalChildDisposed = true;
-                });
-
-                // Dispose parent
                 parent();
 
-                // The error should have been caught and logged
-                expect(consoleErrorSpy).toHaveBeenCalledWith(expect.any(Error));
-
-                // Normal child should still have been "disposed"
-                expect(normalChildDisposed).toBe(true);
+                expect(consoleErrorSpy).toHaveBeenCalledExactlyOnceWith(failure);
+                expect(cleanup).toHaveBeenCalledOnce();
+                expect(consoleErrorSpy.mock.invocationCallOrder[0]).toBeLessThan(cleanup.mock.invocationCallOrder[0]);
             } finally {
                 consoleErrorSpy.mockRestore();
             }

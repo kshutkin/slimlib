@@ -295,6 +295,32 @@ describe('scope', () => {
             expect(innerSub).toHaveBeenCalledTimes(1);
         });
 
+        it('disposes mixed registrations in reverse order across manual removals', async () => {
+            /** @type {string[]} */
+            const order = [];
+            let stopNext = () => {};
+            let stopEarly = () => {};
+            const owner = scope(onDispose => {
+                onDispose(() => order.push('owner'));
+                effect(() => () => order.push('first effect'));
+                scope(onCleanup => onCleanup(() => order.push('first child')));
+                stopEarly = scope(onCleanup => onCleanup(() => order.push('manual child')));
+                scope(onCleanup => onCleanup(() => order.push('second child')));
+                stopNext = scope(onCleanup => onCleanup(() => order.push('third child')));
+                effect(() => () => {
+                    order.push('last effect');
+                    stopNext();
+                });
+            });
+
+            await flushAll();
+            stopEarly();
+            owner();
+            owner();
+
+            expect(order).toEqual(['manual child', 'last effect', 'third child', 'second child', 'first child', 'first effect', 'owner']);
+        });
+
         it('explicit undefined parent creates detached scope', async () => {
             const innerSub = vi.fn();
             const store = state({ count: 0 });
@@ -648,7 +674,6 @@ describe('scope', () => {
                 scope(onDispose => {
                     onDispose(() => {
                         order.push('child1');
-                        throw new Error('child1 error');
                     });
                 });
                 scope(onDispose => {
@@ -659,14 +684,15 @@ describe('scope', () => {
                 scope(onDispose => {
                     onDispose(() => {
                         order.push('child3');
+                        throw new Error('child3 error');
                     });
                 });
             });
 
             outer();
-            expect(order).toEqual(['child1', 'child2', 'child3']);
+            expect(order).toEqual(['child3', 'child2', 'child1']);
             expect(consoleError).toHaveBeenCalledTimes(1);
-            expect(/** @type {Error} */ (/** @type {unknown[]} */ (consoleError.mock.calls[0])[0]).message).toBe('child1 error');
+            expect(/** @type {Error} */ (/** @type {unknown[]} */ (consoleError.mock.calls[0])[0]).message).toBe('child3 error');
 
             consoleError.mockRestore();
         });
@@ -682,13 +708,13 @@ describe('scope', () => {
                     store.count;
                     return () => {
                         order.push('effect1');
-                        throw new Error('effect1 error');
                     };
                 });
                 effect(() => {
                     store.count;
                     return () => {
                         order.push('effect2');
+                        throw new Error('effect2 error');
                     };
                 });
             });
@@ -696,9 +722,9 @@ describe('scope', () => {
             await flushAll();
 
             ctx();
-            expect(order).toEqual(['effect1', 'effect2']);
+            expect(order).toEqual(['effect2', 'effect1']);
             expect(consoleError).toHaveBeenCalledTimes(1);
-            expect(/** @type {Error} */ (/** @type {unknown[]} */ (consoleError.mock.calls[0])[0]).message).toBe('effect1 error');
+            expect(/** @type {Error} */ (/** @type {unknown[]} */ (consoleError.mock.calls[0])[0]).message).toBe('effect2 error');
 
             consoleError.mockRestore();
         });
@@ -790,10 +816,10 @@ describe('scope', () => {
             await flushAll();
 
             outer();
-            expect(order).toEqual(['child', 'effect', 'cleanup']);
+            expect(order).toEqual(['effect', 'child', 'cleanup']);
             expect(consoleError).toHaveBeenCalledTimes(3);
-            expect(/** @type {Error} */ (/** @type {unknown[]} */ (consoleError.mock.calls[0])[0]).message).toBe('child error');
-            expect(/** @type {Error} */ (/** @type {unknown[]} */ (consoleError.mock.calls[1])[0]).message).toBe('effect error');
+            expect(/** @type {Error} */ (/** @type {unknown[]} */ (consoleError.mock.calls[0])[0]).message).toBe('effect error');
+            expect(/** @type {Error} */ (/** @type {unknown[]} */ (consoleError.mock.calls[1])[0]).message).toBe('child error');
             expect(/** @type {Error} */ (/** @type {unknown[]} */ (consoleError.mock.calls[2])[0]).message).toBe('cleanup error');
 
             consoleError.mockRestore();

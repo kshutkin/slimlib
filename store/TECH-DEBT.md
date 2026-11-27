@@ -1,28 +1,10 @@
 # Technical debt
 
-## Effect slots accumulate in long-lived scopes
-
-Status: deferred.
-
-Disposing an effect clears its scope slot immediately. Cleared slots stay in the array, so array capacity and teardown scans grow with the total number of registrations since scope creation, even if the number of live effects stays small. Scope disposal clears the registration array.
-
-Consider stable compaction only if long-lived scopes with frequent manual disposal justify it. Measure heap growth and teardown time with a small live population and many historical registrations. Preserve cleanup order when relocating entries.
-
-## Child-scope slots accumulate in long-lived parents
-
-Status: deferred.
-
-In [src/scope.ts](./src/scope.ts#L70-L78), a child scope appends itself to its parent's `children` array. Disposing the child [sets its slot to `undefined`](./src/scope.ts#L46-L49). This releases the parent's reference to the child, while the slot stays in the array. Storage and the final teardown scan grow with the number of children the parent has ever registered. Parent teardown does not truncate the array, so its storage can persist if the disposed parent stays reachable.
-
-This can happen through ordinary rendering. The JSX renderer creates a child scope when it replaces a [reactive subtree](../jsx/src/core.ts#L129-L155) or adds a [keyed list item](../jsx/src/core.ts#L481-L497). A long-lived keyed list can keep a fixed number of visible rows while its parent scope accumulates one cleared slot for every item it replaces. The individual effects can be static within each child scope. This workload is separate from repeatedly creating and manually disposing effects in the same scope.
-
-To measure the impact, keep the list mounted with a fixed number of rows, replace keys repeatedly across update cycles, and measure retained heap after GC and final parent teardown time. Compare with updating rows that keep their keys. Any slot reuse or compaction should preserve child teardown order and account for children that dispose themselves during teardown.
-
 ## Effects created in a disposed active scope remain live
 
 Status: deferred.
 
-In [src/scope.ts](./src/scope.ts), calling a scope without a callback disposes it but does not change `activeScope`. An enclosing scope callback or effect runner restores the previous active scope only when it returns. Code that continues executing in that context can therefore create effects owned by an already disposed scope.
+Disposing a scope closes its registry. An enclosing scope callback or effect runner restores the previous `activeScope` when it returns. An effect created between disposal and that return can run without a scope registration.
 
 ### Scenario
 
@@ -43,11 +25,11 @@ owner(() => {
 
 value.set(1);
 flushEffects();
-owner(); // Already disposed: does not stop the newly registered effect.
+owner(); // The late effect requires its own disposer.
 // runs === 2; the effect remains subscribed.
 ```
 
-The same situation can occur when an eager callback disposes its own scope, or when teardown callbacks create effects while the disposed owner remains active. Registrations appended during effect teardown can also fall outside its initial iteration boundary. Ordinary disposal after the scope callback has returned does not by itself leave that scope active.
+The same situation can occur when an eager effect disposes its own scope and continues running, or when teardown callbacks create effects while the disposed scope remains active.
 
 ### Workaround
 
@@ -56,7 +38,7 @@ Finish creating owned effects before disposing the scope. If code can create an 
 ### Proposed fix and validation
 
 - Define the policy for creating effects under a disposed active owner: reject creation, return an inert disposer, or give the effect another explicit owner. Silently ignoring the callback is an observable API decision.
-- A closed-registration marker and a creation guard are one possible implementation. Account for child, effect, and scope cleanup callbacks, and avoid reopening a disposed registry.
+- Use the closed registry to detect a disposed active scope at creation time. Account for child, effect, and scope cleanup callbacks.
 - Cover eager and deferred creation after explicit disposal inside an active callback, creation during teardown, repeated scope disposal, and queued work. Preserve existing teardown order and exception isolation.
 
 ## Object accessors bypass reactive input tracking
