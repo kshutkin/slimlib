@@ -226,6 +226,8 @@ export const clearSources = (node: ReactiveNode, fromIndex = 0): void => {
     nodeSources.length = fromIndex;
 };
 
+const compareEffectOrder = (a: ReactiveNode, b: ReactiveNode): number => a.$_stamp - b.$_stamp;
+
 /**
  * Execute all pending effects immediately
  * This function can be called to manually trigger all scheduled effects
@@ -240,7 +242,7 @@ export const flushEffects = (): void => {
     batched.length = 0;
 
     if (needsSort) {
-        nodes.sort((a, b) => a.$_stamp - b.$_stamp);
+        nodes.sort(compareEffectOrder);
     }
 
     lastAddedId = 0;
