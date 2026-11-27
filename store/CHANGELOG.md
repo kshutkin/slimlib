@@ -1,5 +1,19 @@
 Changelog
 
+## 2.3.0
+
+### Minor Changes
+
+- 0dc6d10: Track effects and child scopes in one circular doubly linked list. Manual disposal unlinks registrations immediately. Registry storage and teardown scans stay proportional to live registrations as long-lived scopes add and dispose effects and child scopes.
+  
+  Effects and child scopes now clean up in reverse registration order from the same list. The scope then runs its `onDispose` callbacks in registration order.
+
+### Patch Changes
+
+- a3c7fdf: Clarify that callers should keep and call the disposer for effects created outside a scope. A reachable source can keep an effect subscribed after its disposer is dropped.
+- 913fa9e: Clear a scope's effect registrations together after disposing its effects, avoiding a separate slot write for each effect during scope teardown.
+- 8670204: Speed up effect notification by skipping the empty dependent traversal after queueing an effect.
+
 ## 2.2.7
 
 ### Patch Changes

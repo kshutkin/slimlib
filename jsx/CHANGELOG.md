@@ -1,5 +1,16 @@
 Changelog
 
+## 0.5.2
+
+### Patch Changes
+
+- 0dc6d10: Reuse evaluation and cleanup callbacks for reactive function children to reduce allocations on updates, including text bindings.
+- Updated dependencies [a3c7fdf]
+- Updated dependencies [913fa9e]
+- Updated dependencies [0dc6d10]
+- Updated dependencies [8670204]
+  - @slimlib/store@2.3.0
+
 ## 0.5.1
 
 ### Patch Changes
